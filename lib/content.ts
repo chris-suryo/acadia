@@ -167,7 +167,7 @@ export const GUIDES: { name: string; why: string; url: string; domain: string }[
   {
     name: "NPPlan — Blackwoods",
     why: "granular loop/site logistics",
-    url: "https://npplan.com/parks-by-state/maine-national-parks/acadia-national-park-park-at-a-glance/acadia-national-park-campgrounds/acadia-national-park-blackwoods-campground/",
+    url: "https://npplan.com/parks-by-state/maine-national-parks/acadia-national-park-park-at-a-glance/acadia-national-park-camping/acadia-national-park-blackwoods-campground/",
     domain: "npplan.com",
   },
   {
