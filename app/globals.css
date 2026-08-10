@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@theme {
+  --color-pine: #1f3d2b;
+  --color-pinelift: #28402f;
+  --color-parchment: #f7f3e8;
+  --color-card: #fffdf7;
+  --color-rule: #ded5be;
+  --color-granite: #4a5a64;
+  --color-blaze: #c1652f;
+  --color-ink: #23271f;
+  --color-moss: #7c9473;
+  --color-mute: #8a8f82;
+  --color-sky: #b9c4b4;
+
+  --font-display: var(--font-fraunces), serif;
+  --font-sans: var(--font-work-sans), sans-serif;
+  --font-mono: var(--font-plex-mono), monospace;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  background: var(--color-parchment);
+}
+
+body {
+  background: var(--color-parchment);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-blaze);
+  outline-offset: 2px;
+}
+
+input,
+select,
+textarea {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+select {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--color-granite) 50%),
+    linear-gradient(135deg, var(--color-granite) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 21px,
+    calc(100% - 11px) 21px;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+}
+
+.spin {
+  animation: sp 1s linear infinite;
+}
+@keyframes sp {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
