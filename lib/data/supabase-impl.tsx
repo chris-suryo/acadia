@@ -332,9 +332,15 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       const item = gear.find((g) => g.id === id);
       if (!item) return;
       const owner = item.owner_id ? null : userIdRef.current;
-      setGear((prev) => prev.map((g) => (g.id === id ? { ...g, owner_id: owner } : g)));
+      // Claiming a parent claims the whole bundle.
+      const ids = item.parent_id
+        ? [id]
+        : gear.filter((g) => g.id === id || g.parent_id === id).map((g) => g.id);
+      setGear((prev) =>
+        prev.map((g) => (ids.includes(g.id) ? { ...g, owner_id: owner } : g)),
+      );
       persist(
-        supabase.from("gear_items").update({ owner_id: owner }).eq("id", id),
+        supabase.from("gear_items").update({ owner_id: owner }).in("id", ids),
         "gear_items",
       );
     },
@@ -360,14 +366,16 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     togglePersonal: (id) => {
       const item = personal.find((p) => p.id === id);
       if (!item) return;
+      const checked = !item.checked;
+      // A parent checkbox checks/unchecks its children.
+      const ids = item.parent_id
+        ? [id]
+        : personal.filter((p) => p.id === id || p.parent_id === id).map((p) => p.id);
       setPersonal((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, checked: !p.checked } : p)),
+        prev.map((p) => (ids.includes(p.id) ? { ...p, checked } : p)),
       );
       persist(
-        supabase
-          .from("personal_items")
-          .update({ checked: !item.checked })
-          .eq("id", id),
+        supabase.from("personal_items").update({ checked }).in("id", ids),
         "personal_items",
       );
     },
@@ -507,14 +515,36 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       persist(supabase.from("expenses").delete().eq("id", id), "expenses");
     },
 
-    restoreGear: (row) => {
-      setGear((prev) => [...prev.filter((g) => g.id !== row.id), row]);
-      persist(supabase.from("gear_items").upsert(row), "gear_items");
+    restoreGear: (row, children = []) => {
+      setGear((prev) => [
+        ...prev.filter((g) => g.id !== row.id && !children.some((c) => c.id === g.id)),
+        row,
+        ...children,
+      ]);
+      (async () => {
+        await supabase.from("gear_items").upsert(row);
+        if (children.length) await supabase.from("gear_items").upsert(children);
+        refetch("gear_items");
+      })().catch((e) => {
+        console.error(e);
+        refetch("gear_items");
+      });
     },
 
-    restorePersonal: (row) => {
-      setPersonal((prev) => [...prev.filter((p) => p.id !== row.id), row]);
-      persist(supabase.from("personal_items").upsert(row), "personal_items");
+    restorePersonal: (row, children = []) => {
+      setPersonal((prev) => [
+        ...prev.filter((p) => p.id !== row.id && !children.some((c) => c.id === p.id)),
+        row,
+        ...children,
+      ]);
+      (async () => {
+        await supabase.from("personal_items").upsert(row);
+        if (children.length) await supabase.from("personal_items").upsert(children);
+        refetch("personal_items");
+      })().catch((e) => {
+        console.error(e);
+        refetch("personal_items");
+      });
     },
 
     restoreShopping: (row) => {

@@ -70,8 +70,8 @@ export type DataCtx = {
   deleteShopping: (id: string) => void;
   addExpense: (description: string, amountCents: number) => void;
   deleteExpense: (id: string) => void;
-  restoreGear: (row: GearItem) => void;
-  restorePersonal: (row: PersonalItem) => void;
+  restoreGear: (row: GearItem, children?: GearItem[]) => void;
+  restorePersonal: (row: PersonalItem, children?: PersonalItem[]) => void;
   restoreShopping: (row: ShoppingItem) => void;
   restoreExpense: (row: Expense) => void;
 };

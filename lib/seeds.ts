@@ -31,12 +31,19 @@ export const SEED_BLOCKS: {
 ];
 
 // Alana's two pre-claims ship as a label note; she re-claims once she opens
-// the site (anonymous identities can't be seeded for her).
-export const SEED_GEAR: { category: string; label: string; sort: number }[] = [
+// the site (anonymous identities can't be seeded for her). `parent` references
+// another entry's label — claiming a parent claims the bundle.
+export const SEED_GEAR: {
+  category: string;
+  label: string;
+  sort: number;
+  parent?: string;
+}[] = [
   { category: "Shelter", label: "Tents — spares for first-timers (Alana)", sort: 1 },
   { category: "Shelter", label: "Sleeping bags — spares (Alana)", sort: 2 },
   { category: "Shelter", label: "Tarp or canopy", sort: 3 },
   { category: "Camp Kitchen", label: "Camp stove + fuel", sort: 1 },
+  { category: "Camp Kitchen", label: "Propane canisters ×2", sort: 1, parent: "Camp stove + fuel" },
   { category: "Camp Kitchen", label: "Pots, pans, cooking utensils", sort: 2 },
   { category: "Camp Kitchen", label: "Cutting board + sharp knife", sort: 3 },
   { category: "Camp Kitchen", label: "Big cooler + ice", sort: 4 },

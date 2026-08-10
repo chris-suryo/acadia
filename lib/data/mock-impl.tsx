@@ -41,9 +41,20 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   const [blocks, setBlocks] = useState<ItineraryBlock[]>(() =>
     SEED_BLOCKS.map((b, i) => ({ id: `blk-${i}`, ...b })),
   );
-  const [gear, setGear] = useState<GearItem[]>(() =>
-    SEED_GEAR.map((g, i) => ({ id: `gear-${i}`, parent_id: null, owner_id: null, ...g })),
-  );
+  const [gear, setGear] = useState<GearItem[]>(() => {
+    const idByLabel = new Map<string, string>();
+    SEED_GEAR.forEach((g, i) => {
+      if (!g.parent) idByLabel.set(g.label, `gear-${i}`);
+    });
+    return SEED_GEAR.map((g, i) => ({
+      id: `gear-${i}`,
+      category: g.category,
+      parent_id: g.parent ? (idByLabel.get(g.parent) ?? null) : null,
+      label: g.label,
+      owner_id: null,
+      sort: g.sort,
+    }));
+  });
   const [personal, setPersonal] = useState<PersonalItem[]>(() =>
     SEED_PERSONAL.map((p, i) => ({
       id: `mine-${i}`,
@@ -110,11 +121,15 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
         );
       },
       toggleClaimGear: (id) =>
-        setGear((prev) =>
-          prev.map((g) =>
-            g.id === id ? { ...g, owner_id: g.owner_id ? null : ME } : g,
-          ),
-        ),
+        setGear((prev) => {
+          const item = prev.find((g) => g.id === id);
+          if (!item) return prev;
+          const owner = item.owner_id ? null : ME;
+          const ids = item.parent_id
+            ? [id]
+            : prev.filter((g) => g.id === id || g.parent_id === id).map((g) => g.id);
+          return prev.map((g) => (ids.includes(g.id) ? { ...g, owner_id: owner } : g));
+        }),
       addGear: (category, label) =>
         setGear((prev) => [
           ...prev,
@@ -129,9 +144,15 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
         ]),
       deleteGear: (id) => setGear((prev) => prev.filter((g) => g.id !== id && g.parent_id !== id)),
       togglePersonal: (id) =>
-        setPersonal((prev) =>
-          prev.map((p) => (p.id === id ? { ...p, checked: !p.checked } : p)),
-        ),
+        setPersonal((prev) => {
+          const item = prev.find((p) => p.id === id);
+          if (!item) return prev;
+          const checked = !item.checked;
+          const ids = item.parent_id
+            ? [id]
+            : prev.filter((p) => p.id === id || p.parent_id === id).map((p) => p.id);
+          return prev.map((p) => (ids.includes(p.id) ? { ...p, checked } : p));
+        }),
       addPersonal: (category, label) =>
         setPersonal((prev) => [
           ...prev,
@@ -200,10 +221,18 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
           },
         ]),
       deleteExpense: (id) => setExpenses((prev) => prev.filter((e) => e.id !== id)),
-      restoreGear: (row) =>
-        setGear((prev) => [...prev.filter((g) => g.id !== row.id), row]),
-      restorePersonal: (row) =>
-        setPersonal((prev) => [...prev.filter((p) => p.id !== row.id), row]),
+      restoreGear: (row, children = []) =>
+        setGear((prev) => [
+          ...prev.filter((g) => g.id !== row.id && !children.some((c) => c.id === g.id)),
+          row,
+          ...children,
+        ]),
+      restorePersonal: (row, children = []) =>
+        setPersonal((prev) => [
+          ...prev.filter((p) => p.id !== row.id && !children.some((c) => c.id === p.id)),
+          row,
+          ...children,
+        ]),
       restoreShopping: (row) =>
         setShopping((prev) => [...prev.filter((s) => s.id !== row.id), row]),
       restoreExpense: (row) =>
