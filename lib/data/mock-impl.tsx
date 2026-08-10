@@ -21,6 +21,7 @@ import type {
   MenuItem,
   PersonalItem,
   ShoppingItem,
+  SurveyRow,
 } from "@/lib/types";
 
 const ME = "mock-user";
@@ -69,6 +70,18 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   );
   const [shopping, setShopping] = useState<ShoppingItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [surveys, setSurveys] = useState<SurveyRow[]>([
+    // One neighbor's answers so the Ideas board renders populated in mock runs.
+    {
+      user_id: "mock-alana",
+      activity: "A hike a day",
+      hikes: "Beehive if the ladders aren't crowded",
+      wants: "One quiet morning at the tide pools",
+      bar_harbor: "",
+      food: "S'mores. Non-negotiable.",
+      updated_at: "2026-08-10T12:00:00Z",
+    },
+  ]);
 
   const value = useMemo<DataCtx>(() => {
     const setName = (n: string) => setNameState(n);
@@ -80,7 +93,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       name,
       setName,
       ensureName,
-      profiles: { [ME]: name.trim() },
+      profiles: { [ME]: name.trim(), "mock-alana": "Alana" },
       days: SEED_DAYS,
       blocks,
       gear,
@@ -88,6 +101,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       menu,
       shopping,
       expenses,
+      surveys,
       forecast: [],
       weather: MOCK_WEATHER,
       addBlock: (dayId, dayPart, title) => {
@@ -209,6 +223,22 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
           ),
         ),
       deleteShopping: (id) => setShopping((prev) => prev.filter((s) => s.id !== id)),
+      upsertSurvey: (patch) =>
+        setSurveys((prev) => {
+          const existing = prev.find((s) => s.user_id === ME);
+          const row: SurveyRow = {
+            user_id: ME,
+            activity: "",
+            hikes: "",
+            wants: "",
+            bar_harbor: "",
+            food: "",
+            ...existing,
+            ...patch,
+            updated_at: new Date().toISOString(),
+          };
+          return [...prev.filter((s) => s.user_id !== ME), row];
+        }),
       addExpense: (description, amountCents) =>
         setExpenses((prev) => [
           ...prev,
@@ -238,7 +268,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       restoreExpense: (row) =>
         setExpenses((prev) => [...prev.filter((e) => e.id !== row.id), row]),
     };
-  }, [name, ensureName, blocks, gear, personal, menu, shopping, expenses]);
+  }, [name, ensureName, blocks, gear, personal, menu, shopping, expenses, surveys]);
 
   return (
     <Ctx.Provider value={value}>

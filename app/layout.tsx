@@ -24,6 +24,7 @@ export default function RootLayout({
           `precedence` opts into React's managed hoisting into <head>. */}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      {/* eslint-disable-next-line @next/next/no-page-custom-font -- root layout covers every route; the rule targets the Pages Router */}
       <link
         rel="stylesheet"
         precedence="default"

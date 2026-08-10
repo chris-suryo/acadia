@@ -4,27 +4,34 @@ import { useData } from "@/lib/data/context";
 
 const TOPO_YS = [10, 30, 50, 72, 96, 122, 148];
 
+// Contour-line backdrop for pine bands (header, welcome intro).
+export function Topo() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="absolute inset-0 w-full h-full opacity-[.16]"
+      viewBox="0 0 400 160"
+      preserveAspectRatio="none"
+    >
+      {TOPO_YS.map((y, i) => (
+        <path
+          key={y}
+          d={`M0 ${y} C 60 ${y - 18}, 100 ${y + 22}, 160 ${y - 6} S 260 ${y - 30}, 320 ${y + 4} S 380 ${y - 10}, 400 ${y}`}
+          fill="none"
+          stroke="#F7F3E8"
+          strokeWidth={i % 3 === 0 ? 1.4 : 0.7}
+        />
+      ))}
+    </svg>
+  );
+}
+
 export function Header() {
   const { name, setName } = useData();
 
   return (
     <header className="bg-pine relative overflow-hidden px-[18px] pt-[26px] pb-[22px]">
-      <svg
-        aria-hidden="true"
-        className="absolute inset-0 w-full h-full opacity-[.16]"
-        viewBox="0 0 400 160"
-        preserveAspectRatio="none"
-      >
-        {TOPO_YS.map((y, i) => (
-          <path
-            key={y}
-            d={`M0 ${y} C 60 ${y - 18}, 100 ${y + 22}, 160 ${y - 6} S 260 ${y - 30}, 320 ${y + 4} S 380 ${y - 10}, 400 ${y}`}
-            fill="none"
-            stroke="#F7F3E8"
-            strokeWidth={i % 3 === 0 ? 1.4 : 0.7}
-          />
-        ))}
-      </svg>
+      <Topo />
       <div className="relative flex justify-between items-end gap-3.5 flex-wrap">
         <div>
           <div className="font-mono text-[11px] tracking-[.12em] text-blaze uppercase mb-1.5">

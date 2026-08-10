@@ -11,6 +11,7 @@ import type {
   MenuItem,
   PersonalItem,
   ShoppingItem,
+  SurveyRow,
 } from "@/lib/types";
 
 export type DayWeather = { high: number; low: number; condition: string };
@@ -21,6 +22,10 @@ export type BlockPatch = Partial<
 
 export type DishPatch = Partial<
   Pick<MenuItem, "dish" | "meal" | "notes" | "night">
+>;
+
+export type SurveyPatch = Partial<
+  Pick<SurveyRow, "activity" | "hikes" | "wants" | "bar_harbor" | "food">
 >;
 
 export type DataCtx = {
@@ -41,6 +46,7 @@ export type DataCtx = {
   menu: MenuItem[];
   shopping: ShoppingItem[];
   expenses: Expense[];
+  surveys: SurveyRow[];
   forecast: ForecastRow[];
   weather: Record<string, DayWeather | undefined>; // by day id
 
@@ -68,6 +74,8 @@ export type DataCtx = {
   addShopping: (label: string) => void;
   toggleShopping: (id: string) => void;
   deleteShopping: (id: string) => void;
+  /** Merges the patch into the caller's own survey row (creating it if absent). */
+  upsertSurvey: (patch: SurveyPatch) => void;
   addExpense: (description: string, amountCents: number) => void;
   deleteExpense: (id: string) => void;
   restoreGear: (row: GearItem, children?: GearItem[]) => void;

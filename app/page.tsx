@@ -11,19 +11,36 @@ import { Itinerary } from "@/components/Itinerary";
 import { Packing } from "@/components/Packing";
 import { Food } from "@/components/Food";
 import { Explore } from "@/components/Explore";
+import { Welcome } from "@/components/Welcome";
 
 const TAB_IDS: TabId[] = ["itinerary", "packing", "food", "explore"];
 
 function Shell() {
-  const { ready, error } = useData();
+  const { ready, error, name } = useData();
   const [tab, setTabState] = useState<TabId>("itinerary");
+  const [itinView, setItinViewState] = useState("ideas");
   const [packView, setPackViewState] = useState("group");
   const [foodView, setFoodViewState] = useState("menu");
   const [highlight, setHighlight] = useState<string | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const welcomeChecked = useRef(false);
   const tabRef = useRef(tab);
   useEffect(() => {
     tabRef.current = tab;
   }, [tab]);
+
+  // First open on this device with no saved name → the intro. Decided once
+  // per visit when data is ready; Welcome stays mounted through its own
+  // steps (setName mid-flow must not unmount it).
+  useEffect(() => {
+    if (!ready || welcomeChecked.current) return;
+    welcomeChecked.current = true;
+    const noName = !name.trim();
+    const timer = setTimeout(() => {
+      if (noName && !localStorage.getItem("abc.welcomed")) setShowWelcome(true);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [ready, name]);
 
   // Restore tab + segments from the last visit (mid-Costco-run reopen lands
   // back on Store, not Itinerary).
@@ -31,6 +48,8 @@ function Shell() {
     const timer = setTimeout(() => {
       const t = sessionStorage.getItem("abc.tab") as TabId | null;
       if (t && TAB_IDS.includes(t)) setTabState(t);
+      const iv = sessionStorage.getItem("abc.itinView");
+      if (iv) setItinViewState(iv);
       const pv = sessionStorage.getItem("abc.packView");
       if (pv) setPackViewState(pv);
       const fv = sessionStorage.getItem("abc.foodView");
@@ -42,6 +61,10 @@ function Shell() {
   const setTab = (t: TabId) => {
     setTabState(t);
     sessionStorage.setItem("abc.tab", t);
+  };
+  const setItinView = (v: string) => {
+    setItinViewState(v);
+    sessionStorage.setItem("abc.itinView", v);
   };
   const setPackView = (v: string) => {
     setPackViewState(v);
@@ -93,6 +116,17 @@ function Shell() {
     setTab("explore");
   };
 
+  if (showWelcome && ready && !error) {
+    return (
+      <Welcome
+        onDone={() => {
+          localStorage.setItem("abc.welcomed", "1");
+          setShowWelcome(false);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-parchment">
       <Header />
@@ -108,7 +142,9 @@ function Shell() {
           </div>
         ) : (
           <>
-            {tab === "itinerary" && <Itinerary jump={jump} />}
+            {tab === "itinerary" && (
+              <Itinerary jump={jump} view={itinView} setView={setItinView} />
+            )}
             {tab === "packing" && <Packing view={packView} setView={setPackView} />}
             {tab === "food" && <Food view={foodView} setView={setFoodView} />}
             {tab === "explore" && (

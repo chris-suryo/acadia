@@ -70,6 +70,16 @@ export type Expense = {
   created_at: string;
 };
 
+export type SurveyRow = {
+  user_id: string;
+  activity: string; // Easy | A hike a day | Send it | ''
+  hikes: string;
+  wants: string;
+  bar_harbor: string;
+  food: string;
+  updated_at: string;
+};
+
 export type ForecastRow = {
   date_key: string; // YYYY-MM-DD
   high: number | null;

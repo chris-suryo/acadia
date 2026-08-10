@@ -81,6 +81,16 @@ export function Input(props: React.ComponentProps<"input">) {
   );
 }
 
+export function Textarea(props: React.ComponentProps<"textarea">) {
+  const { className = "", ...rest } = props;
+  return (
+    <textarea
+      {...rest}
+      className={`p-3 rounded-lg border border-rule bg-white text-[16px] text-ink w-full resize-none leading-[1.45] ${className}`}
+    />
+  );
+}
+
 export function Select(props: React.ComponentProps<"select">) {
   const { className = "", children, ...rest } = props;
   return (

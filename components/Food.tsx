@@ -17,6 +17,12 @@ import type { MenuItem } from "@/lib/types";
 
 const MEAL_CHIPS = MEALS.map((m) => ({ value: m, label: m }));
 
+const CAPTIONS: Record<string, string> = {
+  menu: "who's cooking what, by night",
+  shop: "one list for the store run — check it off as you shop",
+  money: `log it — splits ${PARTY_SIZE} ways`,
+};
+
 function ExpenseAdd({ onCommit }: { onCommit: (desc: string, cents: number) => void }) {
   const [open, setOpen] = useState(false);
   const [desc, setDesc] = useState("");
@@ -90,6 +96,7 @@ export function Food({
     menu,
     shopping,
     expenses,
+    surveys,
     profiles,
     userId,
     ensureName,
@@ -186,6 +193,16 @@ export function Food({
   const sortedExpenses = [...expenses].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
   );
+
+  // Questionnaire food answers surface here — the menu is where they get acted on.
+  const requests = surveys
+    .filter((s) => s.food.trim())
+    .map((s) => ({
+      id: s.user_id,
+      who: profiles[s.user_id]?.trim() || "Someone",
+      text: s.food,
+    }))
+    .sort((a, b) => a.who.localeCompare(b.who));
 
   const dishRow = (f: MenuItem) => {
     const ings = ingredientsOf(f.id);
@@ -314,9 +331,28 @@ export function Food({
           { id: "money", label: "Expenses" },
         ]}
       />
+      <div className="font-mono text-[10.5px] text-mute -mt-2 mb-4">
+        {CAPTIONS[view]}
+      </div>
 
       {view === "menu" && (
         <>
+          {requests.length > 0 && (
+            <div className="mb-5">
+              <SubH>Requests</SubH>
+              <Card className="overflow-hidden">
+                {requests.map((r, i) => (
+                  <div
+                    key={r.id}
+                    className={`px-3.5 py-3 ${i > 0 ? "border-t border-rule" : ""}`}
+                  >
+                    <div className="text-[13.5px] text-ink leading-[1.5]">{r.text}</div>
+                    <div className="font-mono text-[10.5px] text-moss mt-0.5">{r.who}</div>
+                  </div>
+                ))}
+              </Card>
+            </div>
+          )}
           {NIGHTS.map((n) => {
             const rows = menuByNight(n);
             return (

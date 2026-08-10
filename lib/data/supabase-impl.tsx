@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Ctx, newId, nextSort, type BlockPatch, type DataCtx, type DayWeather, type DishPatch } from "./context";
+import { Ctx, newId, nextSort, type BlockPatch, type DataCtx, type DayWeather, type DishPatch, type SurveyPatch } from "./context";
 import { NameSheet, useNameSheet } from "@/components/ui/NameSheet";
 import { useUi } from "@/components/ui/UiProvider";
 import {
@@ -21,6 +21,7 @@ import type {
   PersonalItem,
   Profile,
   ShoppingItem,
+  SurveyRow,
 } from "@/lib/types";
 
 const CONFIGURED = SUPABASE_URL.startsWith("https://");
@@ -34,6 +35,7 @@ type Table =
   | "menu_items"
   | "shopping_items"
   | "expenses"
+  | "survey"
   | "forecast_cache";
 
 const REALTIME_TABLES: Table[] = [
@@ -43,6 +45,7 @@ const REALTIME_TABLES: Table[] = [
   "menu_items",
   "shopping_items",
   "expenses",
+  "survey",
   "forecast_cache",
 ];
 
@@ -73,6 +76,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [shopping, setShopping] = useState<ShoppingItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [surveys, setSurveys] = useState<SurveyRow[]>([]);
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
 
   const refetch = useCallback(
@@ -103,6 +107,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           break;
         case "expenses":
           setExpenses(data as Expense[]);
+          break;
+        case "survey":
+          setSurveys(data as SurveyRow[]);
           break;
         case "forecast_cache":
           setForecast(data as ForecastRow[]);
@@ -165,6 +172,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         refetch("menu_items"),
         refetch("shopping_items"),
         refetch("expenses"),
+        refetch("survey"),
       ]);
       if (cancelled) return;
 
@@ -270,6 +278,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     menu,
     shopping,
     expenses,
+    surveys,
     forecast,
     weather,
 
@@ -488,6 +497,26 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     deleteShopping: (id) => {
       setShopping((prev) => prev.filter((s) => s.id !== id));
       persist(supabase.from("shopping_items").delete().eq("id", id), "shopping_items");
+    },
+
+    upsertSurvey: (patch: SurveyPatch) => {
+      const uid = userIdRef.current;
+      if (!uid) return;
+      // Merge into the full row so the optimistic state and the upsert agree.
+      const existing = surveys.find((s) => s.user_id === uid);
+      const row: SurveyRow = {
+        user_id: uid,
+        activity: "",
+        hikes: "",
+        wants: "",
+        bar_harbor: "",
+        food: "",
+        ...existing,
+        ...patch,
+        updated_at: new Date().toISOString(),
+      };
+      setSurveys((prev) => [...prev.filter((s) => s.user_id !== uid), row]);
+      persist(supabase.from("survey").upsert(row), "survey");
     },
 
     addExpense: (description, amountCents) => {

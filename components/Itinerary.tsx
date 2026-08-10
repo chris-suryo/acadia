@@ -28,7 +28,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card } from "./primitives";
+import { Card, Segmented } from "./primitives";
+import { Ideas } from "./Ideas";
 import { AddRow } from "./ui/AddRow";
 import { focusCenter } from "./ui/focusCenter";
 import { Chips } from "./ui/Chips";
@@ -197,7 +198,15 @@ function Entry({
   );
 }
 
-export function Itinerary({ jump }: { jump: (slug: string) => void }) {
+export function Itinerary({
+  jump,
+  view,
+  setView,
+}: {
+  jump: (slug: string) => void;
+  view: string;
+  setView: (v: string) => void;
+}) {
   const { days, blocks, weather, addBlock, updateBlock, reorderDay } = useData();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({ title: "", detail: "" });
@@ -265,7 +274,24 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
 
   return (
     <div className="px-3.5 pt-4 pb-[60px]">
-      {sortedDays.map((d) => {
+      <Segmented
+        value={view}
+        onChange={setView}
+        options={[
+          { id: "ideas", label: "Ideas" },
+          { id: "plan", label: "Schedule" },
+        ]}
+      />
+      {view === "ideas" && (
+        <>
+          <div className="font-mono text-[10.5px] text-mute -mt-2 mb-4">
+            say what you&apos;re hoping for — schedule comes later
+          </div>
+          <Ideas />
+        </>
+      )}
+      {view !== "ideas" &&
+      sortedDays.map((d) => {
         const w = weather[d.id];
         const WIcon = w ? weatherIcon(w.condition) : null;
         const dayBlocks = blocks.filter((b) => b.day_id === d.id);
