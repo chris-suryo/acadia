@@ -4,7 +4,8 @@ import "./globals.css";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
-  weight: ["600", "700"],
+  weight: "variable",
+  axes: ["opsz"],
   variable: "--font-fraunces",
 });
 
@@ -35,12 +36,13 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${fraunces.variable} ${workSans.variable} ${plexMono.variable}`}
-      >
-        {children}
-      </body>
+    // Font variables live on <html>: Tailwind's @theme tokens resolve on
+    // :root, which can't see variables scoped to <body>.
+    <html
+      lang="en"
+      className={`${fraunces.variable} ${workSans.variable} ${plexMono.variable}`}
+    >
+      <body>{children}</body>
     </html>
   );
 }
