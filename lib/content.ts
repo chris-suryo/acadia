@@ -10,7 +10,19 @@ export type Spot = {
   meta: string;
   links: SpotLink[];
   note: string;
+  /** Storage-hosted photo + attribution (shown in the tap-to-open viewer). */
+  photo?: { src: string; credit: string };
 };
+
+// Spot photos live in the public `spots` storage bucket — 960px Wikimedia
+// Commons / NPS copies, licenses verified Aug 2026; credit shown in the
+// photo viewer.
+const PHOTO_BASE =
+  "https://jboghghdxgxgpccmqnlq.supabase.co/storage/v1/object/public/spots";
+const photo = (file: string, credit: string) => ({
+  src: `${PHOTO_BASE}/${file}`,
+  credit,
+});
 
 export const SPOTS: Spot[] = [
   {
@@ -20,6 +32,7 @@ export const SPOTS: Spot[] = [
     meta: "1.7 mi loop · moderate · dogs allowed",
     links: [{ label: "Trail map", url: "https://www.alltrails.com/trail/us/maine/great-head-trail-loop" }],
     note: "Starts at the far end of Sand Beach, up a set of granite steps. Open ledges look back over the beach to the Beehive, then the trail rounds the headland past the ruins of a 1915 tea house. Footing is rock most of the way — a few boulders where a small dog needs a boost. Go counterclockwise for the Sand Beach overlook early.",
+    photo: photo("great-head.jpg", "John, Wikimedia · CC BY-SA 2.0"),
   },
   {
     id: "beehive",
@@ -31,6 +44,7 @@ export const SPOTS: Spot[] = [
       { label: "NPS", url: "https://www.nps.gov/thingstodo/hike-beehive-loop.htm" },
     ],
     note: "Iron rungs and ladders up an exposed granite face, with real drops beside you. One direction only: up the rungs, down the Bowl Trail behind the summit. More psychological than physical, but don't touch it when the rock is wet. The Sand Beach lot fills by 8 a.m. in August.",
+    photo: photo("beehive.jpg", "Jeff Gunn · CC BY 2.0"),
   },
   {
     id: "ocean-path",
@@ -39,6 +53,7 @@ export const SPOTS: Spot[] = [
     meta: "4.4 mi round trip · easy · dogs allowed",
     links: [{ label: "Trail map", url: "https://www.alltrails.com/trail/us/maine/ocean-path-trail--2" }],
     note: "Flat coastal walk from Sand Beach to Otter Point past Thunder Hole and Monument Cove. Full sun the whole way and it parallels the Park Loop Road, so it's about the views, not solitude. Early morning is quietest.",
+    photo: photo("ocean-path.jpg", "John, Wikimedia · CC BY-SA 2.0"),
   },
   {
     id: "gorham",
@@ -50,6 +65,7 @@ export const SPOTS: Spot[] = [
       { label: "NPS", url: "https://www.nps.gov/thingstodo/hike-gorham-mountain-loop.htm" },
     ],
     note: "Steady climb over open granite ledges with the ocean behind you the whole way up. The Cadillac Cliffs spur adds a short stretch through cave-like rock features. Links directly to Ocean Path if you want to make a bigger loop of it.",
+    photo: photo("gorham.jpg", "NPS / Victoria Stauffenberg · public domain"),
   },
   {
     id: "jordan-pond",
@@ -61,6 +77,7 @@ export const SPOTS: Spot[] = [
       { label: "NPS", url: "https://www.nps.gov/thingstodo/hike-jordan-pond-path.htm" },
     ],
     note: "Flat loop hugging the shoreline, with log boardwalks on the west side and the Bubbles rising across the water. No swimming — it's a public water supply. Popovers at Jordan Pond House if the wait isn't absurd.",
+    photo: photo("jordan-pond.jpg", "NPS / Victoria Stauffenberg · public domain"),
   },
   {
     id: "carriage",
@@ -72,6 +89,7 @@ export const SPOTS: Spot[] = [
       { label: "Map PDF", url: "https://www.nps.gov/acad/planyourvisit/upload/CRUMmap_508.pdf" },
     ],
     note: "Crushed-stone roads with granite bridges and no cars, built by Rockefeller a century ago. Wide with long sightlines — the easiest place in the park to pass other dogs with room to spare.",
+    photo: photo("carriage.jpg", "Kinderhart, Wikimedia · CC BY-SA 3.0"),
   },
   {
     id: "thunder-hole",
@@ -80,6 +98,7 @@ export const SPOTS: Spot[] = [
     meta: "roadside stop · 10 min",
     links: [{ label: "Tide chart", url: "https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=8413320" }],
     note: "Waves compress air in a rock inlet and detonate. Timing is everything: aim for one to two hours before high tide with some swell running. At low tide it's a quiet hole in the rocks.",
+    photo: photo("thunder-hole.jpg", "Pablo Sanchez · CC BY 2.0"),
   },
   {
     id: "cadillac",
@@ -88,6 +107,7 @@ export const SPOTS: Spot[] = [
     meta: "scenic drive · $6 vehicle reservation",
     links: [{ label: "Reservations", url: "https://www.nps.gov/acad/planyourvisit/vehicle_reservations.htm" }],
     note: "Highest point on the Atlantic seaboard. Driving up requires a timed reservation May through October — 70% of slots release at 10 a.m. ET two days out. Hiking or biking up is free, no reservation.",
+    photo: photo("cadillac.jpg", "WaxPhilosophic, Wikimedia · CC BY-SA 4.0"),
   },
   {
     id: "bar-harbor",
@@ -96,6 +116,7 @@ export const SPOTS: Spot[] = [
     meta: "15 min from camp",
     links: [],
     note: "Shops, ice cream, and the Shore Path along the waterfront. The village green is the main Island Explorer hub if anyone wants to ditch the car.",
+    photo: photo("bar-harbor.jpg", "Nucleosynth, Wikimedia · CC BY-SA 4.0"),
   },
   {
     id: "bar-island",
@@ -104,6 +125,7 @@ export const SPOTS: Spot[] = [
     meta: "tide-dependent · free",
     links: [{ label: "Tide chart", url: "https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=8413320" }],
     note: "A gravel bar to Bar Island surfaces around low tide — walkable roughly 1.5 hours either side. Check the tide chart before crossing; the water comes back faster than people expect.",
+    photo: photo("bar-island.jpg", "EgorovaSvetlana, Wikimedia · CC BY-SA 4.0"),
   },
   {
     id: "otter-creek",
@@ -112,6 +134,7 @@ export const SPOTS: Spot[] = [
     meta: "0.5 mi from Blackwoods",
     links: [],
     note: "Coin-op showers and a small camp store. Blackwoods has none of either, so this is the day-two stop.",
+    photo: photo("otter-creek.jpg", "EgorovaSvetlana, Wikimedia · CC BY-SA 4.0"),
   },
   {
     id: "seafood",
@@ -120,6 +143,7 @@ export const SPOTS: Spot[] = [
     meta: "Bar Harbor",
     links: [],
     note: "A dozen options within two blocks of the water. Cooking for twelve three days straight is a lot — one dinner out is a reasonable escape valve.",
+    photo: photo("seafood.jpg", "Lee Coursey · CC BY 2.0"),
   },
   {
     id: "shuttle",
@@ -128,15 +152,42 @@ export const SPOTS: Spot[] = [
     meta: "free · stops at Blackwoods",
     links: [{ label: "Route 10", url: "https://exploreacadia.com/route10.html" }],
     note: "Free buses across the island, late June to mid-October, with a stop at the campground entrance. Solves the Sand Beach parking problem. Leashed dogs ride on the floor.",
+    photo: photo("shuttle.jpg", "NPS photo · public domain"),
   },
 ];
 
-export const EATS: { name: string; meta: string }[] = [
-  { name: "Stewman's Lobster Pound", meta: "waterfront picnic tables · dog patio" },
-  { name: "Side Street Cafe", meta: "" },
-  { name: "Testa's", meta: "heated dog patio" },
-  { name: "Paddy's Irish Pub", meta: "waterfront · dog patio" },
-  { name: "CherrySTONES", meta: "covered dog patio" },
+// Maps links are the reliable path on a phone (hours, directions, menus);
+// official sites are added only where verified live (pg_net, Aug 2026 —
+// Testa's and CherrySTONES had no reachable site).
+export const EATS: { name: string; meta: string; maps: string; site?: string }[] = [
+  {
+    name: "Stewman's Lobster Pound",
+    meta: "waterfront picnic tables · dog patio",
+    maps: "https://www.google.com/maps/search/?api=1&query=Stewman%27s+Lobster+Pound+Bar+Harbor+ME",
+    site: "https://stewmanslobsterpound.com",
+  },
+  {
+    name: "Side Street Cafe",
+    meta: "",
+    maps: "https://www.google.com/maps/search/?api=1&query=Side+Street+Cafe+Bar+Harbor+ME",
+    site: "https://sidestreetbarharbor.com",
+  },
+  {
+    name: "Testa's",
+    meta: "heated dog patio",
+    maps: "https://www.google.com/maps/search/?api=1&query=Testa%27s+Restaurant+Bar+Harbor+ME",
+  },
+  {
+    name: "Paddy's Irish Pub",
+    meta: "waterfront · dog patio",
+    maps: "https://www.google.com/maps/search/?api=1&query=Paddy%27s+Irish+Pub+Bar+Harbor+ME",
+    site: "https://paddysbarharbor.com",
+  },
+  {
+    name: "CherrySTONES",
+    meta: "covered dog patio",
+    maps: "https://www.google.com/maps/search/?api=1&query=CherrySTONES+Bar+Harbor+ME",
+  },
 ];
 
 export const EATS_DIRECTORY = {

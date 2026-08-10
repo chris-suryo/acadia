@@ -1,10 +1,35 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Map as MapIcon } from "lucide-react";
 import { Card, SubH } from "./primitives";
 import { EATS, EATS_DIRECTORY, GUIDES, LINKS, MAP_PDF_URL, SPOTS, type Spot } from "@/lib/content";
 import { MapLightbox, HAS_CAMPGROUND_MAP } from "./MapLightbox";
+
+// Source favicon via Google's service — resolves on the client (phones have
+// internet); a failed load hides itself and the label stands alone.
+function Favicon({ url, size = 14 }: { url: string; size?: number }) {
+  let domain = "";
+  try {
+    domain = new URL(url).hostname;
+  } catch {
+    return null;
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- 14px favicon; next/image is overkill
+    <img
+      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
+      alt=""
+      width={size}
+      height={size}
+      loading="lazy"
+      className="rounded-[3px] shrink-0"
+      onError={(e) => {
+        (e.currentTarget as HTMLImageElement).style.display = "none";
+      }}
+    />
+  );
+}
 
 export function Explore({
   highlight,
@@ -14,6 +39,7 @@ export function Explore({
   clearHighlight: () => void;
 }) {
   const refs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [photoOf, setPhotoOf] = useState<Spot | null>(null);
 
   useEffect(() => {
     if (highlight && refs.current[highlight]) {
@@ -32,26 +58,45 @@ export function Explore({
         last ? "" : "border-b border-rule"
       } ${highlight === p.id ? "bg-[#FBEFE4]" : "bg-transparent"}`}
     >
-      <div className="flex justify-between items-baseline gap-2.5">
-        <span className="text-[14.5px] font-semibold text-ink">{p.name}</span>
-        {p.links.length > 0 && (
-          <span className="inline-flex items-center gap-3 shrink-0">
-            {p.links.map((l) => (
-              <a
-                key={l.url + l.label}
-                href={l.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[12px] font-semibold text-blaze no-underline"
-              >
-                {l.label} <ExternalLink size={11} />
-              </a>
-            ))}
-          </span>
+      <div className="flex gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex justify-between items-baseline gap-2.5">
+            <span className="text-[14.5px] font-semibold text-ink">{p.name}</span>
+            {p.links.length > 0 && (
+              <span className="inline-flex items-center gap-3 shrink-0">
+                {p.links.map((l) => (
+                  <a
+                    key={l.url + l.label}
+                    href={l.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-blaze no-underline"
+                  >
+                    <Favicon url={l.url} /> {l.label}
+                  </a>
+                ))}
+              </span>
+            )}
+          </div>
+          <div className="font-mono text-[10.5px] text-blaze mt-[3px] mb-[5px]">{p.meta}</div>
+          <div className="text-[12.5px] text-granite leading-[1.55]">{p.note}</div>
+        </div>
+        {p.photo && (
+          <button
+            onClick={() => setPhotoOf(p)}
+            aria-label={`Photo — ${p.name}`}
+            className="shrink-0 self-start p-0 bg-transparent border-none cursor-zoom-in"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- storage-hosted thumb */}
+            <img
+              src={p.photo.src}
+              alt=""
+              loading="lazy"
+              className="w-[56px] h-[56px] rounded-lg object-cover border border-rule"
+            />
+          </button>
         )}
       </div>
-      <div className="font-mono text-[10.5px] text-blaze mt-[3px] mb-[5px]">{p.meta}</div>
-      <div className="text-[12.5px] text-granite leading-[1.55]">{p.note}</div>
     </div>
   );
 
@@ -77,8 +122,8 @@ export function Explore({
                 <div className="text-[14.5px] font-semibold text-ink">
                   Blackwoods map — loops & site numbers
                 </div>
-                <div className="font-mono text-[10.5px] text-mute mt-0.5">
-                  recreation.gov
+                <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-mute mt-0.5">
+                  <Favicon url={MAP_PDF_URL} size={12} /> recreation.gov
                 </div>
               </div>
               <ExternalLink size={14} className="text-mute" />
@@ -111,13 +156,31 @@ export function Explore({
           {EATS.map((e) => (
             <div
               key={e.name}
-              className="px-3.5 py-[11px] border-b border-rule"
+              className="flex items-center gap-2.5 px-3.5 py-[11px] border-b border-rule"
             >
-              <span className="text-[14px] font-medium text-ink">{e.name}</span>
-              {e.meta && (
-                <div className="font-mono text-[10.5px] text-mute mt-0.5">
-                  {e.meta}
-                </div>
+              <a
+                href={e.maps}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 min-w-0 no-underline"
+              >
+                <span className="text-[14px] font-medium text-blaze underline decoration-[#E5C9B4] underline-offset-[3px]">
+                  {e.name}
+                </span>
+                <span className="flex items-center gap-1.5 font-mono text-[10.5px] text-mute mt-0.5">
+                  <Favicon url={e.maps} size={12} />
+                  {e.meta ? `${e.meta} · maps` : "maps"}
+                </span>
+              </a>
+              {e.site && (
+                <a
+                  href={e.site}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 shrink-0 text-[12px] font-semibold text-blaze no-underline"
+                >
+                  <Favicon url={e.site} /> site
+                </a>
               )}
             </div>
           ))}
@@ -131,8 +194,8 @@ export function Explore({
               <div className="text-[14px] font-medium text-blaze underline decoration-[#E5C9B4] underline-offset-[3px]">
                 {EATS_DIRECTORY.label}
               </div>
-              <div className="font-mono text-[10.5px] text-mute mt-0.5">
-                {EATS_DIRECTORY.domain}
+              <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-mute mt-0.5">
+                <Favicon url={EATS_DIRECTORY.url} size={12} /> {EATS_DIRECTORY.domain}
               </div>
             </div>
             <ExternalLink size={14} className="text-mute shrink-0" />
@@ -162,8 +225,8 @@ export function Explore({
               <div className="text-[12px] text-granite mt-[3px] leading-[1.5]">
                 {g.why}
               </div>
-              <div className="font-mono text-[10.5px] text-mute mt-0.5">
-                {g.domain}
+              <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-mute mt-0.5">
+                <Favicon url={g.url} size={12} /> {g.domain}
               </div>
             </a>
           ))}
@@ -187,8 +250,8 @@ export function Explore({
                 <div className="text-[14px] font-medium text-blaze underline decoration-[#E5C9B4] underline-offset-[3px]">
                   {l.label}
                 </div>
-                <div className="font-mono text-[10.5px] text-mute mt-0.5">
-                  {l.domain}
+                <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-mute mt-0.5">
+                  <Favicon url={l.url} size={12} /> {l.domain}
                 </div>
               </div>
               <ExternalLink size={14} className="text-mute shrink-0" />
@@ -196,6 +259,24 @@ export function Explore({
           ))}
         </Card>
       </div>
+
+      {photoOf?.photo && (
+        <button
+          onClick={() => setPhotoOf(null)}
+          aria-label="Close photo"
+          className="fixed inset-0 z-50 bg-black/85 border-none cursor-zoom-out flex flex-col items-center justify-center p-4"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- storage-hosted photo */}
+          <img
+            src={photoOf.photo.src}
+            alt={photoOf.name}
+            className="max-w-full max-h-[78vh] rounded-lg"
+          />
+          <div className="font-mono text-[10.5px] text-[#CFCABC] mt-3">
+            {photoOf.name} · {photoOf.photo.credit}
+          </div>
+        </button>
+      )}
     </div>
   );
 }
