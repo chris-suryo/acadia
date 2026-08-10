@@ -5,7 +5,7 @@
 // with NEXT_PUBLIC_DATA_MODE=mock; never bundled into the deployed flow.
 
 import { useMemo, useState } from "react";
-import { Ctx, newId, nextSort, type DataCtx, type DraftBlock, type DayWeather } from "./context";
+import { Ctx, newId, nextSort, type DataCtx, type DayWeather } from "./context";
 import { useNameGate } from "./name-gate";
 import {
   SEED_BLOCKS,
@@ -59,22 +59,6 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<DataCtx>(() => {
     const setName = (n: string) => setNameState(n);
 
-    const saveDayBlocks = (dayId: string, rows: DraftBlock[]) => {
-      setBlocks((prev) => [
-        ...prev.filter((b) => b.day_id !== dayId),
-        ...rows
-          .filter((r) => r.body.trim())
-          .map((r, i) => ({
-            id: r.id ?? newId(),
-            day_id: dayId,
-            time_label: r.time_label,
-            body: r.body,
-            link_slug: r.link_slug,
-            sort: i + 1,
-          })),
-      ]);
-    };
-
     return {
       ready: true,
       error: null,
@@ -94,7 +78,36 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       expenses,
       forecast: [],
       weather: MOCK_WEATHER,
-      saveDayBlocks,
+      addBlock: (dayId, dayPart, title) => {
+        const id = newId();
+        setBlocks((prev) => [
+          ...prev,
+          {
+            id,
+            day_id: dayId,
+            title,
+            detail: "",
+            day_part: dayPart,
+            link_slug: null,
+            sort: nextSort(prev.filter((b) => b.day_id === dayId)),
+          },
+        ]);
+        return id;
+      },
+      updateBlock: (id, patch) =>
+        setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b))),
+      deleteBlock: (id) => setBlocks((prev) => prev.filter((b) => b.id !== id)),
+      restoreBlock: (row) =>
+        setBlocks((prev) => [...prev.filter((b) => b.id !== row.id), row]),
+      reorderDay: (rows) => {
+        const byId = new Map(rows.map((r) => [r.id, r]));
+        setBlocks((prev) =>
+          prev.map((b) => {
+            const r = byId.get(b.id);
+            return r ? { ...b, day_part: r.day_part, sort: r.sort } : b;
+          }),
+        );
+      },
       toggleClaimGear: (id) =>
         setGear((prev) =>
           prev.map((g) =>

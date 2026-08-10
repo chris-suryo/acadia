@@ -9,24 +9,25 @@ export const SEED_DAYS = [
 
 export const SEED_BLOCKS: {
   day_id: string;
-  time_label: string;
-  body: string;
+  title: string;
+  detail: string;
+  day_part: "morning" | "afternoon" | "evening" | null;
   link_slug: string | null;
   sort: number;
 }[] = [
-  { day_id: "fri", time_label: "Morning", body: "Early crew checks in and claims both sites. Tents up first, while there's daylight and room to work.", link_slug: null, sort: 1 },
-  { day_id: "fri", time_label: "Midday", body: "Firewood and ice run. Camp kitchen goes on one site; the other stays clear for tents.", link_slug: null, sort: 2 },
-  { day_id: "fri", time_label: "Afternoon", body: "Open. Great Head or Ocean Path for anyone restless — both are short and close.", link_slug: "great-head", sort: 3 },
-  { day_id: "fri", time_label: "Evening", body: "Late arrivals — text the group an hour out. Taco dinner, fire after.", link_slug: null, sort: 4 },
-  { day_id: "fri", time_label: "Night", body: "Quiet hours. Food and anything scented sleeps in a car, not a tent.", link_slug: null, sort: 5 },
-  { day_id: "sat", time_label: "Early", body: "Beehive crew out the door early — the Sand Beach lot fills by 8.", link_slug: "beehive", sort: 1 },
-  { day_id: "sat", time_label: "Early", body: "Chris + Kona on the Great Head Loop across the cove. Dogs can't do the ladder trails.", link_slug: "great-head", sort: 2 },
-  { day_id: "sat", time_label: "Midday", body: "Regroup at camp, or meet at Jordan Pond.", link_slug: "jordan-pond", sort: 3 },
-  { day_id: "sat", time_label: "Afternoon", body: "Open. Bar Harbor, Thunder Hole, carriage roads — or nothing.", link_slug: "bar-harbor", sort: 4 },
-  { day_id: "sat", time_label: "Evening", body: "The big cook. Everyone's here tonight.", link_slug: null, sort: 5 },
-  { day_id: "sun", time_label: "Morning", body: "Breakfast, break camp, consolidate trash. Everything packs out.", link_slug: null, sort: 1 },
-  { day_id: "sun", time_label: "Checkout", body: "Camping permit goes in the check-out box on the way out. Sweep both sites.", link_slug: null, sort: 2 },
-  { day_id: "sun", time_label: "Drive", body: "Showers arrive late in the day — earlier departures get the dry drive.", link_slug: null, sort: 3 },
+  { day_id: "fri", title: "Check in, claim both sites", detail: "early crew · tents up first", day_part: "morning", link_slug: null, sort: 1 },
+  { day_id: "fri", title: "Firewood + ice run", detail: "buy wood on the island — no out-of-state wood", day_part: "afternoon", link_slug: null, sort: 2 },
+  { day_id: "fri", title: "Optional: Great Head or Ocean Path", detail: "short + close", day_part: "afternoon", link_slug: "great-head", sort: 3 },
+  { day_id: "fri", title: "Late arrivals + taco night", detail: "text the group an hour out", day_part: "evening", link_slug: null, sort: 4 },
+  { day_id: "fri", title: "Food sleeps in cars", detail: "quiet hours", day_part: "evening", link_slug: null, sort: 5 },
+  { day_id: "sat", title: "Beehive crew departs", detail: "Sand Beach lot full by 8", day_part: "morning", link_slug: "beehive", sort: 1 },
+  { day_id: "sat", title: "Great Head with Kona", detail: "across the cove", day_part: "morning", link_slug: "great-head", sort: 2 },
+  { day_id: "sat", title: "Regroup — camp or Jordan Pond", detail: "", day_part: "afternoon", link_slug: "jordan-pond", sort: 3 },
+  { day_id: "sat", title: "Open", detail: "Bar Harbor · Thunder Hole · carriage roads", day_part: "afternoon", link_slug: "bar-harbor", sort: 4 },
+  { day_id: "sat", title: "The big cook", detail: "", day_part: "evening", link_slug: null, sort: 5 },
+  { day_id: "sun", title: "Breakfast, break camp", detail: "trash packs out", day_part: "morning", link_slug: null, sort: 1 },
+  { day_id: "sun", title: "Permit in the check-out box", detail: "sweep both sites", day_part: "morning", link_slug: null, sort: 2 },
+  { day_id: "sun", title: "Roll out", detail: "showers arrive late day — leave early, drive dry", day_part: "morning", link_slug: null, sort: 3 },
 ];
 
 // Alana's two pre-claims ship as a label note; she re-claims once she opens

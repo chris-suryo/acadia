@@ -2,6 +2,7 @@
 
 import { createContext, useContext, type RefObject } from "react";
 import type {
+  DayPart,
   Expense,
   ForecastRow,
   GearItem,
@@ -14,12 +15,9 @@ import type {
 
 export type DayWeather = { high: number; low: number; condition: string };
 
-export type DraftBlock = {
-  id?: string;
-  time_label: string;
-  body: string;
-  link_slug: string | null;
-};
+export type BlockPatch = Partial<
+  Pick<ItineraryBlock, "title" | "detail" | "day_part">
+>;
 
 export type DataCtx = {
   ready: boolean;
@@ -44,7 +42,11 @@ export type DataCtx = {
   forecast: ForecastRow[];
   weather: Record<string, DayWeather | undefined>; // by day id
 
-  saveDayBlocks: (dayId: string, rows: DraftBlock[]) => void;
+  addBlock: (dayId: string, dayPart: DayPart | null, title: string) => string;
+  updateBlock: (id: string, patch: BlockPatch) => void;
+  deleteBlock: (id: string) => void;
+  restoreBlock: (row: ItineraryBlock) => void;
+  reorderDay: (rows: { id: string; day_part: DayPart | null; sort: number }[]) => void;
   toggleClaimGear: (id: string) => void;
   addGear: (category: string, label: string) => void;
   deleteGear: (id: string) => void;

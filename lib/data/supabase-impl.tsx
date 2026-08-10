@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Ctx, newId, nextSort, type DataCtx, type DayWeather, type DraftBlock } from "./context";
+import { Ctx, newId, nextSort, type BlockPatch, type DataCtx, type DayWeather } from "./context";
 import { useNameGate } from "./name-gate";
+import { useUi } from "@/components/ui/UiProvider";
 import {
   FORECAST_STALE_MS,
   SUPABASE_ANON_KEY,
@@ -112,23 +113,21 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     [supabase],
   );
 
-  // Fire a write; on failure, log and re-sync the table from the server.
+  // Fire a write; on failure, notify, log, and re-sync the table so the
+  // optimistic change reverts.
+  const { showNotice } = useUi();
   const persist = useCallback(
     (write: PromiseLike<{ error: unknown }>, table: Table) => {
-      Promise.resolve(write).then(
-        ({ error: err }) => {
-          if (err) {
-            console.error(`[${table}]`, err);
-            refetch(table);
-          }
-        },
-        (err) => {
-          console.error(`[${table}]`, err);
-          refetch(table);
-        },
-      );
+      const fail = (err: unknown) => {
+        console.error(`[${table}]`, err);
+        showNotice("Couldn't save — retry");
+        refetch(table);
+      };
+      Promise.resolve(write).then(({ error: err }) => {
+        if (err) fail(err);
+      }, fail);
     },
-    [refetch],
+    [refetch, showNotice],
   );
 
   useEffect(() => {
@@ -272,25 +271,54 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     forecast,
     weather,
 
-    saveDayBlocks: (dayId, rows: DraftBlock[]) => {
-      const cleaned = rows
-        .filter((r) => r.body.trim())
-        .map((r, i) => ({
-          id: r.id ?? newId(),
-          day_id: dayId,
-          time_label: r.time_label,
-          body: r.body,
-          link_slug: r.link_slug,
-          sort: i + 1,
-        }));
-      const removed = blocks
-        .filter((b) => b.day_id === dayId && !cleaned.some((c) => c.id === b.id))
-        .map((b) => b.id);
-      setBlocks((prev) => [...prev.filter((b) => b.day_id !== dayId), ...cleaned]);
+    addBlock: (dayId, dayPart, title) => {
+      const row: ItineraryBlock = {
+        id: newId(),
+        day_id: dayId,
+        title,
+        detail: "",
+        day_part: dayPart,
+        link_slug: null,
+        sort: nextSort(blocks.filter((b) => b.day_id === dayId)),
+      };
+      setBlocks((prev) => [...prev, row]);
+      persist(supabase.from("itinerary_blocks").insert(row), "itinerary_blocks");
+      return row.id;
+    },
+
+    updateBlock: (id, patch: BlockPatch) => {
+      setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+      persist(
+        supabase.from("itinerary_blocks").update(patch).eq("id", id),
+        "itinerary_blocks",
+      );
+    },
+
+    deleteBlock: (id) => {
+      setBlocks((prev) => prev.filter((b) => b.id !== id));
+      persist(supabase.from("itinerary_blocks").delete().eq("id", id), "itinerary_blocks");
+    },
+
+    restoreBlock: (row) => {
+      setBlocks((prev) => [...prev.filter((b) => b.id !== row.id), row]);
+      persist(supabase.from("itinerary_blocks").upsert(row), "itinerary_blocks");
+    },
+
+    reorderDay: (rows) => {
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      setBlocks((prev) =>
+        prev.map((b) => {
+          const r = byId.get(b.id);
+          return r ? { ...b, day_part: r.day_part, sort: r.sort } : b;
+        }),
+      );
       (async () => {
-        if (removed.length)
-          await supabase.from("itinerary_blocks").delete().in("id", removed);
-        if (cleaned.length) await supabase.from("itinerary_blocks").upsert(cleaned);
+        for (const r of rows) {
+          await supabase
+            .from("itinerary_blocks")
+            .update({ day_part: r.day_part, sort: r.sort })
+            .eq("id", r.id);
+        }
         refetch("itinerary_blocks");
       })().catch((e) => {
         console.error(e);

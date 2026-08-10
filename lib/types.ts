@@ -11,11 +11,14 @@ export type ItineraryDay = {
   sort: number;
 };
 
+export type DayPart = "morning" | "afternoon" | "evening";
+
 export type ItineraryBlock = {
   id: string;
   day_id: string;
-  time_label: string;
-  body: string;
+  title: string;
+  detail: string;
+  day_part: DayPart | null;
   link_slug: string | null;
   sort: number;
 };

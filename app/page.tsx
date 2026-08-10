@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { DataProvider } from "@/lib/data/provider";
 import { useData } from "@/lib/data/context";
+import { UiProvider } from "@/components/ui/UiProvider";
 import { Header } from "@/components/Header";
 import { Tabs, type TabId } from "@/components/Tabs";
 import { Itinerary } from "@/components/Itinerary";
@@ -56,8 +57,10 @@ function Shell() {
 
 export default function Page() {
   return (
-    <DataProvider>
-      <Shell />
-    </DataProvider>
+    <UiProvider>
+      <DataProvider>
+        <Shell />
+      </DataProvider>
+    </UiProvider>
   );
 }
