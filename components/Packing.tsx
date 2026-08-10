@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Lock, Plus } from "lucide-react";
-import { Box, Btn, Card, Input, Kill, Segmented, Select, SubH } from "./primitives";
+import { Lock } from "lucide-react";
+import { Box, Card, Segmented, SubH } from "./primitives";
+import { AddRow } from "./ui/AddRow";
+import { SwipeRow } from "./ui/SwipeRow";
+import { useUi } from "./ui/UiProvider";
 import { useData } from "@/lib/data/context";
 import { GEAR_CATEGORIES, PERSONAL_CATEGORIES } from "@/lib/seeds";
 
@@ -25,16 +27,14 @@ export function Packing({
     toggleClaimGear,
     addGear,
     deleteGear,
+    restoreGear,
     togglePersonal,
     addPersonal,
     deletePersonal,
-    requireName,
+    restorePersonal,
+    ensureName,
   } = useData();
-
-  const [gTxt, setGTxt] = useState("");
-  const [gCat, setGCat] = useState("Camp Kitchen");
-  const [mTxt, setMTxt] = useState("");
-  const [mCat, setMCat] = useState("Essentials");
+  const { showUndo } = useUi();
 
   const gCats = orderedCats(GEAR_CATEGORIES, [...new Set(gear.map((i) => i.category))]);
   const mCats = orderedCats(PERSONAL_CATEGORIES, [...new Set(personal.map((i) => i.category))]);
@@ -45,20 +45,8 @@ export function Packing({
   const claim = (id: string) => {
     const it = gear.find((i) => i.id === id);
     if (!it) return;
-    if (!it.owner_id && !requireName()) return;
-    toggleClaimGear(id);
-  };
-
-  const addGroup = () => {
-    if (!gTxt.trim()) return;
-    addGear(gCat, gTxt.trim());
-    setGTxt("");
-  };
-
-  const addMine = () => {
-    if (!mTxt.trim()) return;
-    addPersonal(mCat, mTxt.trim());
-    setMTxt("");
+    if (!it.owner_id) ensureName(() => toggleClaimGear(id));
+    else toggleClaimGear(id);
   };
 
   return (
@@ -85,61 +73,48 @@ export function Packing({
                 >
                   {cat}
                 </SubH>
-                <Card>
-                  {rows.map((i, idx) => (
-                    <div
+                <Card className="overflow-hidden">
+                  {rows.map((i) => (
+                    <SwipeRow
                       key={i.id}
-                      className={`flex items-center gap-[11px] pl-3.5 pr-2 py-3 ${
-                        idx < rows.length - 1 ? "border-b border-rule" : ""
-                      }`}
+                      className="border-b border-rule"
+                      onDelete={() => {
+                        const snap = { ...i };
+                        deleteGear(i.id);
+                        showUndo("Deleted", () => restoreGear(snap));
+                      }}
                     >
-                      <Box on={!!i.owner_id} onClick={() => claim(i.id)} />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[14.5px] text-ink leading-[1.35]">
-                          {i.label}
-                        </div>
-                        <div
-                          className={`font-mono text-[10.5px] mt-0.5 ${
-                            i.owner_id ? "text-moss" : "text-mute"
-                          }`}
-                        >
-                          {i.owner_id
-                            ? profiles[i.owner_id]?.trim() || "Claimed"
-                            : "Unclaimed"}
-                        </div>
-                      </div>
-                      <Kill onClick={() => deleteGear(i.id)} />
-                    </div>
+                      <button
+                        onClick={() => claim(i.id)}
+                        className="w-full text-left bg-transparent border-none cursor-pointer flex items-center gap-[11px] px-3.5 py-3"
+                      >
+                        <Box on={!!i.owner_id} />
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[14.5px] text-ink leading-[1.35]">
+                            {i.label}
+                          </span>
+                          <span
+                            className={`block font-mono text-[10.5px] mt-0.5 ${
+                              i.owner_id ? "text-moss" : "text-mute"
+                            }`}
+                          >
+                            {i.owner_id
+                              ? profiles[i.owner_id]?.trim() || "Claimed"
+                              : "Unclaimed"}
+                          </span>
+                        </span>
+                      </button>
+                    </SwipeRow>
                   ))}
+                  <AddRow
+                    label="Add"
+                    placeholder="Item"
+                    onAdd={(t) => addGear(cat, t)}
+                  />
                 </Card>
               </div>
             );
           })}
-
-          <Card className="p-3.5">
-            <SubH>Add an item</SubH>
-            <div className="grid gap-2">
-              <Input
-                value={gTxt}
-                onChange={(e) => setGTxt(e.target.value)}
-                placeholder="Item"
-              />
-              <div className="flex gap-2">
-                <Select
-                  value={gCat}
-                  onChange={(e) => setGCat(e.target.value)}
-                  className="flex-1"
-                >
-                  {gCats.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </Select>
-                <Btn onClick={addGroup}>
-                  <Plus size={15} /> Add
-                </Btn>
-              </div>
-            </div>
-          </Card>
         </>
       ) : (
         <>
@@ -167,61 +142,48 @@ export function Packing({
             return (
               <div key={cat} className="mb-5">
                 <SubH>{cat}</SubH>
-                <Card>
-                  {rows.map((i, idx) => (
-                    <div
+                <Card className="overflow-hidden">
+                  {rows.map((i) => (
+                    <SwipeRow
                       key={i.id}
-                      className={`flex items-start gap-[11px] pl-3.5 pr-2 py-3 ${
-                        idx < rows.length - 1 ? "border-b border-rule" : ""
-                      }`}
+                      className="border-b border-rule"
+                      onDelete={() => {
+                        const snap = { ...i };
+                        deletePersonal(i.id);
+                        showUndo("Deleted", () => restorePersonal(snap));
+                      }}
                     >
-                      <Box on={i.checked} onClick={() => togglePersonal(i.id)} />
-                      <div className="flex-1 min-w-0 pt-0.5">
-                        <div
-                          className={`text-[14.5px] text-ink leading-[1.35] ${
-                            i.checked ? "line-through opacity-50" : ""
-                          }`}
-                        >
-                          {i.label}
-                        </div>
-                        {i.note && (
-                          <div className="text-[11.5px] text-mute mt-0.5 leading-[1.4]">
-                            {i.note}
-                          </div>
-                        )}
-                      </div>
-                      <Kill onClick={() => deletePersonal(i.id)} />
-                    </div>
+                      <button
+                        onClick={() => togglePersonal(i.id)}
+                        className="w-full text-left bg-transparent border-none cursor-pointer flex items-start gap-[11px] px-3.5 py-3"
+                      >
+                        <Box on={i.checked} />
+                        <span className="flex-1 min-w-0 pt-0.5">
+                          <span
+                            className={`block text-[14.5px] text-ink leading-[1.35] ${
+                              i.checked ? "line-through opacity-50" : ""
+                            }`}
+                          >
+                            {i.label}
+                          </span>
+                          {i.note && (
+                            <span className="block text-[11.5px] text-mute mt-0.5 leading-[1.4]">
+                              {i.note}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    </SwipeRow>
                   ))}
+                  <AddRow
+                    label="Add"
+                    placeholder="Item"
+                    onAdd={(t) => addPersonal(cat, t)}
+                  />
                 </Card>
               </div>
             );
           })}
-
-          <Card className="p-3.5">
-            <SubH>Add an item</SubH>
-            <div className="grid gap-2">
-              <Input
-                value={mTxt}
-                onChange={(e) => setMTxt(e.target.value)}
-                placeholder="Item"
-              />
-              <div className="flex gap-2">
-                <Select
-                  value={mCat}
-                  onChange={(e) => setMCat(e.target.value)}
-                  className="flex-1"
-                >
-                  {mCats.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </Select>
-                <Btn onClick={addMine}>
-                  <Plus size={15} /> Add
-                </Btn>
-              </div>
-            </div>
-          </Card>
         </>
       )}
     </div>

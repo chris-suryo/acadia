@@ -6,7 +6,7 @@
 
 import { useMemo, useState } from "react";
 import { Ctx, newId, nextSort, type DataCtx, type DayWeather } from "./context";
-import { useNameGate } from "./name-gate";
+import { NameSheet, useNameSheet } from "@/components/ui/NameSheet";
 import {
   SEED_BLOCKS,
   SEED_DAYS,
@@ -33,7 +33,10 @@ const MOCK_WEATHER: Record<string, DayWeather> = {
 
 export function MockProvider({ children }: { children: React.ReactNode }) {
   const [name, setNameState] = useState("");
-  const { nameInputRef, nameFlash, requireName } = useNameGate(name);
+  const { ensureName, sheetOpen, submit, cancel } = useNameSheet(
+    !!name.trim(),
+    (n) => setNameState(n),
+  );
 
   const [blocks, setBlocks] = useState<ItineraryBlock[]>(() =>
     SEED_BLOCKS.map((b, i) => ({ id: `blk-${i}`, ...b })),
@@ -65,9 +68,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       userId: ME,
       name,
       setName,
-      nameFlash,
-      nameInputRef,
-      requireName,
+      ensureName,
       profiles: { [ME]: name.trim() },
       days: SEED_DAYS,
       blocks,
@@ -155,9 +156,18 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
         ]);
         return id;
       },
+      updateDish: (id, patch) =>
+        setMenu((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m))),
       deleteDish: (id) => {
         setMenu((prev) => prev.filter((m) => m.id !== id));
         setShopping((prev) => prev.filter((s) => s.menu_item_id !== id));
+      },
+      restoreDish: (row, ingredients) => {
+        setMenu((prev) => [...prev.filter((m) => m.id !== row.id), row]);
+        setShopping((prev) => [
+          ...prev.filter((s) => s.menu_item_id !== row.id),
+          ...ingredients,
+        ]);
       },
       addIngredient: (menuItemId, label) =>
         setShopping((prev) => [
@@ -190,8 +200,21 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
           },
         ]),
       deleteExpense: (id) => setExpenses((prev) => prev.filter((e) => e.id !== id)),
+      restoreGear: (row) =>
+        setGear((prev) => [...prev.filter((g) => g.id !== row.id), row]),
+      restorePersonal: (row) =>
+        setPersonal((prev) => [...prev.filter((p) => p.id !== row.id), row]),
+      restoreShopping: (row) =>
+        setShopping((prev) => [...prev.filter((s) => s.id !== row.id), row]),
+      restoreExpense: (row) =>
+        setExpenses((prev) => [...prev.filter((e) => e.id !== row.id), row]),
     };
-  }, [name, nameFlash, nameInputRef, requireName, blocks, gear, personal, menu, shopping, expenses]);
+  }, [name, ensureName, blocks, gear, personal, menu, shopping, expenses]);
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      {children}
+      <NameSheet open={sheetOpen} onSubmit={submit} onCancel={cancel} />
+    </Ctx.Provider>
+  );
 }

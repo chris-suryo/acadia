@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, type RefObject } from "react";
+import { createContext, useContext } from "react";
 import type {
   DayPart,
   Expense,
@@ -19,17 +19,19 @@ export type BlockPatch = Partial<
   Pick<ItineraryBlock, "title" | "detail" | "day_part">
 >;
 
+export type DishPatch = Partial<
+  Pick<MenuItem, "dish" | "meal" | "notes" | "night">
+>;
+
 export type DataCtx = {
   ready: boolean;
   error: string | null;
   userId: string;
   name: string;
   setName: (n: string) => void;
-  nameFlash: boolean;
-  nameInputRef: RefObject<HTMLInputElement | null>;
-  /** Name gate: true when a name is set; otherwise scrolls to the header,
-   *  focuses + flashes the name input and returns false. */
-  requireName: () => boolean;
+  /** Name gate: runs the action now when a name is set; otherwise opens the
+   *  name bottom sheet and runs the action after Continue. */
+  ensureName: (action: () => void) => void;
 
   profiles: Record<string, string>;
   days: ItineraryDay[];
@@ -59,13 +61,19 @@ export type DataCtx = {
     dish: string;
     notes: string;
   }) => string;
+  updateDish: (id: string, patch: DishPatch) => void;
   deleteDish: (id: string) => void;
+  restoreDish: (row: MenuItem, ingredients: ShoppingItem[]) => void;
   addIngredient: (menuItemId: string, label: string) => void;
   addShopping: (label: string) => void;
   toggleShopping: (id: string) => void;
   deleteShopping: (id: string) => void;
   addExpense: (description: string, amountCents: number) => void;
   deleteExpense: (id: string) => void;
+  restoreGear: (row: GearItem) => void;
+  restorePersonal: (row: PersonalItem) => void;
+  restoreShopping: (row: ShoppingItem) => void;
+  restoreExpense: (row: Expense) => void;
 };
 
 export const Ctx = createContext<DataCtx | null>(null);

@@ -5,7 +5,7 @@ import { useData } from "@/lib/data/context";
 const TOPO_YS = [10, 30, 50, 72, 96, 122, 148];
 
 export function Header() {
-  const { name, setName, nameFlash, nameInputRef } = useData();
+  const { name, setName } = useData();
 
   return (
     <header className="bg-pine relative overflow-hidden px-[18px] pt-[26px] pb-[22px]">
@@ -35,16 +35,11 @@ export function Header() {
           </h1>
         </div>
         <input
-          ref={nameInputRef}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Your name"
           aria-label="Your name"
-          className={`text-[16px] px-3 py-[9px] rounded-md bg-pinelift text-parchment w-[150px] min-h-[42px] border-[1.5px] transition-[border-color,box-shadow] duration-200 placeholder:text-sky ${
-            nameFlash
-              ? "border-blaze shadow-[0_0_0_3px_rgba(193,101,47,.35)]"
-              : "border-granite shadow-none"
-          }`}
+          className="text-[16px] px-3 py-[9px] rounded-md bg-pinelift text-parchment w-[150px] min-h-[42px] border-[1.5px] border-granite placeholder:text-sky"
         />
       </div>
     </header>

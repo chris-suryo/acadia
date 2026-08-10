@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Ctx, newId, nextSort, type BlockPatch, type DataCtx, type DayWeather } from "./context";
-import { useNameGate } from "./name-gate";
+import { Ctx, newId, nextSort, type BlockPatch, type DataCtx, type DayWeather, type DishPatch } from "./context";
+import { NameSheet, useNameSheet } from "@/components/ui/NameSheet";
 import { useUi } from "@/components/ui/UiProvider";
 import {
   FORECAST_STALE_MS,
@@ -64,7 +64,6 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const userIdRef = useRef("");
   const [name, setNameState] = useState("");
   const nameTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { nameInputRef, nameFlash, requireName } = useNameGate(name);
 
   const [profileRows, setProfileRows] = useState<Profile[]>([]);
   const [days, setDays] = useState<ItineraryDay[]>([]);
@@ -235,6 +234,11 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     [supabase, persist],
   );
 
+  const { ensureName, sheetOpen, submit, cancel } = useNameSheet(
+    !!name.trim(),
+    setName,
+  );
+
   const profiles = useMemo(() => {
     const m: Record<string, string> = {};
     for (const p of profileRows) m[p.id] = p.name;
@@ -257,9 +261,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     userId,
     name,
     setName,
-    nameFlash,
-    nameInputRef,
-    requireName,
+    ensureName,
     profiles,
     days,
     blocks,
@@ -405,10 +407,34 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       return row.id;
     },
 
+    updateDish: (id, patch: DishPatch) => {
+      setMenu((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+      persist(supabase.from("menu_items").update(patch).eq("id", id), "menu_items");
+    },
+
     deleteDish: (id) => {
       setMenu((prev) => prev.filter((m) => m.id !== id));
       setShopping((prev) => prev.filter((s) => s.menu_item_id !== id));
       persist(supabase.from("menu_items").delete().eq("id", id), "menu_items");
+    },
+
+    restoreDish: (row, ingredients) => {
+      setMenu((prev) => [...prev.filter((m) => m.id !== row.id), row]);
+      setShopping((prev) => [
+        ...prev.filter((s) => s.menu_item_id !== row.id),
+        ...ingredients,
+      ]);
+      (async () => {
+        await supabase.from("menu_items").upsert(row);
+        if (ingredients.length)
+          await supabase.from("shopping_items").upsert(ingredients);
+        refetch("menu_items");
+        refetch("shopping_items");
+      })().catch((e) => {
+        console.error(e);
+        refetch("menu_items");
+        refetch("shopping_items");
+      });
     },
 
     addIngredient: (menuItemId, label) => {
@@ -480,7 +506,41 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       setExpenses((prev) => prev.filter((e) => e.id !== id));
       persist(supabase.from("expenses").delete().eq("id", id), "expenses");
     },
+
+    restoreGear: (row) => {
+      setGear((prev) => [...prev.filter((g) => g.id !== row.id), row]);
+      persist(supabase.from("gear_items").upsert(row), "gear_items");
+    },
+
+    restorePersonal: (row) => {
+      setPersonal((prev) => [...prev.filter((p) => p.id !== row.id), row]);
+      persist(supabase.from("personal_items").upsert(row), "personal_items");
+    },
+
+    restoreShopping: (row) => {
+      setShopping((prev) => [...prev.filter((s) => s.id !== row.id), row]);
+      persist(supabase.from("shopping_items").upsert(row), "shopping_items");
+    },
+
+    restoreExpense: (row) => {
+      setExpenses((prev) => [...prev.filter((e) => e.id !== row.id), row]);
+      persist(
+        supabase.from("expenses").upsert({
+          id: row.id,
+          user_id: row.user_id,
+          description: row.description,
+          amount_cents: row.amount_cents,
+          created_at: row.created_at,
+        }),
+        "expenses",
+      );
+    },
   };
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      {children}
+      <NameSheet open={sheetOpen} onSubmit={submit} onCancel={cancel} />
+    </Ctx.Provider>
+  );
 }

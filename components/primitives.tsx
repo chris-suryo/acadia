@@ -93,15 +93,23 @@ export function Select(props: React.ComponentProps<"select">) {
   );
 }
 
-export function Box({ on, onClick }: { on: boolean; onClick: () => void }) {
+const BOX_CLS = (on: boolean) =>
+  `w-[26px] h-[26px] shrink-0 rounded-md border-[1.5px] flex items-center justify-center ${
+    on ? "border-moss bg-moss" : "border-[#B7BEAE] bg-transparent"
+  }`;
+
+// With onClick: an interactive checkbox. Without: a state indicator inside a
+// row that is itself the tap target.
+export function Box({ on, onClick }: { on: boolean; onClick?: () => void }) {
+  if (!onClick) {
+    return (
+      <span aria-hidden className={BOX_CLS(on)}>
+        {on && <Check size={16} color="#fff" />}
+      </span>
+    );
+  }
   return (
-    <button
-      onClick={onClick}
-      aria-pressed={on}
-      className={`w-[26px] h-[26px] shrink-0 rounded-md border-[1.5px] flex items-center justify-center cursor-pointer ${
-        on ? "border-moss bg-moss" : "border-[#B7BEAE] bg-transparent"
-      }`}
-    >
+    <button onClick={onClick} aria-pressed={on} className={`${BOX_CLS(on)} cursor-pointer`}>
       {on && <Check size={16} color="#fff" />}
     </button>
   );
