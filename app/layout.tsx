@@ -1,25 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Work_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  weight: "variable",
-  axes: ["opsz"],
-  variable: "--font-fraunces",
-});
-
-const workSans = Work_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-work-sans",
-});
-
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-plex-mono",
-});
 
 export const metadata: Metadata = {
   title: "Acadia Base Camp",
@@ -30,18 +10,25 @@ export const viewport: Viewport = {
   themeColor: "#1F3D2B",
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    // Font variables live on <html>: Tailwind's @theme tokens resolve on
-    // :root, which can't see variables scoped to <body>.
-    <html
-      lang="en"
-      className={`${fraunces.variable} ${workSans.variable} ${plexMono.variable}`}
-    >
+    <html lang="en">
+      {/* The same Google-hosted stylesheet the design reference uses; the
+          build pipeline strips remote CSS @imports, so it must be a link.
+          `precedence` opts into React's managed hoisting into <head>. */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      <link
+        rel="stylesheet"
+        precedence="default"
+        href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      />
       <body>{children}</body>
     </html>
   );

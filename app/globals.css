@@ -13,9 +13,9 @@
   --color-mute: #8a8f82;
   --color-sky: #b9c4b4;
 
-  --font-display: var(--font-fraunces), serif;
-  --font-sans: var(--font-work-sans), sans-serif;
-  --font-mono: var(--font-plex-mono), monospace;
+  --font-display: "Fraunces", serif;
+  --font-sans: "Work Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
 }
 
 * {
