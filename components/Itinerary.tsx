@@ -30,6 +30,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Card } from "./primitives";
 import { AddRow } from "./ui/AddRow";
+import { focusCenter } from "./ui/focusCenter";
 import { Chips } from "./ui/Chips";
 import { useUi } from "./ui/UiProvider";
 import { useData, type BlockPatch } from "@/lib/data/context";
@@ -150,6 +151,7 @@ function Entry({
         <div className="flex-1 grid gap-2">
           <input
             autoFocus
+            onFocus={focusCenter}
             value={draft.title}
             onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             onKeyDown={(e) => {
@@ -160,6 +162,7 @@ function Entry({
             className="w-full p-2.5 rounded-lg border border-rule bg-white text-[16px] font-medium text-ink min-h-[42px]"
           />
           <input
+            onFocus={focusCenter}
             value={draft.detail}
             onChange={(e) => setDraft({ ...draft, detail: e.target.value })}
             onKeyDown={(e) => {

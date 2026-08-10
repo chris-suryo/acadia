@@ -1,9 +1,11 @@
 "use client";
 
+import { useRef } from "react";
 import { Lock } from "lucide-react";
 import { Box, Card, Segmented, SubH } from "./primitives";
 import { AddRow } from "./ui/AddRow";
 import { SwipeRow } from "./ui/SwipeRow";
+import { useSink, vtName } from "./ui/useSink";
 import { useUi } from "./ui/UiProvider";
 import { useData } from "@/lib/data/context";
 import { GEAR_CATEGORIES, PERSONAL_CATEGORIES } from "@/lib/seeds";
@@ -41,6 +43,7 @@ export function Packing({
     gear,
     personal,
     profiles,
+    userId,
     toggleClaimGear,
     addGear,
     deleteGear,
@@ -51,7 +54,9 @@ export function Packing({
     restorePersonal,
     ensureName,
   } = useData();
-  const { showUndo } = useUi();
+  const { showUndo, showNotice } = useUi();
+  const { poke, sink } = useSink();
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const gCats = orderedCats(GEAR_CATEGORIES, [...new Set(gear.map((i) => i.category))]);
   const mCats = orderedCats(PERSONAL_CATEGORIES, [...new Set(personal.map((i) => i.category))]);
@@ -63,40 +68,63 @@ export function Packing({
     const it = gear.find((i) => i.id === id);
     if (!it) return;
     if (!it.owner_id) ensureName(() => toggleClaimGear(id));
-    else toggleClaimGear(id);
+    else if (it.owner_id === userId) toggleClaimGear(id);
+    // someone else's claim is inert — long-press shows who has it
   };
 
-  const gearRow = (i: GearItem, child: boolean) => (
-    <SwipeRow
-      key={i.id}
-      className="border-b border-rule"
-      onDelete={() => {
-        const snap = { ...i };
-        const kids = child ? [] : gear.filter((g) => g.parent_id === i.id).map((g) => ({ ...g }));
-        deleteGear(i.id);
-        showUndo("Deleted", () => restoreGear(snap, kids));
-      }}
-    >
-      <button
-        onClick={() => claim(i.id)}
-        className={`w-full text-left bg-transparent border-none cursor-pointer flex items-center gap-[11px] py-3 pr-3.5 ${
-          child ? "pl-12" : "pl-3.5"
-        }`}
+  const clearPress = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  };
+
+  const gearRow = (i: GearItem, child: boolean) => {
+    const ownerName = i.owner_id ? profiles[i.owner_id]?.trim() || "Claimed" : "";
+    const othersClaim = !!i.owner_id && i.owner_id !== userId;
+    return (
+      <SwipeRow
+        key={i.id}
+        className="border-b border-rule"
+        onDelete={() => {
+          const snap = { ...i };
+          const kids = child ? [] : gear.filter((g) => g.parent_id === i.id).map((g) => ({ ...g }));
+          deleteGear(i.id);
+          showUndo("Deleted", () => restoreGear(snap, kids));
+        }}
       >
-        <Box on={!!i.owner_id} />
-        <span className="flex-1 min-w-0">
-          <span className="block text-[14.5px] text-ink leading-[1.35]">{i.label}</span>
-          <span
-            className={`block font-mono text-[10.5px] mt-0.5 ${
-              i.owner_id ? "text-moss" : "text-mute"
-            }`}
-          >
-            {i.owner_id ? profiles[i.owner_id]?.trim() || "Claimed" : "Unclaimed"}
+        <button
+          onClick={() => claim(i.id)}
+          onPointerDown={() => {
+            if (!othersClaim) return;
+            clearPress();
+            pressTimer.current = setTimeout(
+              () => showNotice(`Claimed by ${ownerName}`),
+              500,
+            );
+          }}
+          onPointerUp={clearPress}
+          onPointerMove={clearPress}
+          onPointerLeave={clearPress}
+          className={`w-full text-left bg-transparent border-none flex items-center gap-[11px] py-3 pr-3.5 ${
+            othersClaim ? "cursor-default" : "cursor-pointer"
+          } ${child ? "pl-12" : "pl-3.5"}`}
+        >
+          <Box on={!!i.owner_id} />
+          <span className="flex-1 min-w-0">
+            <span className="block text-[14.5px] text-ink leading-[1.35]">{i.label}</span>
+            {i.owner_id ? (
+              <span className="inline-block font-mono text-[10px] mt-1 px-2 py-0.5 rounded-full bg-[#E9EEE4] text-moss">
+                {ownerName}
+              </span>
+            ) : (
+              <span className="block font-mono text-[10.5px] mt-0.5 text-mute">
+                Unclaimed
+              </span>
+            )}
           </span>
-        </span>
-      </button>
-    </SwipeRow>
-  );
+        </button>
+      </SwipeRow>
+    );
+  };
 
   const personalRow = (i: PersonalItem, child: boolean) => (
     <SwipeRow
@@ -112,7 +140,11 @@ export function Packing({
       }}
     >
       <button
-        onClick={() => togglePersonal(i.id)}
+        onClick={() => {
+          togglePersonal(i.id);
+          if (!child) poke(i.id);
+        }}
+        style={vtName(i.id)}
         className={`w-full text-left bg-transparent border-none cursor-pointer flex items-start gap-[11px] py-3 pr-3.5 ${
           child ? "pl-12" : "pl-3.5"
         }`}
@@ -187,11 +219,21 @@ export function Packing({
 
           {mCats.map((cat) => {
             const rows = personal.filter((i) => i.category === cat);
+            const parents = sink(
+              rows.filter((r) => !r.parent_id).sort((a, b) => a.sort - b.sort),
+            );
+            const ordered = parents.flatMap((p) => [
+              { item: p, child: false },
+              ...rows
+                .filter((r) => r.parent_id === p.id)
+                .sort((a, b) => a.sort - b.sort)
+                .map((c) => ({ item: c, child: true })),
+            ]);
             return (
               <div key={cat} className="mb-5">
                 <SubH>{cat}</SubH>
                 <Card className="overflow-hidden">
-                  {tree(rows).map(({ item, child }) => personalRow(item, child))}
+                  {ordered.map(({ item, child }) => personalRow(item, child))}
                   <AddRow
                     label="Add"
                     placeholder="Item"

@@ -5,8 +5,10 @@ import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { Box, Card, Input, Kill, Segmented, SubH } from "./primitives";
 import { AddRow } from "./ui/AddRow";
 import { Chips } from "./ui/Chips";
+import { focusCenter } from "./ui/focusCenter";
 import { SwipeRow } from "./ui/SwipeRow";
 import { useOutside } from "./ui/useOutside";
+import { useSink, vtName } from "./ui/useSink";
 import { useUi } from "./ui/UiProvider";
 import { useData } from "@/lib/data/context";
 import { MEALS, NIGHTS } from "@/lib/seeds";
@@ -105,6 +107,7 @@ export function Food({
     restoreExpense,
   } = useData();
   const { showUndo } = useUi();
+  const { poke, sink } = useSink();
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ dish: "", notes: "" });
@@ -173,6 +176,12 @@ export function Food({
       }),
   ];
 
+  const sunkStoreRows = sink(storeRows);
+  const storeLeft = shopping.filter((s) => !s.checked).length;
+  const myPaid = expenses
+    .filter((e) => e.user_id === userId)
+    .reduce((s, e) => s + e.amount_cents, 0);
+
   const total = expenses.reduce((s, e) => s + e.amount_cents, 0);
   const sortedExpenses = [...expenses].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
@@ -226,6 +235,7 @@ export function Food({
         <div className="grid gap-2">
           <input
             autoFocus
+            onFocus={focusCenter}
             value={draft.dish}
             onChange={(e) => setDraft({ ...draft, dish: e.target.value })}
             onKeyDown={(e) => {
@@ -241,6 +251,7 @@ export function Food({
             onChange={(v) => updateDish(f.id, { meal: v })}
           />
           <input
+            onFocus={focusCenter}
             value={draft.notes}
             onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
             onKeyDown={(e) => {
@@ -299,7 +310,7 @@ export function Food({
         onChange={setView}
         options={[
           { id: "menu", label: "Menu" },
-          { id: "shop", label: "Store" },
+          { id: "shop", label: storeLeft > 0 ? `Store · ${storeLeft} left` : "Store" },
           { id: "money", label: "Expenses" },
         ]}
       />
@@ -331,15 +342,19 @@ export function Food({
 
       {view === "shop" && (
         <Card className="overflow-hidden">
-          {storeRows.length === 0 && (
+          {sunkStoreRows.length === 0 && (
             <div className="p-5 text-[13.5px] text-mute text-center border-b border-rule">
               Dishes from the menu appear here.
             </div>
           )}
-          {storeRows.map((g) => {
+          {sunkStoreRows.map((g) => {
             const row = (
               <button
-                onClick={() => toggleShopping(g.id)}
+                onClick={() => {
+                  toggleShopping(g.id);
+                  poke(g.id);
+                }}
+                style={vtName(g.id)}
                 className="w-full text-left bg-transparent border-none cursor-pointer flex items-center gap-[11px] px-3.5 py-3"
               >
                 <Box on={g.checked} />
@@ -443,14 +458,21 @@ export function Food({
               onCommit={(desc, cents) => ensureName(() => addExpense(desc, cents))}
             />
             {sortedExpenses.length > 0 && (
-              <div className="px-3.5 py-3 bg-[#F2EFE3] flex justify-between items-center border-t border-rule">
-                <span className="text-[13px] text-granite">
-                  ${(total / 100 / PARTY_SIZE).toFixed(2)} each, split {PARTY_SIZE}{" "}
-                  ways
-                </span>
-                <span className="font-mono text-[15px] text-ink font-semibold">
-                  ${(total / 100).toFixed(2)}
-                </span>
+              <div className="px-3.5 py-3 bg-[#F2EFE3] border-t border-rule">
+                <div className="flex justify-between items-center">
+                  <span className="text-[13px] text-granite">
+                    ${(total / 100 / PARTY_SIZE).toFixed(2)} each, split {PARTY_SIZE}{" "}
+                    ways
+                  </span>
+                  <span className="font-mono text-[15px] text-ink font-semibold">
+                    ${(total / 100).toFixed(2)}
+                  </span>
+                </div>
+                {myPaid > 0 && (
+                  <div className="text-right font-mono text-[11px] text-granite mt-1">
+                    you&apos;ve paid ${(myPaid / 100).toFixed(2)}
+                  </div>
+                )}
               </div>
             )}
           </Card>
