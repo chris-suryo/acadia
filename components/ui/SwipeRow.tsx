@@ -14,10 +14,13 @@ export function SwipeRow({
   onDelete,
   children,
   className = "",
+  disabled = false,
 }: {
   onDelete: () => void;
   children: React.ReactNode;
   className?: string;
+  /** Suppresses the swipe gesture (e.g. while a drag-reorder is active). */
+  disabled?: boolean;
 }) {
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -48,12 +51,17 @@ export function SwipeRow({
           touchAction: "pan-y",
         }}
         onPointerDown={(e) => {
+          if (disabled) return;
           if (e.pointerType === "mouse" && e.button !== 0) return;
           start.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
           axis.current = "none";
           swiped.current = false;
         }}
         onPointerMove={(e) => {
+          if (disabled) {
+            if (start.current) reset();
+            return;
+          }
           const s = start.current;
           if (!s || e.pointerId !== s.id) return;
           const mx = e.clientX - s.x;

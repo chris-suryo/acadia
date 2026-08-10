@@ -211,6 +211,14 @@ export function Itinerary({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({ title: "", detail: "" });
   const expandedRef = useRef<HTMLDivElement | null>(null);
+  // A drop lands a click on the dragged row — don't expand from it.
+  const justDropped = useRef(false);
+  const markDrop = () => {
+    justDropped.current = true;
+    setTimeout(() => {
+      justDropped.current = false;
+    }, 350);
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -236,6 +244,7 @@ export function Itinerary({
   });
 
   const expand = (b: ItineraryBlock) => {
+    if (justDropped.current) return;
     if (expandedId) collapse();
     setDraft({ title: b.title, detail: b.detail });
     setExpandedId(b.id);
@@ -252,6 +261,7 @@ export function Itinerary({
   }, [expandedId]);
 
   const onDragEnd = (dayBlocks: ItineraryBlock[]) => (event: DragEndEvent) => {
+    markDrop();
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const flat = flatOrder(dayBlocks);
@@ -336,6 +346,7 @@ export function Itinerary({
                   sensors={sensors}
                   collisionDetection={closestCenter}
                   onDragEnd={onDragEnd(dayBlocks)}
+                  onDragCancel={markDrop}
                 >
                   <SortableContext
                     items={flat.map((b) => b.id)}

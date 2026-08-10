@@ -58,6 +58,9 @@ export type DataCtx = {
   toggleClaimGear: (id: string) => void;
   addGear: (category: string, label: string) => void;
   deleteGear: (id: string) => void;
+  /** Batch category/sort rewrite after a drag (rows unchanged are omitted). */
+  reorderGear: (rows: { id: string; category: string; sort: number }[]) => void;
+  reorderPersonal: (rows: { id: string; category: string; sort: number }[]) => void;
   togglePersonal: (id: string) => void;
   addPersonal: (category: string, label: string) => void;
   deletePersonal: (id: string) => void;

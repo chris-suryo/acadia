@@ -157,6 +157,24 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
           },
         ]),
       deleteGear: (id) => setGear((prev) => prev.filter((g) => g.id !== id && g.parent_id !== id)),
+      reorderGear: (rows) => {
+        const byId = new Map(rows.map((r) => [r.id, r]));
+        setGear((prev) =>
+          prev.map((g) => {
+            const r = byId.get(g.id);
+            return r ? { ...g, category: r.category, sort: r.sort } : g;
+          }),
+        );
+      },
+      reorderPersonal: (rows) => {
+        const byId = new Map(rows.map((r) => [r.id, r]));
+        setPersonal((prev) =>
+          prev.map((p) => {
+            const r = byId.get(p.id);
+            return r ? { ...p, category: r.category, sort: r.sort } : p;
+          }),
+        );
+      },
       togglePersonal: (id) =>
         setPersonal((prev) => {
           const item = prev.find((p) => p.id === id);

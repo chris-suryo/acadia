@@ -372,6 +372,50 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       persist(supabase.from("gear_items").delete().eq("id", id), "gear_items");
     },
 
+    reorderGear: (rows) => {
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      setGear((prev) =>
+        prev.map((g) => {
+          const r = byId.get(g.id);
+          return r ? { ...g, category: r.category, sort: r.sort } : g;
+        }),
+      );
+      (async () => {
+        for (const r of rows) {
+          await supabase
+            .from("gear_items")
+            .update({ category: r.category, sort: r.sort })
+            .eq("id", r.id);
+        }
+        refetch("gear_items");
+      })().catch((e) => {
+        console.error(e);
+        refetch("gear_items");
+      });
+    },
+
+    reorderPersonal: (rows) => {
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      setPersonal((prev) =>
+        prev.map((p) => {
+          const r = byId.get(p.id);
+          return r ? { ...p, category: r.category, sort: r.sort } : p;
+        }),
+      );
+      (async () => {
+        for (const r of rows) {
+          await supabase
+            .from("personal_items")
+            .update({ category: r.category, sort: r.sort })
+            .eq("id", r.id);
+        }
+        refetch("personal_items");
+      })().catch((e) => {
+        console.error(e);
+        refetch("personal_items");
+      });
+    },
+
     togglePersonal: (id) => {
       const item = personal.find((p) => p.id === id);
       if (!item) return;
