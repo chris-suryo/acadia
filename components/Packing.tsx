@@ -291,9 +291,9 @@ export function Packing({
           onPointerLeave={clearPress}
           className={`w-full text-left bg-transparent border-none flex items-center gap-[11px] py-3 pr-3.5 ${
             othersClaim ? "cursor-default" : "cursor-pointer"
-          } ${child ? "pl-12" : "pl-3.5"}`}
+          } ${child ? "pl-9" : "pl-3.5"}`}
         >
-          <Box on={!!i.owner_id} />
+          <Box on={!!i.owner_id} size={22} />
           <span className="flex-1 min-w-0">
             <span className="block text-[14.5px] text-ink leading-[1.35]">{i.label}</span>
             {i.owner_id ? (
@@ -336,7 +336,7 @@ export function Packing({
           child ? "pl-12" : "pl-3.5"
         }`}
       >
-        <Box on={i.checked} />
+        <Box on={i.checked} size={22} />
         <span className="flex-1 min-w-0 pt-0.5">
           <span
             className={`block text-[14.5px] text-ink leading-[1.35] ${

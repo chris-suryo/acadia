@@ -13,12 +13,9 @@ import { Food } from "@/components/Food";
 import { Explore } from "@/components/Explore";
 import { Welcome } from "@/components/Welcome";
 
-const TAB_IDS: TabId[] = ["itinerary", "packing", "food", "explore"];
-
 function Shell() {
   const { ready, error, name } = useData();
-  const [tab, setTabState] = useState<TabId>("itinerary");
-  const [itinView, setItinViewState] = useState("ideas");
+  const [tab, setTab] = useState<TabId>("itinerary");
   const [packView, setPackViewState] = useState("group");
   const [foodView, setFoodViewState] = useState("menu");
   const [exploreView, setExploreViewState] = useState("park");
@@ -45,14 +42,10 @@ function Shell() {
     return () => clearTimeout(timer);
   }, [ready, name]);
 
-  // Restore tab + segments from the last visit (mid-Costco-run reopen lands
-  // back on Store, not Itinerary).
+  // Cold open always lands on the schedule; per-tab segments restore from
+  // the last visit.
   useEffect(() => {
     const timer = setTimeout(() => {
-      const t = sessionStorage.getItem("abc.tab") as TabId | null;
-      if (t && TAB_IDS.includes(t)) setTabState(t);
-      const iv = sessionStorage.getItem("abc.itinView");
-      if (iv) setItinViewState(iv);
       const pv = sessionStorage.getItem("abc.packView");
       if (pv) setPackViewState(pv);
       const fv = sessionStorage.getItem("abc.foodView");
@@ -62,15 +55,6 @@ function Shell() {
     }, 0);
     return () => clearTimeout(timer);
   }, []);
-
-  const setTab = (t: TabId) => {
-    setTabState(t);
-    sessionStorage.setItem("abc.tab", t);
-  };
-  const setItinView = (v: string) => {
-    setItinViewState(v);
-    sessionStorage.setItem("abc.itinView", v);
-  };
   // Stable identities: Explore's jump effect lists these as deps.
   const setExploreView = useCallback((v: string) => {
     setExploreViewState(v);
@@ -141,8 +125,7 @@ function Shell() {
   return (
     <div className="min-h-screen bg-parchment">
       <Header />
-      <Tabs tab={tab} onChange={setTab} />
-      <main className="max-w-[640px] mx-auto">
+      <main className="max-w-[640px] mx-auto pb-[calc(72px+env(safe-area-inset-bottom))]">
         {error ? (
           <div className="p-[70px_20px] text-center font-mono text-[12px] text-granite">
             {error}
@@ -153,9 +136,7 @@ function Shell() {
           </div>
         ) : (
           <>
-            {tab === "itinerary" && (
-              <Itinerary jump={jump} view={itinView} setView={setItinView} />
-            )}
+            {tab === "itinerary" && <Itinerary jump={jump} />}
             {tab === "packing" && <Packing view={packView} setView={setPackView} />}
             {tab === "food" && <Food view={foodView} setView={setFoodView} />}
             {tab === "explore" && (
@@ -170,6 +151,7 @@ function Shell() {
           </>
         )}
       </main>
+      <Tabs tab={tab} onChange={setTab} />
     </div>
   );
 }

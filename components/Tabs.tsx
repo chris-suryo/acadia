@@ -17,6 +17,8 @@ const TABS: { id: TabId; label: string; Icon: LucideIcon }[] = [
   { id: "explore", label: "Explore", Icon: MapIcon },
 ];
 
+// Bottom tab bar, iPhone-app style: icon over label, color-shift active
+// state, safe-area padding for the home indicator.
 export function Tabs({
   tab,
   onChange,
@@ -25,21 +27,21 @@ export function Tabs({
   onChange: (t: TabId) => void;
 }) {
   return (
-    <nav className="flex bg-card border-b border-rule sticky top-0 z-10">
+    <nav className="fixed bottom-0 inset-x-0 z-40 flex bg-card border-t border-rule pb-[env(safe-area-inset-bottom)]">
       {TABS.map(({ id, label, Icon }) => {
         const on = tab === id;
         return (
           <button
             key={id}
             onClick={() => onChange(id)}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-1.5 py-[13px] bg-transparent border-x-0 border-t-0 border-b-[3px] text-[13.5px] cursor-pointer min-h-[48px] ${
-              on
-                ? "border-blaze text-ink font-semibold"
-                : "border-transparent text-mute font-medium"
+            className={`flex-1 flex flex-col items-center justify-center gap-1 px-1 pt-2.5 pb-2 bg-transparent border-none cursor-pointer min-h-[56px] ${
+              on ? "text-blaze" : "text-mute"
             }`}
           >
-            <Icon size={16} />
-            <span>{label}</span>
+            <Icon size={20} />
+            <span className={`text-[10.5px] ${on ? "font-semibold" : "font-medium"}`}>
+              {label}
+            </span>
           </button>
         );
       })}

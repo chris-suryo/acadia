@@ -32,14 +32,17 @@ export function Header() {
   const { name } = useData();
 
   return (
-    <header className="bg-pine relative overflow-hidden px-[18px] pt-4 pb-3.5">
+    // In the installed app the pine flows under the iOS status bar
+    // (viewport-fit=cover + translucent status bar); the safe-area padding
+    // keeps the text below the clock.
+    <header className="bg-pine relative overflow-hidden px-[18px] pb-[18px] pt-[calc(env(safe-area-inset-top)+22px)]">
       <Topo />
       <div className="relative flex justify-between items-end gap-3.5">
         <div className="min-w-0">
-          <div className="font-mono text-[10.5px] tracking-[.12em] text-blaze uppercase mb-1">
+          <div className="font-mono text-[11px] tracking-[.12em] text-blaze uppercase mb-1.5">
             Aug 14–16, 2026 · Blackwoods
           </div>
-          <h1 className="font-display font-bold text-[clamp(24px,6vw,32px)] text-parchment m-0 leading-[1.05]">
+          <h1 className="font-display font-bold text-[clamp(27px,7vw,36px)] text-parchment m-0 leading-[1.05]">
             Acadia Base Camp
           </h1>
         </div>

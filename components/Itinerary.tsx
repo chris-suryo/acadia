@@ -28,9 +28,12 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card, Segmented } from "./primitives";
+import { Card, SubH } from "./primitives";
 import { Ideas } from "./Ideas";
 import { MapOverlay, useMapPrefetch } from "./MapLightbox";
+import { splitVibes } from "./Welcome";
+import { TRIP_DATES } from "@/lib/config";
+import { SPOTS } from "@/lib/content";
 import { AddRow } from "./ui/AddRow";
 import { focusCenter } from "./ui/focusCenter";
 import { Chips } from "./ui/Chips";
@@ -56,6 +59,7 @@ const PARTS: { value: DayPart | null; label: string }[] = [
 ];
 
 const PART_ORDER: (DayPart | null)[] = [null, "morning", "afternoon", "evening"];
+const SPOT_BY_ID = new Map(SPOTS.map((s) => [s.id, s]));
 const PART_LABEL: Record<string, string> = {
   morning: "Morning",
   afternoon: "Afternoon",
@@ -99,6 +103,11 @@ function Entry({
     transition,
   };
 
+  // Linked entries carry their spot's photo — Explore's imagery in the plan.
+  const spotPhoto = block.link_slug
+    ? SPOT_BY_ID.get(block.link_slug)?.photo
+    : undefined;
+
   if (!isExpanded) {
     return (
       <div
@@ -107,26 +116,37 @@ function Entry({
         {...attributes}
         {...listeners}
         onClick={onExpand}
-        className={`px-3.5 py-[11px] cursor-pointer ${isDragging ? "opacity-60" : ""}`}
+        className={`flex items-center gap-3 px-3.5 py-[11px] cursor-pointer ${isDragging ? "opacity-60" : ""}`}
       >
-        <div className="text-[15px] font-semibold text-ink leading-[1.35]">
-          {block.title}
-        </div>
-        {(block.detail || block.link_slug) && (
-          <div className="text-[12px] text-mute mt-0.5 leading-[1.45]">
-            {block.detail}
-            {block.link_slug && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  jump(block.link_slug!);
-                }}
-                className="inline-flex items-center gap-[3px] ml-1.5 p-0 bg-transparent border-none cursor-pointer text-blaze text-[12px] font-semibold"
-              >
-                details <ArrowUpRight size={11} />
-              </button>
-            )}
+        <div className="flex-1 min-w-0">
+          <div className="text-[15px] font-semibold text-ink leading-[1.35]">
+            {block.title}
           </div>
+          {(block.detail || block.link_slug) && (
+            <div className="text-[12px] text-mute mt-0.5 leading-[1.45]">
+              {block.detail}
+              {block.link_slug && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    jump(block.link_slug!);
+                  }}
+                  className="inline-flex items-center gap-[3px] ml-1.5 p-0 bg-transparent border-none cursor-pointer text-blaze text-[12px] font-semibold"
+                >
+                  details <ArrowUpRight size={11} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        {spotPhoto && (
+          // eslint-disable-next-line @next/next/no-img-element -- storage-hosted thumb
+          <img
+            src={spotPhoto.src}
+            alt=""
+            loading="lazy"
+            className="w-11 h-11 rounded-lg object-cover border border-rule shrink-0"
+          />
         )}
       </div>
     );
@@ -199,19 +219,34 @@ function Entry({
   );
 }
 
-export function Itinerary({
-  jump,
-  view,
-  setView,
-}: {
-  jump: (slug: string) => void;
-  view: string;
-  setView: (v: string) => void;
-}) {
-  const { days, blocks, weather, addBlock, updateBlock, reorderDay } = useData();
+export function Itinerary({ jump }: { jump: (slug: string) => void }) {
+  const { days, blocks, weather, surveys, addBlock, updateBlock, reorderDay } =
+    useData();
   const [mapOpen, setMapOpen] = useState(false);
   useMapPrefetch();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Which trip day is today (blank outside Aug 14–16).
+  const [todayId, setTodayId] = useState<string | null>(null);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const d = new Date();
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      setTodayId(TRIP_DATES[key] ?? null);
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Vibe tally across everyone's questionnaire answers.
+  const vibeCounts = new Map<string, number>();
+  for (const s of surveys)
+    for (const v of splitVibes(s.wants))
+      vibeCounts.set(v, (vibeCounts.get(v) ?? 0) + 1);
+  const vibeTally = [...vibeCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([v, n]) => (n > 1 ? `${v.toLowerCase()} ×${n}` : v.toLowerCase()))
+    .join(" · ");
   const [draft, setDraft] = useState<Draft>({ title: "", detail: "" });
   const expandedRef = useRef<HTMLDivElement | null>(null);
   // A drop lands a click on the dragged row — don't expand from it.
@@ -286,28 +321,11 @@ export function Itinerary({
   const sortedDays = [...days].sort((a, b) => a.sort - b.sort);
 
   return (
-    <div className="px-3.5 pt-4 pb-[60px]">
-      <Segmented
-        value={view}
-        onChange={setView}
-        options={[
-          { id: "ideas", label: "Ideas" },
-          { id: "plan", label: "Schedule" },
-        ]}
-      />
-      {view === "ideas" && (
-        <>
-          <div className="font-mono text-[10.5px] text-mute -mt-2 mb-4">
-            say what you&apos;re hoping for — schedule comes later
-          </div>
-          <Ideas />
-        </>
-      )}
-      {view !== "ideas" && (
-        <button
-          onClick={() => setMapOpen(true)}
-          className="block w-full text-left bg-transparent border-none p-0 cursor-pointer mb-[26px]"
-        >
+    <div className="px-3.5 pt-4 pb-5">
+      <button
+        onClick={() => setMapOpen(true)}
+        className="block w-full text-left bg-transparent border-none p-0 cursor-pointer mb-[26px]"
+      >
           <Card className="flex items-center gap-3 p-3">
             {/* eslint-disable-next-line @next/next/no-img-element -- repo-hosted thumb */}
             <img
@@ -330,9 +348,7 @@ export function Itinerary({
             </span>
           </Card>
         </button>
-      )}
-      {view !== "ideas" &&
-      sortedDays.map((d) => {
+      {sortedDays.map((d) => {
         const w = weather[d.id];
         const WIcon = w ? weatherIcon(w.condition) : null;
         const dayBlocks = blocks.filter((b) => b.day_id === d.id);
@@ -352,6 +368,11 @@ export function Itinerary({
                 <h3 className="font-display font-bold text-[19px] text-ink mt-[3px] mb-0 leading-[1.15]">
                   {d.day_label}{" "}
                   <span className="text-mute font-semibold">· {d.date_label}</span>
+                  {todayId === d.id && (
+                    <span className="inline-block font-mono text-[10px] px-2 py-0.5 rounded-full bg-[#FBEFE4] text-blaze uppercase tracking-[.07em] ml-2 align-middle">
+                      today
+                    </span>
+                  )}
                 </h3>
               </div>
               {w && WIcon && (
@@ -421,6 +442,12 @@ export function Itinerary({
           </div>
         );
       })}
+
+      <div className="mt-8">
+        <SubH right={vibeTally || null}>What people want</SubH>
+        <Ideas />
+      </div>
+
       {mapOpen && <MapOverlay onClose={() => setMapOpen(false)} />}
     </div>
   );
