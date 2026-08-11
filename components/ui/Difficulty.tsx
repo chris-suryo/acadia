@@ -29,7 +29,12 @@ export function Difficulty({
   return (
     <span
       title={LABEL[level]}
-      className={`inline-flex items-end gap-[2px] shrink-0 ${className}`}
+      // `relative` is load-bearing: the sr-only label below is absolutely
+      // positioned, and without a positioned ancestor its containing block is
+      // the page itself — inside a horizontal carousel that means the label
+      // sits at the scrolled-away card's x-offset and stretches the document
+      // wide enough to pan sideways.
+      className={`relative inline-flex items-end gap-[2px] shrink-0 ${className}`}
     >
       {HEIGHT.map((h, i) => (
         <span

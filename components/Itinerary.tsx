@@ -415,7 +415,7 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
       <div className="font-mono text-[10px] tracking-[.1em] uppercase text-granite mb-1.5">
         Hikes
       </div>
-      <div className="flex gap-2.5 overflow-x-auto snap-x scroll-pl-3.5 pb-1 -mx-3.5 px-3.5">
+      <div className="flex gap-2.5 overflow-x-auto overscroll-x-contain snap-x scroll-pl-3.5 pb-1 -mx-3.5 px-3.5">
         {SAT_OPTIONS.map((s) => (
           <button
             key={s.id}
@@ -445,7 +445,7 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
       <div className="font-mono text-[10px] tracking-[.1em] uppercase text-granite mt-3 mb-1.5">
         Dinner
       </div>
-      <div className="flex gap-2.5 overflow-x-auto snap-x scroll-pl-3.5 pb-1 -mx-3.5 px-3.5">
+      <div className="flex gap-2.5 overflow-x-auto overscroll-x-contain snap-x scroll-pl-3.5 pb-1 -mx-3.5 px-3.5">
         {EATS.map((e) => (
           <a
             key={e.name}
