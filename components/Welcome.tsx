@@ -16,6 +16,14 @@ export const ACTIVITY_CHIPS = [
   { value: "Send it", label: "Send it" },
 ];
 
+// Shared with the Ideas board's inline editor.
+export const SURVEY_PLACEHOLDERS = {
+  hikes: "Beehive, Precipice, something mellow…",
+  wants: "Swim, tide pools, sunrise, nothing at all…",
+  bar_harbor: "A meal out, a shop, ice cream…",
+  food: "Dishes you want, dietary stuff…",
+} as const;
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -28,14 +36,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export function Welcome({ onDone }: { onDone: () => void }) {
-  const { name, setName, upsertSurvey } = useData();
+  const { name, setName, upsertSurvey, surveys, userId } = useData();
+  // Prefilled from the existing row so a replayed intro edits rather than
+  // blanking earlier answers.
+  const mine = surveys.find((s) => s.user_id === userId);
   const [step, setStep] = useState<1 | 2>(1);
   const [nm, setNm] = useState(name);
-  const [activity, setActivity] = useState("");
-  const [hikes, setHikes] = useState("");
-  const [wants, setWants] = useState("");
-  const [barHarbor, setBarHarbor] = useState("");
-  const [food, setFood] = useState("");
+  const [activity, setActivity] = useState(mine?.activity ?? "");
+  const [hikes, setHikes] = useState(mine?.hikes ?? "");
+  const [wants, setWants] = useState(mine?.wants ?? "");
+  const [barHarbor, setBarHarbor] = useState(mine?.bar_harbor ?? "");
+  const [food, setFood] = useState(mine?.food ?? "");
 
   const continueToSurvey = () => {
     if (!nm.trim()) return;
@@ -51,7 +62,14 @@ export function Welcome({ onDone }: { onDone: () => void }) {
       bar_harbor: barHarbor.trim(),
       food: food.trim(),
     };
-    if (Object.values(patch).some(Boolean)) upsertSurvey(patch);
+    const before = {
+      activity: mine?.activity ?? "",
+      hikes: mine?.hikes ?? "",
+      wants: mine?.wants ?? "",
+      bar_harbor: mine?.bar_harbor ?? "",
+      food: mine?.food ?? "",
+    };
+    if (JSON.stringify(patch) !== JSON.stringify(before)) upsertSurvey(patch);
     onDone();
   };
 
@@ -127,7 +145,7 @@ export function Welcome({ onDone }: { onDone: () => void }) {
             rows={2}
             value={hikes}
             onChange={(e) => setHikes(e.target.value)}
-            placeholder="Beehive, Precipice, something mellow…"
+            placeholder={SURVEY_PLACEHOLDERS.hikes}
           />
         </Field>
         <Field label="What do you want to do?">
@@ -135,7 +153,7 @@ export function Welcome({ onDone }: { onDone: () => void }) {
             rows={2}
             value={wants}
             onChange={(e) => setWants(e.target.value)}
-            placeholder="Swim, tide pools, sunrise, nothing at all…"
+            placeholder={SURVEY_PLACEHOLDERS.wants}
           />
         </Field>
         <Field label="Bar Harbor — anything specific?">
@@ -143,7 +161,7 @@ export function Welcome({ onDone }: { onDone: () => void }) {
             rows={2}
             value={barHarbor}
             onChange={(e) => setBarHarbor(e.target.value)}
-            placeholder="A meal out, a shop, ice cream…"
+            placeholder={SURVEY_PLACEHOLDERS.bar_harbor}
           />
         </Field>
         <Field label="Food requests">
@@ -151,7 +169,7 @@ export function Welcome({ onDone }: { onDone: () => void }) {
             rows={2}
             value={food}
             onChange={(e) => setFood(e.target.value)}
-            placeholder="Dishes you want, dietary stuff…"
+            placeholder={SURVEY_PLACEHOLDERS.food}
           />
         </Field>
         <Btn onClick={finish} full>

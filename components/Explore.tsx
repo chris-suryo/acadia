@@ -34,9 +34,11 @@ function Favicon({ url, size = 14 }: { url: string; size?: number }) {
 export function Explore({
   highlight,
   clearHighlight,
+  onReplayIntro,
 }: {
   highlight: string | null;
   clearHighlight: () => void;
+  onReplayIntro: () => void;
 }) {
   const refs = useRef<Record<string, HTMLDivElement | null>>({});
   const [photoOf, setPhotoOf] = useState<Spot | null>(null);
@@ -268,6 +270,13 @@ export function Explore({
           ))}
         </Card>
       </div>
+
+      <button
+        onClick={onReplayIntro}
+        className="block mx-auto mt-7 bg-transparent border-none cursor-pointer font-mono text-[11px] text-mute underline underline-offset-2"
+      >
+        replay the intro
+      </button>
 
       {photoOf?.photo && (
         <button

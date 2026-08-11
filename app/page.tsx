@@ -31,13 +31,15 @@ function Shell() {
 
   // First open on this device with no saved name → the intro. Decided once
   // per visit when data is ready; Welcome stays mounted through its own
-  // steps (setName mid-flow must not unmount it).
+  // steps (setName mid-flow must not unmount it). ?welcome=1 forces it.
   useEffect(() => {
     if (!ready || welcomeChecked.current) return;
     welcomeChecked.current = true;
     const noName = !name.trim();
     const timer = setTimeout(() => {
-      if (noName && !localStorage.getItem("abc.welcomed")) setShowWelcome(true);
+      const forced = new URLSearchParams(window.location.search).has("welcome");
+      if (forced || (noName && !localStorage.getItem("abc.welcomed")))
+        setShowWelcome(true);
     }, 0);
     return () => clearTimeout(timer);
   }, [ready, name]);
@@ -151,6 +153,7 @@ function Shell() {
               <Explore
                 highlight={highlight}
                 clearHighlight={() => setHighlight(null)}
+                onReplayIntro={() => setShowWelcome(true)}
               />
             )}
           </>

@@ -4,6 +4,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Acadia Base Camp",
   description: "Aug 14–16, 2026 · Blackwoods Campground",
+  appleWebApp: {
+    capable: true,
+    title: "Acadia",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {

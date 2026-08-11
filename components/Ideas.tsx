@@ -6,10 +6,10 @@
 
 import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
-import { Card, Textarea } from "./primitives";
+import { Btn, Card, Textarea } from "./primitives";
 import { Chips } from "./ui/Chips";
 import { useOutside } from "./ui/useOutside";
-import { ACTIVITY_CHIPS } from "./Welcome";
+import { ACTIVITY_CHIPS, SURVEY_PLACEHOLDERS } from "./Welcome";
 import { useData } from "@/lib/data/context";
 import type { SurveyRow } from "@/lib/types";
 
@@ -123,9 +123,15 @@ export function Ideas() {
                     rows={2}
                     value={draft[f.key]}
                     onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
+                    placeholder={SURVEY_PLACEHOLDERS[f.key]}
                   />
                 </div>
               ))}
+              <div className="flex justify-end">
+                <Btn small onClick={commit}>
+                  Done
+                </Btn>
+              </div>
             </div>
           </Card>
         </div>
@@ -142,9 +148,14 @@ export function Ideas() {
         <Card className="overflow-hidden mb-3">
           <button
             onClick={() => ensureName(startEdit)}
-            className="flex items-center gap-1.5 w-full text-left bg-transparent border-none cursor-pointer text-granite text-[13px] px-3.5 py-[11px] min-h-[44px]"
+            className="w-full text-left bg-transparent border-none cursor-pointer px-3.5 py-[11px] min-h-[44px]"
           >
-            <Plus size={14} /> Add yours
+            <span className="flex items-center gap-1.5 text-granite text-[13px]">
+              <Plus size={14} /> Add yours
+            </span>
+            <span className="block font-mono text-[10.5px] text-mute mt-0.5 ml-[22px]">
+              activity · hikes · bar harbor · food
+            </span>
           </button>
         </Card>
       )}
