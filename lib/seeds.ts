@@ -3,7 +3,7 @@
 
 export const SEED_DAYS = [
   { id: "fri", day_label: "Friday", date_label: "Aug 14", subtitle: "Arrival", sort: 1 },
-  { id: "sat", day_label: "Saturday", date_label: "Aug 15", subtitle: "Hike day", sort: 2 },
+  { id: "sat", day_label: "Saturday", date_label: "Aug 15", subtitle: "Park day", sort: 2 },
   { id: "sun", day_label: "Sunday", date_label: "Aug 16", subtitle: "Pack out", sort: 3 },
 ];
 
@@ -15,19 +15,18 @@ export const SEED_BLOCKS: {
   link_slug: string | null;
   sort: number;
 }[] = [
-  { day_id: "fri", title: "Check in, claim both sites", detail: "early crew · tents up first", day_part: "morning", link_slug: null, sort: 1 },
-  { day_id: "fri", title: "Firewood + ice run", detail: "buy wood on the island — no out-of-state wood", day_part: "afternoon", link_slug: null, sort: 2 },
-  { day_id: "fri", title: "Optional: Great Head or Ocean Path", detail: "short + close", day_part: "afternoon", link_slug: "great-head", sort: 3 },
-  { day_id: "fri", title: "Late arrivals + taco night", detail: "text the group an hour out", day_part: "evening", link_slug: null, sort: 4 },
-  { day_id: "fri", title: "Food sleeps in cars", detail: "quiet hours", day_part: "evening", link_slug: null, sort: 5 },
-  { day_id: "sat", title: "Beehive crew departs", detail: "Sand Beach lot full by 8", day_part: "morning", link_slug: "beehive", sort: 1 },
-  { day_id: "sat", title: "Great Head with Kona", detail: "across the cove", day_part: "morning", link_slug: "great-head", sort: 2 },
-  { day_id: "sat", title: "Regroup — camp or Jordan Pond", detail: "", day_part: "afternoon", link_slug: "jordan-pond", sort: 3 },
-  { day_id: "sat", title: "Open", detail: "Bar Harbor · Thunder Hole · carriage roads", day_part: "afternoon", link_slug: "bar-harbor", sort: 4 },
-  { day_id: "sat", title: "The big cook", detail: "", day_part: "evening", link_slug: null, sort: 5 },
+  { day_id: "fri", title: "Rolling in all day", detail: "arrivals staggered — text the thread an hour out", day_part: null, link_slug: null, sort: 1 },
+  { day_id: "fri", title: "Claim the sites, tents up", detail: "first crew sets the kitchen", day_part: "afternoon", link_slug: null, sort: 2 },
+  { day_id: "fri", title: "Firewood + ice run", detail: "buy wood on the island — no out-of-state wood", day_part: "afternoon", link_slug: null, sort: 3 },
+  { day_id: "fri", title: "Taco night at camp", detail: "we cook Friday", day_part: "evening", link_slug: null, sort: 4 },
+  { day_id: "fri", title: "Campfire, stay in", detail: "food sleeps in cars · quiet hours at 10", day_part: "evening", link_slug: null, sort: 5 },
+  { day_id: "sat", title: "Into the park", detail: "passes sorted at the gate", day_part: "morning", link_slug: null, sort: 1 },
+  { day_id: "sat", title: "Shuttle or cars — call it at breakfast", detail: "Route 10 stops at the campground", day_part: "morning", link_slug: "shuttle", sort: 2 },
+  { day_id: "sat", title: "Out in the park all day", detail: "Beehive · Ocean Path · Jordan Pond · Echo Lake", day_part: "afternoon", link_slug: "beehive", sort: 3 },
+  { day_id: "sat", title: "Dinner in Bar Harbor", detail: "call ahead — nobody reserves for 12", day_part: "evening", link_slug: "bar-harbor", sort: 4 },
   { day_id: "sun", title: "Breakfast, break camp", detail: "trash packs out", day_part: "morning", link_slug: null, sort: 1 },
   { day_id: "sun", title: "Permit in the check-out box", detail: "sweep both sites", day_part: "morning", link_slug: null, sort: 2 },
-  { day_id: "sun", title: "Roll out", detail: "showers arrive late day — leave early, drive dry", day_part: "morning", link_slug: null, sort: 3 },
+  { day_id: "sun", title: "Roll out", detail: "checkout is 11 am", day_part: "morning", link_slug: null, sort: 3 },
 ];
 
 // Alana's two pre-claims ship as a label note; she re-claims once she opens

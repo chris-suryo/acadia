@@ -17,12 +17,6 @@ import type { MenuItem } from "@/lib/types";
 
 const MEAL_CHIPS = MEALS.map((m) => ({ value: m, label: m }));
 
-const CAPTIONS: Record<string, string> = {
-  menu: "who's cooking what, by night",
-  shop: "one list for the store run — check it off as you shop",
-  money: `log it — splits ${PARTY_SIZE} ways`,
-};
-
 function ExpenseAdd({ onCommit }: { onCommit: (desc: string, cents: number) => void }) {
   const [open, setOpen] = useState(false);
   const [desc, setDesc] = useState("");
@@ -331,10 +325,6 @@ export function Food({
           { id: "money", label: "Expenses" },
         ]}
       />
-      <div className="font-mono text-[10.5px] text-mute -mt-2 mb-4">
-        {CAPTIONS[view]}
-      </div>
-
       {view === "menu" && (
         <>
           {requests.length > 0 && (

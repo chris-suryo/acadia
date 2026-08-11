@@ -30,6 +30,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Card, Segmented } from "./primitives";
 import { Ideas } from "./Ideas";
+import { MapOverlay, useMapPrefetch } from "./MapLightbox";
 import { AddRow } from "./ui/AddRow";
 import { focusCenter } from "./ui/focusCenter";
 import { Chips } from "./ui/Chips";
@@ -208,6 +209,8 @@ export function Itinerary({
   setView: (v: string) => void;
 }) {
   const { days, blocks, weather, addBlock, updateBlock, reorderDay } = useData();
+  const [mapOpen, setMapOpen] = useState(false);
+  useMapPrefetch();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({ title: "", detail: "" });
   const expandedRef = useRef<HTMLDivElement | null>(null);
@@ -300,6 +303,34 @@ export function Itinerary({
           <Ideas />
         </>
       )}
+      {view !== "ideas" && (
+        <button
+          onClick={() => setMapOpen(true)}
+          className="block w-full text-left bg-transparent border-none p-0 cursor-pointer mb-[26px]"
+        >
+          <Card className="flex items-center gap-3 p-3">
+            {/* eslint-disable-next-line @next/next/no-img-element -- repo-hosted thumb */}
+            <img
+              src="/maps/blackwoods-thumb.png"
+              alt=""
+              width={64}
+              height={64}
+              className="w-16 h-16 rounded-lg border border-rule shrink-0"
+            />
+            <span className="flex-1 min-w-0">
+              <span className="block text-[14.5px] font-semibold text-ink">
+                Base camp — Blackwoods
+              </span>
+              <span className="block font-mono text-[10.5px] text-mute mt-0.5">
+                check-in 1 pm · checkout 11 am
+              </span>
+              <span className="block font-mono text-[10.5px] text-blaze mt-0.5">
+                loop map
+              </span>
+            </span>
+          </Card>
+        </button>
+      )}
       {view !== "ideas" &&
       sortedDays.map((d) => {
         const w = weather[d.id];
@@ -390,6 +421,7 @@ export function Itinerary({
           </div>
         );
       })}
+      {mapOpen && <MapOverlay onClose={() => setMapOpen(false)} />}
     </div>
   );
 }

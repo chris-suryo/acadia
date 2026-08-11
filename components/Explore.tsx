@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Map as MapIcon } from "lucide-react";
 import { Card, SubH } from "./primitives";
 import { EATS, EATS_DIRECTORY, GUIDES, LINKS, MAP_PDF_URL, SPOTS, type Spot } from "@/lib/content";
-import { MapLightbox, HAS_CAMPGROUND_MAP } from "./MapLightbox";
+import { MapOverlay, useMapPrefetch } from "./MapLightbox";
 
 // Source favicon via Google's service — resolves on the client (phones have
 // internet); a failed load hides itself and the label stands alone.
@@ -42,6 +42,8 @@ export function Explore({
 }) {
   const refs = useRef<Record<string, HTMLDivElement | null>>({});
   const [photoOf, setPhotoOf] = useState<Spot | null>(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  useMapPrefetch();
 
   useEffect(() => {
     if (highlight && refs.current[highlight]) {
@@ -107,29 +109,30 @@ export function Explore({
     <div className="px-3.5 pt-4 pb-[60px]">
       <div className="mb-[22px]">
         <SubH>Campground</SubH>
-        {HAS_CAMPGROUND_MAP ? (
-          <MapLightbox />
-        ) : (
+        <Card className="flex items-center gap-[11px] p-[13px]">
+          <button
+            onClick={() => setMapOpen(true)}
+            className="flex-1 min-w-0 flex items-center gap-[11px] text-left bg-transparent border-none p-0 cursor-pointer"
+          >
+            <MapIcon size={19} className="text-blaze shrink-0" />
+            <span className="min-w-0">
+              <span className="block text-[14.5px] font-semibold text-ink">
+                Blackwoods loop map
+              </span>
+              <span className="block font-mono text-[10.5px] text-mute mt-0.5">
+                tap to open · site numbers on it
+              </span>
+            </span>
+          </button>
           <a
             href={MAP_PDF_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="no-underline"
+            className="inline-flex items-center gap-1.5 shrink-0 text-[12px] font-semibold text-blaze no-underline"
           >
-            <Card className="p-[13px] flex gap-[11px] items-center">
-              <MapIcon size={19} className="text-blaze shrink-0" />
-              <div className="flex-1">
-                <div className="text-[14.5px] font-semibold text-ink">
-                  Blackwoods map — loops & site numbers
-                </div>
-                <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-mute mt-0.5">
-                  <Favicon url={MAP_PDF_URL} size={12} /> recreation.gov
-                </div>
-              </div>
-              <ExternalLink size={14} className="text-mute" />
-            </Card>
+            PDF <ExternalLink size={11} />
           </a>
-        )}
+        </Card>
       </div>
 
       <div className="mb-[22px]">
@@ -277,6 +280,8 @@ export function Explore({
       >
         replay the intro
       </button>
+
+      {mapOpen && <MapOverlay onClose={() => setMapOpen(false)} />}
 
       {photoOf?.photo && (
         <button

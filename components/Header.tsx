@@ -26,28 +26,28 @@ export function Topo() {
   );
 }
 
+// Names are set once in the intro (or the name sheet) — the header just
+// greets. Editing lives behind "replay the intro" on Explore.
 export function Header() {
-  const { name, setName } = useData();
+  const { name } = useData();
 
   return (
-    <header className="bg-pine relative overflow-hidden px-[18px] pt-[26px] pb-[22px]">
+    <header className="bg-pine relative overflow-hidden px-[18px] pt-4 pb-3.5">
       <Topo />
-      <div className="relative flex justify-between items-end gap-3.5 flex-wrap">
-        <div>
-          <div className="font-mono text-[11px] tracking-[.12em] text-blaze uppercase mb-1.5">
-            Aug 14–16, 2026 · Blackwoods Campground
+      <div className="relative flex justify-between items-end gap-3.5">
+        <div className="min-w-0">
+          <div className="font-mono text-[10.5px] tracking-[.12em] text-blaze uppercase mb-1">
+            Aug 14–16, 2026 · Blackwoods
           </div>
-          <h1 className="font-display font-bold text-[clamp(28px,7vw,40px)] text-parchment m-0 leading-[1.05]">
+          <h1 className="font-display font-bold text-[clamp(24px,6vw,32px)] text-parchment m-0 leading-[1.05]">
             Acadia Base Camp
           </h1>
         </div>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Your name"
-          aria-label="Your name"
-          className="text-[16px] px-3 py-[9px] rounded-md bg-pinelift text-parchment w-[150px] min-h-[42px] border-[1.5px] border-granite placeholder:text-sky"
-        />
+        {name.trim() && (
+          <div className="text-[13px] text-sky pb-0.5 shrink-0">
+            Hi {name.trim()}
+          </div>
+        )}
       </div>
     </header>
   );
