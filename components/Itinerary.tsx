@@ -28,12 +28,13 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card, SubH } from "./primitives";
+import { Btn, Card, SubH } from "./primitives";
 import { Ideas } from "./Ideas";
 import { MapOverlay, useMapPrefetch } from "./MapLightbox";
 import { splitVibes } from "./Welcome";
+import { Favicon } from "./Explore";
 import { TRIP_DATES } from "@/lib/config";
-import { SPOTS } from "@/lib/content";
+import { EATS, SPOTS } from "@/lib/content";
 import { AddRow } from "./ui/AddRow";
 import { focusCenter } from "./ui/focusCenter";
 import { Chips } from "./ui/Chips";
@@ -60,6 +61,19 @@ const PARTS: { value: DayPart | null; label: string }[] = [
 
 const PART_ORDER: (DayPart | null)[] = [null, "morning", "afternoon", "evening"];
 const SPOT_BY_ID = new Map(SPOTS.map((s) => [s.id, s]));
+
+// The photogenic park picks surfaced under Saturday — tap jumps to Explore.
+const SAT_OPTION_IDS = [
+  "beehive",
+  "great-head",
+  "ocean-path",
+  "jordan-pond",
+  "echo-lake",
+  "sand-beach",
+];
+const SAT_OPTIONS = SAT_OPTION_IDS.map((id) => SPOT_BY_ID.get(id)!).filter(
+  (s) => s?.photo,
+);
 const PART_LABEL: Record<string, string> = {
   morning: "Morning",
   afternoon: "Afternoon",
@@ -140,13 +154,22 @@ function Entry({
           )}
         </div>
         {spotPhoto && (
-          // eslint-disable-next-line @next/next/no-img-element -- storage-hosted thumb
-          <img
-            src={spotPhoto.src}
-            alt=""
-            loading="lazy"
-            className="w-11 h-11 rounded-lg object-cover border border-rule shrink-0"
-          />
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              jump(block.link_slug!);
+            }}
+            aria-label="Open spot"
+            className="shrink-0 p-0 bg-transparent border-none cursor-pointer"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- storage-hosted thumb */}
+            <img
+              src={spotPhoto.src}
+              alt=""
+              loading="lazy"
+              className="w-11 h-11 rounded-lg object-cover border border-rule block"
+            />
+          </button>
         )}
       </div>
     );
@@ -200,18 +223,23 @@ function Entry({
               value={block.day_part}
               onChange={(v) => updateBlock(block.id, { day_part: v })}
             />
-            <button
-              onClick={() => {
-                const snapshot = { ...block };
-                onCollapse();
-                deleteBlock(block.id);
-                showUndo("Deleted", () => restoreBlock(snapshot));
-              }}
-              aria-label="Delete entry"
-              className="bg-transparent border-none cursor-pointer p-2 text-[#C3BCA8] shrink-0"
-            >
-              <Trash2 size={16} />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => {
+                  const snapshot = { ...block };
+                  onCollapse();
+                  deleteBlock(block.id);
+                  showUndo("Deleted", () => restoreBlock(snapshot));
+                }}
+                aria-label="Delete entry"
+                className="bg-transparent border-none cursor-pointer p-2 text-[#C3BCA8]"
+              >
+                <Trash2 size={16} />
+              </button>
+              <Btn small onClick={onCollapse}>
+                Done
+              </Btn>
+            </div>
           </div>
         </div>
       </div>
@@ -322,32 +350,43 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
 
   return (
     <div className="px-3.5 pt-4 pb-5">
-      <button
-        onClick={() => setMapOpen(true)}
-        className="block w-full text-left bg-transparent border-none p-0 cursor-pointer mb-[26px]"
-      >
-          <Card className="flex items-center gap-3 p-3">
-            {/* eslint-disable-next-line @next/next/no-img-element -- repo-hosted thumb */}
-            <img
-              src="/maps/blackwoods-thumb.png"
-              alt=""
-              width={64}
-              height={64}
-              className="w-16 h-16 rounded-lg border border-rule shrink-0"
-            />
-            <span className="flex-1 min-w-0">
-              <span className="block text-[14.5px] font-semibold text-ink">
-                Base camp — Blackwoods
-              </span>
-              <span className="block font-mono text-[10.5px] text-mute mt-0.5">
-                check-in 1 pm · checkout 11 am
-              </span>
-              <span className="block font-mono text-[10.5px] text-blaze mt-0.5">
-                loop map
-              </span>
+      <Card className="flex items-center gap-3 p-3 mb-[26px]">
+        <button
+          onClick={() => setMapOpen(true)}
+          className="flex-1 min-w-0 flex items-center gap-3 text-left bg-transparent border-none p-0 cursor-pointer"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- repo-hosted thumb */}
+          <img
+            src="/maps/blackwoods-thumb.png"
+            alt=""
+            width={64}
+            height={64}
+            className="w-16 h-16 rounded-lg border border-rule shrink-0"
+          />
+          <span className="flex-1 min-w-0">
+            <span className="block text-[14.5px] font-semibold text-ink">
+              Base camp — Blackwoods
             </span>
-          </Card>
+            <span className="block font-mono text-[10.5px] text-moss mt-0.5">
+              sites B080 + B082 · B loop
+            </span>
+            <span className="block font-mono text-[10.5px] text-mute mt-0.5">
+              check-in 1 pm · checkout 11 am
+            </span>
+            <span className="block font-mono text-[10.5px] text-blaze mt-0.5">
+              loop map — we&apos;re circled
+            </span>
+          </span>
         </button>
+        <a
+          href="https://maps.apple.com/?q=Blackwoods%20Campground&ll=44.3096,-68.2044"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 shrink-0 text-[12px] font-semibold text-blaze no-underline"
+        >
+          directions <ArrowUpRight size={11} />
+        </a>
+      </Card>
       {sortedDays.map((d) => {
         const w = weather[d.id];
         const WIcon = w ? weatherIcon(w.condition) : null;
@@ -376,17 +415,22 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
                 </h3>
               </div>
               {w && WIcon && (
-                <div className="flex items-center gap-1.5 shrink-0">
+                <a
+                  href="https://forecast.weather.gov/MapClick.php?lat=44.3096&lon=-68.2044"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 shrink-0 no-underline"
+                >
                   <WIcon size={17} className="text-granite" />
                   <span className="font-mono text-[13px] text-ink font-medium">
                     {w.high}° / {w.low}°
                   </span>
-                </div>
+                </a>
               )}
             </div>
             {w && <div className="text-[11.5px] text-mute mb-2">{w.condition}</div>}
 
-            <Card className="overflow-hidden">
+            <Card className="overflow-hidden mb-0">
               {sections.length === 0 ? (
                 <AddRow
                   label="Add"
@@ -439,6 +483,58 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
                 </DndContext>
               )}
             </Card>
+
+            {d.id === "sat" && (
+              <div className="mt-3">
+                <div className="font-mono text-[10px] tracking-[.1em] uppercase text-granite mb-1.5">
+                  Saturday options
+                </div>
+                <div className="flex gap-2.5 overflow-x-auto snap-x pb-1 -mx-3.5 px-3.5">
+                  {SAT_OPTIONS.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => jump(s.id)}
+                      className="snap-start shrink-0 w-[128px] text-left bg-card border border-rule rounded-[10px] overflow-hidden p-0 cursor-pointer"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element -- storage-hosted thumb */}
+                      <img
+                        src={s.photo!.src}
+                        alt=""
+                        loading="lazy"
+                        className="w-full h-[76px] object-cover block"
+                      />
+                      <span className="block px-2 pt-1.5 pb-2">
+                        <span className="block text-[12.5px] font-semibold text-ink leading-[1.2]">
+                          {s.name}
+                        </span>
+                        <span className="block font-mono text-[9.5px] text-blaze mt-0.5 truncate">
+                          {s.meta}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="font-mono text-[10px] tracking-[.1em] uppercase text-granite mt-2.5 mb-1.5">
+                  Dinner in town
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
+                  {EATS.map((e) => (
+                    <a
+                      key={e.name}
+                      href={e.maps}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-blaze no-underline"
+                    >
+                      <Favicon url={e.maps} /> {e.name}
+                    </a>
+                  ))}
+                </div>
+                <div className="font-mono text-[10px] text-mute mt-1.5">
+                  more on the Explore tab
+                </div>
+              </div>
+            )}
           </div>
         );
       })}

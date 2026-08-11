@@ -35,7 +35,7 @@ export function Header() {
     // In the installed app the pine flows under the iOS status bar
     // (viewport-fit=cover + translucent status bar); the safe-area padding
     // keeps the text below the clock.
-    <header className="bg-pine relative overflow-hidden px-[18px] pb-[18px] pt-[calc(env(safe-area-inset-top)+22px)]">
+    <header className="bg-pine relative overflow-hidden px-[18px] pb-[22px] pt-[calc(env(safe-area-inset-top)+30px)]">
       <Topo />
       <div className="relative flex justify-between items-end gap-3.5">
         <div className="min-w-0">

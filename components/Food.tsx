@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
-import { Box, Card, Input, Kill, Segmented, SubH } from "./primitives";
+import { Box, Btn, Card, Input, Kill, Segmented, SubH } from "./primitives";
 import { AddRow } from "./ui/AddRow";
 import { Chips } from "./ui/Chips";
 import { focusCenter } from "./ui/focusCenter";
@@ -294,7 +294,7 @@ export function Food({
               />
             </div>
           </div>
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-1">
             <button
               onClick={() => {
                 const snapshot = { ...f };
@@ -308,6 +308,9 @@ export function Food({
             >
               <Trash2 size={16} />
             </button>
+            <Btn small onClick={collapse}>
+              Done
+            </Btn>
           </div>
         </div>
       </div>
