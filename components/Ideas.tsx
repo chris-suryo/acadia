@@ -71,7 +71,9 @@ function CardBody({ s, name }: { s: SurveyRow; name: string }) {
         </span>
       </div>
       {s.wants && (
-        <div className="font-mono text-[10.5px] text-moss mt-1">{s.wants}</div>
+        <div className="font-mono text-[10.5px] text-moss mt-1 leading-[1.6]">
+          {splitVibes(s.wants).join(" · ")}
+        </div>
       )}
       {TEXT_FIELDS.filter((f) => s[f.key]).map((f) => (
         <div key={f.key} className="mt-2">

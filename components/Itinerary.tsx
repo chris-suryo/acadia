@@ -348,12 +348,15 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
 
   const sortedDays = [...days].sort((a, b) => a.sort - b.sort);
 
-  return (
-    <div className="px-3.5 pt-4 pb-5">
-      <Card className="flex items-center gap-3 p-3 mb-[26px]">
+  // Base camp sits inside Friday: it's an arrival fact, and it reads in the
+  // order you need it — day, then where you're going, then what you do there.
+  const campCard = (
+    <Card className="p-3 mb-3">
+      <div className="flex items-start gap-3">
         <button
           onClick={() => setMapOpen(true)}
-          className="flex-1 min-w-0 flex items-center gap-3 text-left bg-transparent border-none p-0 cursor-pointer"
+          aria-label="Open the loop map"
+          className="shrink-0 p-0 bg-transparent border-none cursor-pointer"
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- repo-hosted thumb */}
           <img
@@ -361,32 +364,45 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
             alt=""
             width={64}
             height={64}
-            className="w-16 h-16 rounded-lg border border-rule shrink-0"
+            className="w-16 h-16 rounded-lg border border-rule block"
           />
-          <span className="flex-1 min-w-0">
-            <span className="block text-[14.5px] font-semibold text-ink">
-              Base camp — Blackwoods
-            </span>
-            <span className="block font-mono text-[10.5px] text-moss mt-0.5">
-              sites B080 + B082 · B loop
-            </span>
-            <span className="block font-mono text-[10.5px] text-mute mt-0.5">
-              check-in 1 pm · checkout 11 am
-            </span>
-            <span className="block font-mono text-[10.5px] text-blaze mt-0.5">
-              loop map — we&apos;re circled
-            </span>
-          </span>
         </button>
+        <div className="flex-1 min-w-0">
+          <div className="text-[14.5px] font-semibold text-ink leading-[1.25]">
+            Base camp — Blackwoods
+          </div>
+          <div className="font-mono text-[10.5px] text-moss mt-1">
+            sites B080 + B082 · B loop
+          </div>
+          <div className="font-mono text-[10.5px] text-mute mt-0.5 leading-[1.45]">
+            State Highway 3, 6 mi south of Bar Harbor
+          </div>
+          <div className="font-mono text-[10.5px] text-mute mt-0.5">
+            check-in 1 pm · out 11 am
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-4 mt-2.5 pt-2.5 border-t border-rule">
         <a
           href="https://maps.apple.com/?q=Blackwoods%20Campground&ll=44.3096,-68.2044"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 shrink-0 text-[12px] font-semibold text-blaze no-underline"
+          className="inline-flex items-center gap-1 text-[12px] font-semibold text-blaze no-underline"
         >
           directions <ArrowUpRight size={11} />
         </a>
-      </Card>
+        <button
+          onClick={() => setMapOpen(true)}
+          className="inline-flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-[12px] font-semibold text-blaze"
+        >
+          loop map — our sites marked
+        </button>
+      </div>
+    </Card>
+  );
+
+  return (
+    <div className="px-3.5 pt-4 pb-5">
       {sortedDays.map((d) => {
         const w = weather[d.id];
         const WIcon = w ? weatherIcon(w.condition) : null;
@@ -429,6 +445,8 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
               )}
             </div>
             {w && <div className="text-[11.5px] text-mute mb-2">{w.condition}</div>}
+
+            {d.id === "fri" && campCard}
 
             <Card className="overflow-hidden mb-0">
               {sections.length === 0 ? (

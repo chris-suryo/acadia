@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { AvatarEditor } from "./AvatarEditor";
 import { useData } from "@/lib/data/context";
 
 const TOPO_YS = [10, 30, 50, 72, 96, 122, 148];
@@ -31,6 +33,7 @@ export function Topo() {
 export function Header() {
   const { name, avatars, userId } = useData();
   const myAvatar = avatars[userId];
+  const [editing, setEditing] = useState(false);
 
   return (
     // In the installed app the pine flows under the iOS status bar
@@ -38,7 +41,7 @@ export function Header() {
     // keeps the text below the clock.
     <header className="bg-pine relative overflow-hidden px-[18px] pb-[22px] pt-[calc(env(safe-area-inset-top)+30px)]">
       <Topo />
-      <div className="relative flex justify-between items-end gap-3.5">
+      <div className="relative flex justify-between items-start gap-4">
         <div className="min-w-0">
           <div className="font-mono text-[11px] tracking-[.12em] text-blaze uppercase mb-1.5">
             Aug 14–16, 2026 · Blackwoods
@@ -48,21 +51,28 @@ export function Header() {
           </h1>
         </div>
         {name.trim() && (
-          <div className="flex items-center gap-2.5 shrink-0 pb-0.5">
-            <span className="text-[13px] text-sky">Hi {name.trim()}</span>
-            <span className="w-9 h-9 rounded-full overflow-hidden border border-granite bg-pinelift flex items-center justify-center">
+          <button
+            onClick={() => setEditing(true)}
+            aria-label="Edit your photo"
+            className="flex flex-col items-center gap-1 shrink-0 -mt-0.5 bg-transparent border-none p-0 cursor-pointer"
+          >
+            <span className="w-10 h-10 rounded-full overflow-hidden border border-granite bg-pinelift flex items-center justify-center">
               {myAvatar ? (
                 // eslint-disable-next-line @next/next/no-img-element -- user avatar
                 <img src={myAvatar} alt="" className="w-full h-full object-cover" />
               ) : (
-                <span className="font-display font-bold text-[15px] text-parchment">
+                <span className="font-display font-bold text-[16px] text-parchment">
                   {name.trim().charAt(0).toUpperCase()}
                 </span>
               )}
             </span>
-          </div>
+            <span className="font-mono text-[10px] text-sky max-w-[72px] truncate">
+              {name.trim()}
+            </span>
+          </button>
         )}
       </div>
+      <AvatarEditor open={editing} onClose={() => setEditing(false)} />
     </header>
   );
 }

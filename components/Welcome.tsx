@@ -4,11 +4,12 @@
 // short type-ins, one screen. Every exit path calls onDone; answers prefill
 // from the existing row so a replay edits instead of blanking.
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Camera } from "lucide-react";
 import { Btn, Input } from "./primitives";
 import { Chips, MultiChips } from "./ui/Chips";
 import { Topo } from "./Header";
+import { AvatarEditor } from "./AvatarEditor";
 import { useData } from "@/lib/data/context";
 
 // The vibe check, in plain language a first-timer can answer. Survey columns
@@ -40,7 +41,25 @@ export const SURVEY_PLACEHOLDERS = {
   extra: "anything you're hoping to do or see…",
 } as const;
 
-export const splitVibes = (s: string) => s.split(" · ").filter(Boolean);
+// Answers picked under earlier label sets still live in the column; translate
+// on read and drop repeats so a card never shows two vocabularies.
+const VIBE_ALIASES: Record<string, string> = {
+  "Big hikes": "A big hike",
+  "Sunsets + views": "Views + sunsets",
+  "Camp hangs": "Hanging at camp",
+  "Bar Harbor": "Town food + shops",
+};
+
+export const splitVibes = (s: string): string[] => {
+  const out: string[] = [];
+  for (const raw of s.split(" · ")) {
+    const v = raw.trim();
+    if (!v) continue;
+    const label = VIBE_ALIASES[v] ?? v;
+    if (!out.includes(label)) out.push(label);
+  }
+  return out;
+};
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -54,11 +73,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export function Welcome({ onDone }: { onDone: () => void }) {
-  const { name, setName, upsertSurvey, surveys, userId, avatars, setAvatar } =
-    useData();
+  const { name, setName, upsertSurvey, surveys, userId, avatars } = useData();
   const mine = surveys.find((s) => s.user_id === userId);
   const myAvatar = avatars[userId];
-  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [nm, setNm] = useState(name);
   const [vibes, setVibes] = useState<string[]>(splitVibes(mine?.wants ?? ""));
@@ -106,19 +124,10 @@ export function Welcome({ onDone }: { onDone: () => void }) {
           <p className="text-[14px] text-sky mt-3 mb-7 leading-[1.55]">
             12 of us · 2 sites · 3 days on the island
           </p>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) setAvatar(f);
-            }}
-          />
+          <AvatarEditor open={photoOpen} onClose={() => setPhotoOpen(false)} />
           <div className="flex items-center gap-3 mb-5">
             <button
-              onClick={() => fileRef.current?.click()}
+              onClick={() => setPhotoOpen(true)}
               aria-label="Add a photo"
               className="w-16 h-16 rounded-full border-[1.5px] border-granite bg-pinelift flex items-center justify-center overflow-hidden shrink-0 cursor-pointer p-0"
             >
