@@ -21,6 +21,19 @@ export function BottomSheet({
     return () => document.removeEventListener("keydown", h);
   }, [open, onClose]);
 
+  // Freeze the page behind the sheet: scrolling it while a sheet is up reads
+  // as the sheet failing to catch the gesture.
+  useEffect(() => {
+    if (!open) return;
+    const { overflow, touchAction } = document.body.style;
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+    return () => {
+      document.body.style.overflow = overflow;
+      document.body.style.touchAction = touchAction;
+    };
+  }, [open]);
+
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50">

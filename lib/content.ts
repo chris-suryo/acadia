@@ -183,9 +183,13 @@ export const SPOTS: Spot[] = [
   },
 ];
 
-// Maps links are the reliable path on a phone (hours, directions, menus);
-// official sites are added only where verified live (pg_net, Aug 2026 —
-// Testa's and CherrySTONES had no reachable site).
+// Apple Maps opens the app on an iPhone and a web map elsewhere — it's the
+// reliable path to hours, directions and menus. Official sites are listed
+// only where a request confirmed them live (Aug 2026); Testa's, CherrySTONES
+// and Thirsty Whale had no reachable site. Ordered group-friendliest first.
+const appleMaps = (q: string) =>
+  `https://maps.apple.com/?q=${encodeURIComponent(`${q} Bar Harbor ME`)}`;
+
 export const EATS: {
   name: string;
   meta: string;
@@ -194,33 +198,57 @@ export const EATS: {
   photo?: { src: string; credit: string };
 }[] = [
   {
+    name: "Side Street Cafe",
+    meta: "big menu · in town",
+    maps: appleMaps("Side Street Cafe"),
+    site: "https://sidestreetbarharbor.com",
+  },
+  {
+    name: "Geddy's",
+    meta: "casual seafood",
+    maps: appleMaps("Geddy's"),
+    site: "https://www.geddys.com",
+  },
+  {
+    name: "Poor Boy's Gourmet",
+    meta: "big menu",
+    maps: appleMaps("Poor Boy's Gourmet"),
+    site: "https://www.poorboysgourmet.com",
+  },
+  {
     name: "Stewman's Lobster Pound",
-    meta: "waterfront picnic tables · dog patio",
-    maps: "https://www.google.com/maps/search/?api=1&query=Stewman%27s+Lobster+Pound+Bar+Harbor+ME",
+    meta: "waterfront · dog patio",
+    maps: appleMaps("Stewman's Lobster Pound"),
     site: "https://stewmanslobsterpound.com",
     photo: photo("eat-stewmans.jpg", "Aaron Zhu · CC BY-SA 3.0"),
   },
   {
-    name: "Side Street Cafe",
-    meta: "",
-    maps: "https://www.google.com/maps/search/?api=1&query=Side+Street+Cafe+Bar+Harbor+ME",
-    site: "https://sidestreetbarharbor.com",
+    name: "Galyn's",
+    meta: "waterfront",
+    maps: appleMaps("Galyn's"),
+    site: "https://www.galynsbarharbor.com",
   },
   {
-    name: "Testa's",
-    meta: "heated dog patio",
-    maps: "https://www.google.com/maps/search/?api=1&query=Testa%27s+Restaurant+Bar+Harbor+ME",
+    name: "West Street Cafe",
+    meta: "seafood + lobster dinners",
+    maps: appleMaps("West Street Cafe"),
+    site: "https://www.weststreetcafe.com",
   },
   {
     name: "Paddy's Irish Pub",
     meta: "waterfront · dog patio",
-    maps: "https://www.google.com/maps/search/?api=1&query=Paddy%27s+Irish+Pub+Bar+Harbor+ME",
+    maps: appleMaps("Paddy's Irish Pub"),
     site: "https://paddysbarharbor.com",
+  },
+  {
+    name: "Testa's",
+    meta: "heated dog patio",
+    maps: appleMaps("Testa's Restaurant"),
   },
   {
     name: "CherrySTONES",
     meta: "covered dog patio",
-    maps: "https://www.google.com/maps/search/?api=1&query=CherrySTONES+Bar+Harbor+ME",
+    maps: appleMaps("CherrySTONES"),
   },
 ];
 
@@ -264,17 +292,16 @@ export const GUIDES: { name: string; why: string; url: string; domain: string }[
 ];
 
 // The things about Blackwoods people ask at camp, once each.
-export const CAMP_NOTES: { label: string; text: string; link?: SpotLink }[] = [
+export const CAMP_NOTES: { text: string; link?: SpotLink }[] = [
   {
-    label: "showers",
-    text: "None at Blackwoods. Coin-op showers at Otter Creek, half a mile up Route 3.",
-    link: { label: "Otter Creek", url: "https://www.google.com/maps/search/?api=1&query=Hot+Showers+Acadia+Otter+Creek+ME" },
+    text: "No showers at Blackwoods.",
+    link: { label: "Otter Creek, ½ mi", url: "https://maps.apple.com/?q=Hot+Showers+Acadia+Otter+Creek+ME" },
   },
-  { label: "water", text: "Spigots and flush toilets in every loop. No hookups." },
-  { label: "food", text: "Everything edible sleeps in a car overnight — raccoons work this campground." },
-  { label: "firewood", text: "Buy it on the island. Out-of-state wood is banned." },
-  { label: "quiet hours", text: "10 pm to 6 am, and they're enforced." },
-  { label: "signal", text: "Patchy to none. Download maps before you drive in." },
+  { text: "Water spigots and flush toilets in every loop." },
+  { text: "Food sleeps in the cars — raccoons work this campground." },
+  { text: "Buy firewood on the island; out-of-state wood is banned." },
+  { text: "Quiet hours 10 pm–6 am." },
+  { text: "Little to no cell signal." },
 ];
 
 export const MAP_PDF_URL =

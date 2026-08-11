@@ -414,7 +414,7 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
       <div className="font-mono text-[10px] tracking-[.1em] uppercase text-granite mb-1.5">
         Hikes
       </div>
-      <div className="flex gap-2.5 overflow-x-auto snap-x pb-1 -mx-3.5 px-3.5">
+      <div className="flex gap-2.5 overflow-x-auto snap-x scroll-pl-3.5 pb-1 -mx-3.5 px-3.5">
         {SAT_OPTIONS.map((s) => (
           <button
             key={s.id}
@@ -443,7 +443,7 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
       <div className="font-mono text-[10px] tracking-[.1em] uppercase text-granite mt-3 mb-1.5">
         Dinner
       </div>
-      <div className="flex gap-2.5 overflow-x-auto snap-x pb-1 -mx-3.5 px-3.5">
+      <div className="flex gap-2.5 overflow-x-auto snap-x scroll-pl-3.5 pb-1 -mx-3.5 px-3.5">
         {EATS.map((e) => (
           <a
             key={e.name}
@@ -606,11 +606,12 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
             Camp notes
           </div>
           {CAMP_NOTES.map((n) => (
-            <div key={n.label}>
-              <div className="font-mono text-[10px] tracking-[.1em] uppercase text-blaze">
-                {n.label}
-              </div>
-              <div className="text-[13.5px] text-ink leading-[1.5] mt-0.5">
+            <div key={n.text} className="flex items-start gap-2.5">
+              <span
+                aria-hidden
+                className="w-1.5 h-1.5 rounded-full bg-moss shrink-0 mt-[7px]"
+              />
+              <div className="text-[13.5px] text-ink leading-[1.5]">
                 {n.text}
                 {n.link && (
                   <a
