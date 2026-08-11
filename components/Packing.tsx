@@ -21,6 +21,9 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Box, Card, Segmented, SubH } from "./primitives";
 import { AddRow } from "./ui/AddRow";
+import { Avatar } from "./ui/Avatar";
+import { Progress } from "./ui/Progress";
+import { sectionIcon } from "./ui/categoryIcon";
 import { SwipeRow } from "./ui/SwipeRow";
 import { useSink, vtName } from "./ui/useSink";
 import { useUi } from "./ui/UiProvider";
@@ -177,9 +180,9 @@ export function Packing({
 
   const gCats = orderedCats(GEAR_CATEGORIES, [...new Set(gear.map((i) => i.category))]);
   const mCats = orderedCats(PERSONAL_CATEGORIES, [...new Set(personal.map((i) => i.category))]);
-  const unclaimed = gear.filter((i) => !i.owner_id).length;
+  const claimed = gear.filter((i) => i.owner_id).length;
+  const mine = gear.filter((i) => i.owner_id === userId).length;
   const done = personal.filter((i) => i.checked).length;
-  const pct = personal.length ? Math.round((done / personal.length) * 100) : 0;
 
   const groupTree = (cat: string) =>
     tree(gear.filter((i) => i.category === cat));
@@ -296,16 +299,22 @@ export function Packing({
           <Box on={!!i.owner_id} size={22} />
           <span className="flex-1 min-w-0">
             <span className="block text-[14.5px] text-ink leading-[1.35]">{i.label}</span>
-            {i.owner_id ? (
-              <span className="inline-block font-mono text-[10px] mt-1 px-2 py-0.5 rounded-full bg-[#E9EEE4] text-moss">
+          </span>
+          {/* An unclaimed row says nothing about being unclaimed — the bar up
+              top counts those. It offers the action instead, which is the one
+              thing this tab is for. */}
+          {i.owner_id ? (
+            <span className="inline-flex items-center gap-1.5 shrink-0 max-w-[42%]">
+              <Avatar userId={i.owner_id} name={ownerName} size={22} />
+              <span className="font-mono text-[10.5px] text-moss truncate">
                 {ownerName}
               </span>
-            ) : (
-              <span className="block font-mono text-[10.5px] mt-0.5 text-mute">
-                Unclaimed
-              </span>
-            )}
-          </span>
+            </span>
+          ) : (
+            <span className="font-mono text-[10.5px] text-blaze shrink-0 border border-blaze/40 rounded-full px-2 py-0.5">
+              claim
+            </span>
+          )}
         </button>
       </SortRow>
     );
@@ -374,17 +383,19 @@ export function Packing({
           onDragEnd={onDragEndGroup}
           onDragCancel={endDrag}
         >
+          <Progress
+            done={claimed}
+            total={gear.length}
+            label="claimed"
+            right={mine > 0 ? `${mine} yours` : null}
+          />
           <SortableContext
             items={groupFlat.map((r) => r.id)}
             strategy={verticalListSortingStrategy}
           >
-            {gCats.map((cat, ci) => (
+            {gCats.map((cat) => (
               <div key={cat} className="mb-5">
-                <SubH
-                  right={ci === 0 && unclaimed > 0 ? `${unclaimed} unclaimed` : null}
-                >
-                  {cat}
-                </SubH>
+                <SubH icon={sectionIcon(cat)}>{cat}</SubH>
                 <Card className="overflow-hidden">
                   {groupTree(cat).map(({ item, child }) => gearRow(item, child))}
                   <AddRow label="Add" placeholder="Item" onAdd={(t) => addGear(cat, t)} />
@@ -395,22 +406,16 @@ export function Packing({
         </DndContext>
       ) : (
         <>
-          <div className="mb-[18px]">
-            <div className="h-[7px] bg-[#E6E0CE] rounded overflow-hidden">
-              <div
-                className="h-full bg-moss transition-[width] duration-[250ms]"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <div className="flex justify-between mt-1.5">
-              <span className="font-mono text-[11px] text-granite">
-                {done} of {personal.length} packed
-              </span>
-              <span className="inline-flex items-center gap-1 font-mono text-[11px] text-mute">
+          <Progress
+            done={done}
+            total={personal.length}
+            label="packed"
+            right={
+              <>
                 <Lock size={11} /> only visible to you
-              </span>
-            </div>
-          </div>
+              </>
+            }
+          />
 
           <DndContext
             sensors={sensors}
@@ -425,7 +430,7 @@ export function Packing({
             >
               {mCats.map((cat) => (
                 <div key={cat} className="mb-5">
-                  <SubH>{cat}</SubH>
+                  <SubH icon={sectionIcon(cat)}>{cat}</SubH>
                   <Card className="overflow-hidden">
                     {mineTree(cat).map(({ item, child }) => personalRow(item, child))}
                     <AddRow

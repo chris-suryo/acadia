@@ -19,13 +19,19 @@ export function Card({
 export function SubH({
   children,
   right,
+  icon: Icon,
 }: {
   children: React.ReactNode;
   right?: React.ReactNode;
+  /** Section mark — a packing list of plain headings reads as a wall of text. */
+  icon?: React.ComponentType<{ size?: number; className?: string }>;
 }) {
   return (
     <div className="flex justify-between items-baseline mb-2 pb-[5px] border-b border-rule">
-      <span className="font-mono text-[10.5px] tracking-[.1em] uppercase text-granite">
+      <span className="inline-flex items-center gap-1.5 font-mono text-[10.5px] tracking-[.1em] uppercase text-granite">
+        {Icon ? (
+          <Icon size={13} className="text-moss shrink-0 -mb-px" />
+        ) : null}
         {children}
       </span>
       {right ? (

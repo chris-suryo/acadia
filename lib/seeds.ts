@@ -57,9 +57,37 @@ export const SEED_GEAR: {
   { category: "Site & Safety", label: "Group first-aid kit", sort: 1 },
   { category: "Site & Safety", label: "Trash + recycling bags", sort: 2 },
   { category: "Site & Safety", label: "Multi-tool, duct tape, mallet", sort: 3 },
+  // Round 11: the gaps a twelve-person, two-night camp actually hits.
+  { category: "Shelter", label: "Ground tarps or footprints", sort: 4 },
+  { category: "Shelter", label: "Extra stakes + guylines", sort: 5 },
+  { category: "Camp Kitchen", label: "Coffee — percolator or press, and filters", sort: 9 },
+  { category: "Camp Kitchen", label: "Second cooler — drinks only", sort: 10 },
+  { category: "Camp Kitchen", label: "Ice — restock Saturday", sort: 11 },
+  { category: "Camp Kitchen", label: "Griddle or grill grate", sort: 12 },
+  { category: "Camp Kitchen", label: "Mugs + cups for twelve", sort: 13 },
+  { category: "Camp Kitchen", label: "Oil, salt, pepper, spice kit", sort: 14 },
+  { category: "Camp Kitchen", label: "Bottle opener + corkscrew", sort: 15 },
+  { category: "Fire & Light", label: "Spare batteries + a backup headlamp", sort: 4 },
+  { category: "Fire & Light", label: "Fire gloves + poker", sort: 5 },
+  { category: "Site & Safety", label: "Tick remover + tweezers", sort: 4 },
+  { category: "Site & Safety", label: "Bins for the food — it all goes in the cars overnight", sort: 5 },
+  { category: "Site & Safety", label: "Paracord clothesline + clips", sort: 6 },
+  { category: "Site & Safety", label: "Camp broom + dustpan", sort: 7 },
+  { category: "Site & Safety", label: "Quarters for the Otter Creek showers", sort: 8 },
+  { category: "Dogs", label: "Leashes — six feet max in the park", sort: 1 },
+  { category: "Dogs", label: "Tie-out line for the site", sort: 2 },
+  { category: "Dogs", label: "Water bowls", sort: 3 },
+  { category: "Dogs", label: "Waste bags", sort: 4 },
+  { category: "Dogs", label: "Bed or blanket, and a towel for wet dogs", sort: 5 },
 ];
 
-export const GEAR_CATEGORIES = ["Shelter", "Camp Kitchen", "Fire & Light", "Site & Safety"];
+export const GEAR_CATEGORIES = [
+  "Shelter",
+  "Camp Kitchen",
+  "Fire & Light",
+  "Site & Safety",
+  "Dogs",
+];
 
 // Copied into personal_items per profile on first sign-in (seed_personal_items RPC).
 export const SEED_PERSONAL: { category: string; label: string; note: string; sort: number }[] = [
@@ -88,6 +116,18 @@ export const SEED_PERSONAL: { category: string; label: string; note: string; sor
   { category: "Extras", label: "Camp chair", note: "", sort: 1 },
   { category: "Extras", label: "Swimsuit", note: "", sort: 2 },
   { category: "Extras", label: "Cards, book, speaker", note: "", sort: 3 },
+  // Round 11 additions.
+  { category: "Sleep", label: "Earplugs + eye mask", note: "twelve people, one campfire, thin nylon walls", sort: 5 },
+  { category: "Clothing", label: "Long pants for the evening", note: "ticks in the grass, mosquitoes after dark", sort: 7 },
+  { category: "Clothing", label: "Beanie", note: "it drops to the mid-50s overnight", sort: 8 },
+  { category: "Mess Kit", label: "Mug for coffee", note: "", sort: 3 },
+  { category: "Mess Kit", label: "Dish towel", note: "", sort: 4 },
+  { category: "Essentials", label: "Daypack for the hikes", note: "water, layer, snacks", sort: 6 },
+  { category: "Essentials", label: "Cash + quarters", note: "the Otter Creek showers are coin-op", sort: 7 },
+  { category: "Toiletries", label: "Flip-flops for the showers", note: "", sort: 6 },
+  { category: "Toiletries", label: "Lip balm with SPF", note: "", sort: 7 },
+  { category: "Extras", label: "Dry bag or a ziplock for your phone", note: "", sort: 4 },
+  { category: "Extras", label: "Trekking poles, if you use them", note: "", sort: 5 },
 ];
 
 export const PERSONAL_CATEGORIES = ["Sleep", "Clothing", "Mess Kit", "Essentials", "Toiletries", "Extras"];

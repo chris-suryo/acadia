@@ -7,6 +7,7 @@
 import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { Btn, Card, Input } from "./primitives";
+import { Avatar } from "./ui/Avatar";
 import { Chips, MultiChips } from "./ui/Chips";
 import { useOutside } from "./ui/useOutside";
 import {
@@ -31,23 +32,6 @@ type TextDraft = Record<TextKey, string>;
 
 const answered = (s: SurveyRow) =>
   !!(s.activity || s.hikes || s.wants || s.bar_harbor || s.food);
-
-function Avatar({ userId, name }: { userId: string; name: string }) {
-  const { avatars } = useData();
-  const url = avatars[userId];
-  return (
-    <span className="w-6 h-6 rounded-full overflow-hidden border border-rule bg-[#E9EEE4] flex items-center justify-center shrink-0">
-      {url ? (
-        // eslint-disable-next-line @next/next/no-img-element -- user avatar
-        <img src={url} alt="" className="w-full h-full object-cover" />
-      ) : (
-        <span className="font-display font-bold text-[11px] text-moss">
-          {name.charAt(0).toUpperCase()}
-        </span>
-      )}
-    </span>
-  );
-}
 
 function CardBody({ s, name }: { s: SurveyRow; name: string }) {
   return (
