@@ -58,45 +58,43 @@ export function Explore({
         last ? "" : "border-b border-rule"
       } ${highlight === p.id ? "bg-[#FBEFE4]" : "bg-transparent"}`}
     >
-      <div className="flex gap-3">
+      <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex justify-between items-baseline gap-2.5">
-            <span className="text-[14.5px] font-semibold text-ink">{p.name}</span>
-            {p.links.length > 0 && (
-              <span className="inline-flex items-center gap-3 shrink-0">
-                {p.links.map((l) => (
-                  <a
-                    key={l.url + l.label}
-                    href={l.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-blaze no-underline"
-                  >
-                    <Favicon url={l.url} /> {l.label}
-                  </a>
-                ))}
-              </span>
-            )}
-          </div>
-          <div className="font-mono text-[10.5px] text-blaze mt-[3px] mb-[5px]">{p.meta}</div>
-          <div className="text-[12.5px] text-granite leading-[1.55]">{p.note}</div>
+          <div className="text-[14.5px] font-semibold text-ink">{p.name}</div>
+          <div className="font-mono text-[10.5px] text-blaze mt-[3px]">{p.meta}</div>
         </div>
         {p.photo && (
           <button
             onClick={() => setPhotoOf(p)}
             aria-label={`Photo — ${p.name}`}
-            className="shrink-0 self-start p-0 bg-transparent border-none cursor-zoom-in"
+            className="shrink-0 p-0 bg-transparent border-none cursor-zoom-in"
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- storage-hosted thumb */}
             <img
               src={p.photo.src}
               alt=""
               loading="lazy"
-              className="w-[56px] h-[56px] rounded-lg object-cover border border-rule"
+              className="w-16 h-16 rounded-lg object-cover border border-rule"
             />
           </button>
         )}
       </div>
+      <div className="text-[12.5px] text-granite leading-[1.55] mt-[5px]">{p.note}</div>
+      {p.links.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2">
+          {p.links.map((l) => (
+            <a
+              key={l.url + l.label}
+              href={l.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-blaze no-underline"
+            >
+              <Favicon url={l.url} /> {l.label}
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -156,7 +154,7 @@ export function Explore({
           {EATS.map((e) => (
             <div
               key={e.name}
-              className="flex items-center gap-2.5 px-3.5 py-[11px] border-b border-rule"
+              className="flex items-center gap-3 px-3.5 py-[11px] border-b border-rule"
             >
               <a
                 href={e.maps}
@@ -167,21 +165,32 @@ export function Explore({
                 <span className="text-[14px] font-medium text-blaze underline decoration-[#E5C9B4] underline-offset-[3px]">
                   {e.name}
                 </span>
-                <span className="flex items-center gap-1.5 font-mono text-[10.5px] text-mute mt-0.5">
-                  <Favicon url={e.maps} size={12} />
-                  {e.meta ? `${e.meta} · maps` : "maps"}
-                </span>
+                {e.meta && (
+                  <span className="block font-mono text-[10.5px] text-mute mt-0.5">
+                    {e.meta}
+                  </span>
+                )}
               </a>
-              {e.site && (
+              <span className="inline-flex items-center gap-3 shrink-0">
                 <a
-                  href={e.site}
+                  href={e.maps}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 shrink-0 text-[12px] font-semibold text-blaze no-underline"
+                  className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-blaze no-underline"
                 >
-                  <Favicon url={e.site} /> site
+                  <Favicon url={e.maps} /> maps
                 </a>
-              )}
+                {e.site && (
+                  <a
+                    href={e.site}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-blaze no-underline"
+                  >
+                    <Favicon url={e.site} /> site
+                  </a>
+                )}
+              </span>
             </div>
           ))}
           <a

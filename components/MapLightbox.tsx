@@ -1,7 +1,8 @@
 "use client";
 
-// Flips on once public/maps/blackwoods-map.png lands in the repo.
-export const HAS_CAMPGROUND_MAP = false;
+// public/maps/blackwoods-map.png — the official recreation.gov campground
+// PDF (page 1), rasterized at 3x. Site numbers stay legible zoomed in.
+export const HAS_CAMPGROUND_MAP = true;
 
 import { useState } from "react";
 import { ExternalLink, Map as MapIcon, X } from "lucide-react";
