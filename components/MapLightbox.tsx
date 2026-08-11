@@ -1,14 +1,14 @@
 "use client";
 
-// The Blackwoods loop map, full screen. Global pinch zoom is disabled, so
-// zoom is a one-thumb tap: fit-width <-> 2.6x centered on the tapped point.
+// The Blackwoods loop map, full screen: pinch to zoom, drag to pan, double-tap
+// to jump in or back out. The browser's own pinch is disabled app-wide, so the
+// gesture comes from usePinchPan.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { X } from "lucide-react";
+import { PinchSurface, usePinchPan } from "./ui/PinchPan";
 
 const MAP_SRC = "/maps/blackwoods-map.png";
-const MAP_RATIO = 3024 / 1836;
-const ZOOM = 2.6;
 
 /** Warms the browser cache so the overlay opens with no visible load. */
 export function useMapPrefetch() {
@@ -19,23 +19,7 @@ export function useMapPrefetch() {
 }
 
 export function MapOverlay({ onClose }: { onClose: () => void }) {
-  const [zoomed, setZoomed] = useState(false);
-  const scroller = useRef<HTMLDivElement | null>(null);
-
-  const toggle = (e: React.MouseEvent<HTMLImageElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const fx = (e.clientX - rect.left) / rect.width;
-    const fy = (e.clientY - rect.top) / rect.height;
-    const next = !zoomed;
-    setZoomed(next);
-    requestAnimationFrame(() => {
-      const c = scroller.current;
-      if (!c || !next) return;
-      const imgW = c.clientWidth * ZOOM;
-      c.scrollLeft = fx * imgW - c.clientWidth / 2;
-      c.scrollTop = fy * imgW * MAP_RATIO - c.clientHeight / 2;
-    });
-  };
+  const { t, surface, handlers } = usePinchPan({ min: 1, max: 6 });
 
   return (
     <div className="fixed inset-0 z-50 bg-[#23271F]/95">
@@ -46,22 +30,24 @@ export function MapOverlay({ onClose }: { onClose: () => void }) {
       >
         <X size={20} />
       </button>
-      <div ref={scroller} className="w-full h-full overflow-auto overscroll-contain">
-        {/* eslint-disable-next-line @next/next/no-img-element -- repo-hosted map */}
-        <img
-          src={MAP_SRC}
-          alt="Blackwoods campground map"
-          onClick={toggle}
-          className={
-            zoomed
-              ? "block max-w-none h-auto cursor-zoom-out"
-              : "block w-full h-auto cursor-zoom-in mt-14"
-          }
-          style={zoomed ? { width: `${ZOOM * 100}%` } : undefined}
-        />
-      </div>
-      <div className="fixed bottom-3 inset-x-0 text-center font-mono text-[10.5px] text-[#CFCABC] pointer-events-none">
-        tap the map to {zoomed ? "fit" : "zoom"}
+      <PinchSurface t={t} surface={surface} handlers={handlers} className="w-full h-full">
+        <div className="w-full h-full flex items-center justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element -- repo-hosted map */}
+          <img
+            src={MAP_SRC}
+            alt="Blackwoods campground map"
+            draggable={false}
+            className="max-w-full max-h-full w-auto h-auto select-none"
+          />
+        </div>
+      </PinchSurface>
+      <div className="fixed bottom-3 inset-x-0 text-center pointer-events-none">
+        <div className="font-mono text-[11px] text-blaze">
+          B080 + B082 — boxed in orange
+        </div>
+        <div className="font-mono text-[10.5px] text-[#CFCABC] mt-1">
+          pinch to zoom · drag to move
+        </div>
       </div>
     </div>
   );
