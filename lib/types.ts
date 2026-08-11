@@ -89,3 +89,9 @@ export type ForecastRow = {
   source: string | null;
   fetched_at: string;
 };
+
+/** One person's vote for a candidate dish. */
+export type MenuVote = {
+  menu_item_id: string;
+  user_id: string;
+};

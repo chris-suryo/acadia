@@ -9,6 +9,7 @@ import type {
   ItineraryBlock,
   ItineraryDay,
   MenuItem,
+  MenuVote,
   PersonalItem,
   ShoppingItem,
   SurveyRow,
@@ -78,6 +79,9 @@ export type DataCtx = {
   deleteDish: (id: string) => void;
   restoreDish: (row: MenuItem, ingredients: ShoppingItem[]) => void;
   addIngredient: (menuItemId: string, label: string) => void;
+  menuVotes: MenuVote[];
+  /** Adds or removes your vote for a candidate dish. */
+  toggleVote: (menuItemId: string) => void;
   addShopping: (label: string) => void;
   toggleShopping: (id: string) => void;
   deleteShopping: (id: string) => void;

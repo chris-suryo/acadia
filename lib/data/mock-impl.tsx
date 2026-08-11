@@ -19,6 +19,7 @@ import type {
   GearItem,
   ItineraryBlock,
   MenuItem,
+  MenuVote,
   PersonalItem,
   ShoppingItem,
   SurveyRow,
@@ -65,6 +66,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       ...p,
     })),
   );
+  const [menuVotes, setMenuVotes] = useState<MenuVote[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>(() =>
     SEED_MENU.map((m, i) => ({ id: `menu-${i}`, added_by: null, ...m })),
   );
@@ -103,6 +105,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       gear,
       personal,
       menu,
+      menuVotes,
       shopping,
       expenses,
       surveys,
@@ -213,6 +216,12 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
         ]);
         return id;
       },
+      toggleVote: (menuItemId) =>
+        setMenuVotes((prev) =>
+          prev.some((v) => v.menu_item_id === menuItemId && v.user_id === ME)
+            ? prev.filter((v) => !(v.menu_item_id === menuItemId && v.user_id === ME))
+            : [...prev, { menu_item_id: menuItemId, user_id: ME }],
+        ),
       updateDish: (id, patch) =>
         setMenu((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m))),
       deleteDish: (id) => {
@@ -290,7 +299,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       restoreExpense: (row) =>
         setExpenses((prev) => [...prev.filter((e) => e.id !== row.id), row]),
     };
-  }, [name, ensureName, blocks, gear, personal, menu, shopping, expenses, surveys, avatars]);
+  }, [name, ensureName, blocks, gear, personal, menu, menuVotes, shopping, expenses, surveys, avatars]);
 
   return (
     <Ctx.Provider value={value}>

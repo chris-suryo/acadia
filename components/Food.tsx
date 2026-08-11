@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, ThumbsUp, Trash2 } from "lucide-react";
 import { Box, Btn, Card, Input, Kill, Segmented, SubH } from "./primitives";
+import { Avatar } from "./ui/Avatar";
 import { AddRow } from "./ui/AddRow";
 import { Chips } from "./ui/Chips";
 import { focusCenter } from "./ui/focusCenter";
@@ -88,6 +89,8 @@ export function Food({
 }) {
   const {
     menu,
+    menuVotes,
+    toggleVote,
     shopping,
     expenses,
     surveys,
@@ -140,6 +143,11 @@ export function Food({
     shopping
       .filter((s) => s.menu_item_id === menuItemId)
       .sort((a, b) => a.label.localeCompare(b.label));
+
+  const votersOf = (menuItemId: string) =>
+    menuVotes.filter((v) => v.menu_item_id === menuItemId).map((v) => v.user_id);
+  const voteCount = (menuItemId: string) =>
+    menuVotes.reduce((n, v) => (v.menu_item_id === menuItemId ? n + 1 : n), 0);
 
   const menuByNight = (n: string) =>
     menu.filter((m) => m.night === n).sort((a, b) => a.sort - b.sort);
@@ -201,39 +209,69 @@ export function Food({
   const dishRow = (f: MenuItem) => {
     const ings = ingredientsOf(f.id);
     const who = f.added_by ? profiles[f.added_by]?.trim() : "";
+    // The meal is a section heading now, so it's dropped from the metadata.
     const metadata = [
-      f.meal,
-      who,
+      who ? `suggested by ${who}` : "",
       ings.length > 0
         ? `${ings.filter((i) => i.checked).length}/${ings.length} ingredients`
         : "",
     ].filter(Boolean);
 
     if (expandedId !== f.id) {
+      const voters = votersOf(f.id);
+      const mine = voters.includes(userId);
       return (
-        <button
+        <div
           key={f.id}
-          onClick={() => expand(f)}
-          className="w-full text-left bg-transparent border-none cursor-pointer flex items-center gap-2.5 px-3.5 py-3 border-b border-rule"
+          className="flex items-center gap-2 pr-3 border-b border-rule"
         >
-          <span className="flex-1 min-w-0">
-            <span className="block text-[14.5px] text-ink font-medium">{f.dish}</span>
-            {f.notes && (
-              <span className="block text-[11.5px] text-mute mt-0.5 leading-[1.4]">
-                {f.notes}
-              </span>
-            )}
-            <span className="block font-mono text-[10.5px] text-mute mt-[3px]">
-              {metadata.map((m, i) => (
-                <span key={i} className={i === 1 && who ? "text-moss" : ""}>
-                  {i > 0 && " · "}
-                  {m}
+          <button
+            onClick={() => expand(f)}
+            className="flex-1 min-w-0 text-left bg-transparent border-none cursor-pointer flex items-center gap-2.5 pl-3.5 py-3"
+          >
+            <span className="flex-1 min-w-0">
+              <span className="block text-[14.5px] text-ink font-medium">{f.dish}</span>
+              {f.notes.trim() && (
+                <span className="block text-[11.5px] text-mute mt-0.5 leading-[1.4]">
+                  {f.notes}
                 </span>
-              ))}
+              )}
+              {(metadata.length > 0 || voters.length > 0) && (
+                <span className="flex items-center gap-1.5 mt-[3px]">
+                  {voters.slice(0, 5).map((v) => (
+                    <Avatar
+                      key={v}
+                      userId={v}
+                      name={profiles[v]?.trim() || "?"}
+                      size={17}
+                    />
+                  ))}
+                  {metadata.length > 0 && (
+                    <span className="font-mono text-[10.5px] text-mute truncate">
+                      {metadata.join(" · ")}
+                    </span>
+                  )}
+                </span>
+              )}
             </span>
-          </span>
-          <ChevronDown size={15} className="text-mute shrink-0" />
-        </button>
+            <ChevronDown size={15} className="text-mute shrink-0" />
+          </button>
+          {/* Voting is the point of this list, so it gets its own target
+              rather than hiding inside the row's expand-to-edit tap. */}
+          <button
+            aria-label={mine ? `Remove your vote for ${f.dish}` : `Vote for ${f.dish}`}
+            aria-pressed={mine}
+            onClick={() => ensureName(() => toggleVote(f.id))}
+            className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-1 cursor-pointer font-mono text-[11px] ${
+              mine
+                ? "bg-moss border-moss text-white"
+                : "bg-transparent border-rule text-granite"
+            }`}
+          >
+            <ThumbsUp size={12} />
+            {voters.length}
+          </button>
+        </div>
       );
     }
 
@@ -348,13 +386,29 @@ export function Food({
           )}
           {NIGHTS.map((n) => {
             const rows = menuByNight(n);
+            const meals = MEALS.filter((m) => rows.some((r) => r.meal === m));
             return (
               <div key={n} className="mb-5">
-                <SubH>{n}</SubH>
+                <SubH right={rows.length > 1 ? "tap to vote" : null}>{n}</SubH>
                 <Card className="overflow-hidden">
-                  {rows.map((f) => dishRow(f))}
+                  {meals.map((m) => (
+                    <div key={m}>
+                      <div className="px-3.5 pt-2.5 pb-1 font-mono text-[10px] tracking-[.1em] uppercase text-mute">
+                        {m}
+                      </div>
+                      {rows
+                        .filter((r) => r.meal === m)
+                        // Most-wanted first — the list should say what we're
+                        // having, not what happened to be typed first.
+                        .sort(
+                          (a, b) =>
+                            voteCount(b.id) - voteCount(a.id) || a.sort - b.sort,
+                        )
+                        .map((f) => dishRow(f))}
+                    </div>
+                  ))}
                   <AddRow
-                    label="Add"
+                    label={rows.length ? "Suggest another" : "Suggest something"}
                     placeholder="Dish"
                     onAdd={(t) =>
                       ensureName(() =>

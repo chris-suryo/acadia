@@ -19,6 +19,7 @@ import type {
   ItineraryBlock,
   ItineraryDay,
   MenuItem,
+  MenuVote,
   PersonalItem,
   Profile,
   ShoppingItem,
@@ -34,6 +35,7 @@ type Table =
   | "gear_items"
   | "personal_items"
   | "menu_items"
+  | "menu_votes"
   | "shopping_items"
   | "expenses"
   | "survey"
@@ -44,6 +46,7 @@ const REALTIME_TABLES: Table[] = [
   "itinerary_blocks",
   "gear_items",
   "menu_items",
+  "menu_votes",
   "shopping_items",
   "expenses",
   "survey",
@@ -75,6 +78,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [gear, setGear] = useState<GearItem[]>([]);
   const [personal, setPersonal] = useState<PersonalItem[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [menuVotes, setMenuVotes] = useState<MenuVote[]>([]);
   const [shopping, setShopping] = useState<ShoppingItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [surveys, setSurveys] = useState<SurveyRow[]>([]);
@@ -104,6 +108,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           break;
         case "menu_items":
           setMenu(data as MenuItem[]);
+          break;
+        case "menu_votes":
+          setMenuVotes(data as MenuVote[]);
           break;
         case "shopping_items":
           setShopping(data as ShoppingItem[]);
@@ -166,6 +173,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       "gear_items",
       "personal_items",
       "menu_items",
+      "menu_votes",
       "shopping_items",
       "expenses",
       "survey",
@@ -222,6 +230,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         refetch("gear_items"),
         refetch("personal_items"),
         refetch("menu_items"),
+        refetch("menu_votes"),
         refetch("shopping_items"),
         refetch("expenses"),
         refetch("survey"),
@@ -369,6 +378,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     gear,
     personal,
     menu,
+    menuVotes,
     shopping,
     expenses,
     surveys,
@@ -544,6 +554,32 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     deletePersonal: (id) => {
       setPersonal((prev) => prev.filter((p) => p.id !== id && p.parent_id !== id));
       persist(supabase.from("personal_items").delete().eq("id", id), "personal_items");
+    },
+
+    toggleVote: (menuItemId) => {
+      const uid = userIdRef.current;
+      if (!uid) return;
+      const has = menuVotes.some(
+        (v) => v.menu_item_id === menuItemId && v.user_id === uid,
+      );
+      // Optimistic: a vote should land under your thumb, not after a round trip.
+      setMenuVotes((prev) =>
+        has
+          ? prev.filter((v) => !(v.menu_item_id === menuItemId && v.user_id === uid))
+          : [...prev, { menu_item_id: menuItemId, user_id: uid }],
+      );
+      persist(
+        has
+          ? supabase
+              .from("menu_votes")
+              .delete()
+              .eq("menu_item_id", menuItemId)
+              .eq("user_id", uid)
+          : supabase
+              .from("menu_votes")
+              .insert({ menu_item_id: menuItemId, user_id: uid }),
+        "menu_votes",
+      );
     },
 
     addDish: ({ night, meal, dish, notes }) => {
