@@ -14,7 +14,8 @@ import { useUi } from "./ui/UiProvider";
 import { useData } from "@/lib/data/context";
 import { MEALS, NIGHTS } from "@/lib/seeds";
 import { PARTY_SIZE } from "@/lib/config";
-import type { MenuItem } from "@/lib/types";
+import type { MenuItem, ShoppingItem } from "@/lib/types";
+import { AISLES, aisleOf } from "@/lib/aisle";
 
 const MEAL_CHIPS = MEALS.map((m) => ({ value: m, label: m }));
 
@@ -154,7 +155,11 @@ export function Food({
 
   // Store: dish ingredients in menu order, then standalone adds.
   const menuOrder = new Map(menu.map((m, i) => [m.id, i] as const));
-  const storeRows = [
+  const storeRows: (ShoppingItem & {
+    tag: string;
+    tagTone: "moss" | "blaze";
+    standalone: boolean;
+  })[] = [
     ...shopping
       .filter((s) => s.menu_item_id !== null)
       .sort((a, b) => {
@@ -178,7 +183,7 @@ export function Food({
         const who = s.added_by ? profiles[s.added_by]?.trim() : "";
         return {
           ...s,
-          tag: who ? `added by ${who}` : "added",
+          tag: who || "asked for",
           tagTone: "blaze" as const,
           standalone: true,
         };
@@ -186,6 +191,11 @@ export function Food({
   ];
 
   const sunkStoreRows = sink(storeRows);
+  // Grouped by where things sit in a shop, not by where the row came from.
+  const byAisle = AISLES.map((aisle) => ({
+    aisle,
+    rows: sunkStoreRows.filter((r) => aisleOf(r.label) === aisle),
+  })).filter((g) => g.rows.length > 0);
   const storeLeft = shopping.filter((s) => !s.checked).length;
   const myPaid = expenses
     .filter((e) => e.user_id === userId)
@@ -230,7 +240,16 @@ export function Food({
             className="flex-1 min-w-0 text-left bg-transparent border-none cursor-pointer flex items-center gap-2.5 pl-3.5 py-3"
           >
             <span className="flex-1 min-w-0">
-              <span className="block text-[14.5px] text-ink font-medium">{f.dish}</span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-[14.5px] text-ink font-medium truncate">
+                  {f.dish}
+                </span>
+                {f.picked && (
+                  <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[.08em] text-white bg-moss rounded-full px-1.5 py-[1px]">
+                    on the menu
+                  </span>
+                )}
+              </span>
               {f.notes.trim() && (
                 <span className="block text-[11.5px] text-mute mt-0.5 leading-[1.4]">
                   {f.notes}
@@ -333,6 +352,18 @@ export function Food({
             </div>
           </div>
           <div className="flex items-center justify-end gap-1">
+            {/* Votes are the signal; this is the decision the shopping list
+                can be built against. */}
+            <button
+              onClick={() => updateDish(f.id, { picked: !f.picked })}
+              className={`mr-auto rounded-full border px-2.5 py-1 cursor-pointer font-mono text-[11px] ${
+                f.picked
+                  ? "bg-moss border-moss text-white"
+                  : "bg-transparent border-rule text-granite"
+              }`}
+            >
+              {f.picked ? "on the menu" : "put on the menu"}
+            </button>
             <button
               onClick={() => {
                 const snapshot = { ...f };
@@ -378,7 +409,22 @@ export function Food({
                     className={`px-3.5 py-3 ${i > 0 ? "border-t border-rule" : ""}`}
                   >
                     <div className="text-[13.5px] text-ink leading-[1.5]">{r.text}</div>
-                    <div className="font-mono text-[10.5px] text-moss mt-0.5">{r.who}</div>
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <Avatar userId={r.id} name={r.who} size={17} />
+                        <span className="font-mono text-[10.5px] text-moss truncate">
+                          {r.who}
+                        </span>
+                      </span>
+                      {/* A request that can't become a line on the shopping
+                          list is just a wish. */}
+                      <button
+                        onClick={() => ensureName(() => addShopping(r.text))}
+                        className="shrink-0 rounded-full border border-rule px-2 py-0.5 bg-transparent cursor-pointer font-mono text-[10.5px] text-blaze"
+                      >
+                        add to store
+                      </button>
+                    </div>
                   </div>
                 ))}
               </Card>
@@ -400,9 +446,13 @@ export function Food({
                         .filter((r) => r.meal === m)
                         // Most-wanted first — the list should say what we're
                         // having, not what happened to be typed first.
+                        // Locked-in dishes head their meal, then the
+                        // most-wanted candidates.
                         .sort(
                           (a, b) =>
-                            voteCount(b.id) - voteCount(a.id) || a.sort - b.sort,
+                            Number(b.picked) - Number(a.picked) ||
+                            voteCount(b.id) - voteCount(a.id) ||
+                            a.sort - b.sort,
                         )
                         .map((f) => dishRow(f))}
                     </div>
@@ -424,13 +474,26 @@ export function Food({
       )}
 
       {view === "shop" && (
+        <>
+        <Card className="overflow-hidden mb-5">
+          <div className="px-3.5 pt-3 pb-1 text-[13.5px] text-ink">
+            Want something from the store?
+          </div>
+          <div className="px-3.5 pb-1 text-[11.5px] text-mute leading-[1.45]">
+            Add it here and your name goes next to it, so whoever shops knows
+            whose it is.
+          </div>
+          <AddRow
+            label="Ask for something"
+            placeholder="Clif bars, oat milk, hot sauce…"
+            onAdd={(t) => ensureName(() => addShopping(t))}
+          />
+        </Card>
+        {byAisle.map(({ aisle, rows }) => (
+        <div key={aisle} className="mb-5">
+        <SubH>{aisle}</SubH>
         <Card className="overflow-hidden">
-          {sunkStoreRows.length === 0 && (
-            <div className="p-5 text-[13.5px] text-mute text-center border-b border-rule">
-              Dishes from the menu appear here.
-            </div>
-          )}
-          {sunkStoreRows.map((g) => {
+          {rows.map((g) => {
             const row = (
               <button
                 onClick={() => {
@@ -449,12 +512,21 @@ export function Food({
                   >
                     {g.label}
                   </span>
-                  <span
-                    className={`block font-mono text-[10.5px] mt-0.5 ${
-                      g.tagTone === "moss" ? "text-moss" : "text-blaze"
-                    }`}
-                  >
-                    {g.tag}
+                  <span className="flex items-center gap-1.5 mt-0.5">
+                    {g.added_by && (
+                      <Avatar
+                        userId={g.added_by}
+                        name={profiles[g.added_by]?.trim() || "?"}
+                        size={16}
+                      />
+                    )}
+                    <span
+                      className={`font-mono text-[10.5px] truncate ${
+                        g.tagTone === "moss" ? "text-moss" : "text-blaze"
+                      }`}
+                    >
+                      {g.tag}
+                    </span>
                   </span>
                 </span>
               </button>
@@ -486,12 +558,16 @@ export function Food({
               </div>
             );
           })}
-          <AddRow
-            label="Add"
-            placeholder="Snacks, ice, paper towels…"
-            onAdd={(t) => addShopping(t)}
-          />
         </Card>
+        </div>
+        ))}
+        {byAisle.length === 0 && (
+          <div className="p-5 text-[13.5px] text-mute text-center">
+            Nothing on the list yet. Dishes you put on the menu bring their
+            ingredients here.
+          </div>
+        )}
+        </>
       )}
 
       {view === "money" && (

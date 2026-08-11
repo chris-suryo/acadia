@@ -590,6 +590,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         dish,
         notes,
         added_by: userIdRef.current,
+        picked: false,
         sort: nextSort(menu),
       };
       setMenu((prev) => [...prev, row]);

@@ -68,7 +68,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   );
   const [menuVotes, setMenuVotes] = useState<MenuVote[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>(() =>
-    SEED_MENU.map((m, i) => ({ id: `menu-${i}`, added_by: null, ...m })),
+    SEED_MENU.map((m, i) => ({ id: `menu-${i}`, added_by: null, picked: m.dish === "Tacos", ...m })),
   );
   const [shopping, setShopping] = useState<ShoppingItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -212,7 +212,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
         const id = newId();
         setMenu((prev) => [
           ...prev,
-          { id, night, meal, dish, notes, added_by: ME, sort: nextSort(prev) },
+          { id, night, meal, dish, notes, added_by: ME, picked: false, sort: nextSort(prev) },
         ]);
         return id;
       },

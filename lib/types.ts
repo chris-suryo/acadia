@@ -51,6 +51,8 @@ export type MenuItem = {
   dish: string;
   notes: string;
   added_by: string | null;
+  /** Locked in as the plan for that meal, not just a candidate. */
+  picked: boolean;
   sort: number;
 };
 
