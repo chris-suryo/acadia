@@ -12,6 +12,7 @@ import { Packing } from "@/components/Packing";
 import { Food } from "@/components/Food";
 import { Explore } from "@/components/Explore";
 import { Welcome } from "@/components/Welcome";
+import { ServiceWorker } from "@/components/ServiceWorker";
 
 function Shell() {
   const { ready, error, name } = useData();
@@ -162,6 +163,7 @@ export default function Page() {
       <DataProvider>
         <Shell />
       </DataProvider>
+      <ServiceWorker />
     </UiProvider>
   );
 }

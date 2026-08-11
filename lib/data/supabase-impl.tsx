@@ -80,11 +80,13 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [surveys, setSurveys] = useState<SurveyRow[]>([]);
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
 
-  const refetch = useCallback(
-    async (table: Table) => {
-      const { data, error: err } = await supabase.from(table).select("*");
-      if (err || !data) return;
-      switch (table) {
+  // Blackwoods has almost no signal, so every successful read is mirrored to
+  // localStorage and replayed on boot — the app opens with the last sync
+  // instead of an empty shell.
+  const cacheKey = (t: Table) => `abc.cache.${t}`;
+
+  const applyRows = useCallback((table: Table, data: unknown[]) => {
+    switch (table) {
         case "profiles":
           setProfileRows(data as Profile[]);
           break;
@@ -117,7 +119,21 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           break;
       }
     },
-    [supabase],
+    [],
+  );
+
+  const refetch = useCallback(
+    async (table: Table) => {
+      const { data, error: err } = await supabase.from(table).select("*");
+      if (err || !data) return;
+      applyRows(table, data);
+      try {
+        localStorage.setItem(cacheKey(table), JSON.stringify(data));
+      } catch {
+        // Quota or private mode — losing the offline copy is survivable.
+      }
+    },
+    [supabase, applyRows],
   );
 
   // Fire a write; on failure, notify, log, and re-sync the table so the
@@ -141,6 +157,37 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     if (!CONFIGURED) return;
     let cancelled = false;
 
+    // Paint the last sync first — offline this is all there is, and online it
+    // just beats the network.
+    const CACHED: Table[] = [
+      "profiles",
+      "itinerary_days",
+      "itinerary_blocks",
+      "gear_items",
+      "personal_items",
+      "menu_items",
+      "shopping_items",
+      "expenses",
+      "survey",
+      "forecast_cache",
+    ];
+    const cached: [Table, unknown[]][] = [];
+    for (const table of CACHED) {
+      try {
+        const raw = localStorage.getItem(`abc.cache.${table}`);
+        if (!raw) continue;
+        const rows = JSON.parse(raw);
+        if (Array.isArray(rows) && rows.length) cached.push([table, rows]);
+      } catch {
+        // Corrupt entry — the network refetch below replaces it.
+      }
+    }
+    const hadCache = cached.length > 0;
+    const hydrate = setTimeout(() => {
+      for (const [table, rows] of cached) applyRows(table, rows);
+      setReady(true);
+    }, 0);
+
     (async () => {
       const {
         data: { session },
@@ -149,7 +196,11 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       if (!s) {
         const { data, error: err } = await supabase.auth.signInAnonymously();
         if (err || !data.session) {
-          if (!cancelled) setError("Sign-in unavailable.");
+          if (cancelled) return;
+          // With a cached copy the app stays usable; without one there's
+          // nothing to show.
+          if (hadCache) showNotice("Offline — showing your last sync");
+          else setError("Sign-in unavailable.");
           return;
         }
         s = data.session;
@@ -219,9 +270,10 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true;
+      clearTimeout(hydrate);
       supabase.removeChannel(channel);
     };
-  }, [supabase, refetch]);
+  }, [supabase, refetch, applyRows, showNotice]);
 
   const setName = useCallback(
     (n: string) => {
