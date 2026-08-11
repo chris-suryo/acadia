@@ -1,28 +1,39 @@
 "use client";
 
-// First-open intro: name first, then the trip questionnaire. Every exit path
-// calls onDone — the shell records the visit and never shows this again;
-// answers are editable later on the Ideas board.
+// First-open intro: name first, then the questionnaire — options to tap, two
+// short type-ins, one screen. Every exit path calls onDone; answers prefill
+// from the existing row so a replay edits instead of blanking.
 
 import { useState } from "react";
-import { Btn, Input, Textarea } from "./primitives";
-import { Chips } from "./ui/Chips";
+import { Btn, Input } from "./primitives";
+import { Chips, MultiChips } from "./ui/Chips";
 import { Topo } from "./Header";
 import { useData } from "@/lib/data/context";
 
-export const ACTIVITY_CHIPS = [
-  { value: "Easy", label: "Easy" },
-  { value: "A hike a day", label: "A hike a day" },
-  { value: "Send it", label: "Send it" },
+// The vibe check: pick-any weekend shapes, one pace, and what's stored where
+// (survey columns predate this shape: wants = vibes joined, hikes = the
+// anything-else line).
+export const VIBE_CHIPS = [
+  "Big hikes",
+  "Easy walks",
+  "Swimming",
+  "Sunsets + views",
+  "Camp hangs",
+  "Bar Harbor",
+] as const;
+
+export const PACE_CHIPS = [
+  { value: "Up early, do it all", label: "Up early, do it all" },
+  { value: "One good hike", label: "One good hike" },
+  { value: "Wander, no plan", label: "Wander, no plan" },
 ];
 
-// Shared with the Ideas board's inline editor.
 export const SURVEY_PLACEHOLDERS = {
-  hikes: "Beehive, Precipice, something mellow…",
-  wants: "Swim, tide pools, sunrise, nothing at all…",
-  bar_harbor: "A meal out, a shop, ice cream…",
-  food: "Dishes you want, dietary stuff…",
+  food: "s'mores night, a dish, allergies…",
+  extra: "Beehive, lobster roll, a shop in town…",
 } as const;
+
+export const splitVibes = (s: string) => s.split(" · ").filter(Boolean);
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -37,16 +48,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export function Welcome({ onDone }: { onDone: () => void }) {
   const { name, setName, upsertSurvey, surveys, userId } = useData();
-  // Prefilled from the existing row so a replayed intro edits rather than
-  // blanking earlier answers.
   const mine = surveys.find((s) => s.user_id === userId);
   const [step, setStep] = useState<1 | 2>(1);
   const [nm, setNm] = useState(name);
-  const [activity, setActivity] = useState(mine?.activity ?? "");
-  const [hikes, setHikes] = useState(mine?.hikes ?? "");
-  const [wants, setWants] = useState(mine?.wants ?? "");
-  const [barHarbor, setBarHarbor] = useState(mine?.bar_harbor ?? "");
+  const [vibes, setVibes] = useState<string[]>(splitVibes(mine?.wants ?? ""));
+  const [pace, setPace] = useState(mine?.activity ?? "");
   const [food, setFood] = useState(mine?.food ?? "");
+  const [extra, setExtra] = useState(mine?.hikes ?? "");
 
   const continueToSurvey = () => {
     if (!nm.trim()) return;
@@ -56,18 +64,16 @@ export function Welcome({ onDone }: { onDone: () => void }) {
 
   const finish = () => {
     const patch = {
-      activity,
-      hikes: hikes.trim(),
-      wants: wants.trim(),
-      bar_harbor: barHarbor.trim(),
+      activity: pace,
+      wants: vibes.join(" · "),
       food: food.trim(),
+      hikes: extra.trim(),
     };
     const before = {
       activity: mine?.activity ?? "",
-      hikes: mine?.hikes ?? "",
       wants: mine?.wants ?? "",
-      bar_harbor: mine?.bar_harbor ?? "",
       food: mine?.food ?? "",
+      hikes: mine?.hikes ?? "",
     };
     if (JSON.stringify(patch) !== JSON.stringify(before)) upsertSurvey(patch);
     onDone();
@@ -118,58 +124,53 @@ export function Welcome({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="min-h-[100dvh] bg-parchment">
-      <div className="bg-pine relative overflow-hidden px-[18px] pt-[26px] pb-[22px]">
+      <div className="bg-pine relative overflow-hidden px-[18px] pt-4 pb-3.5">
         <Topo />
         <div className="relative">
-          <div className="font-mono text-[11px] tracking-[.12em] text-blaze uppercase mb-1.5">
+          <div className="font-mono text-[10.5px] tracking-[.12em] text-blaze uppercase mb-1">
             Hey {name.trim() || "there"}
           </div>
-          <h1 className="font-display font-bold text-[26px] text-parchment m-0 leading-[1.1]">
-            What do you want out of the weekend?
+          <h1 className="font-display font-bold text-[22px] text-parchment m-0 leading-[1.1]">
+            What kind of weekend?
           </h1>
         </div>
       </div>
-      <div className="max-w-[640px] mx-auto px-3.5 pt-4 pb-16 grid gap-5">
-        <div className="font-mono text-[10.5px] text-mute">
-          skip anything — answers land on the Ideas board
-        </div>
-        <Field label="Activity level">
+      <div className="max-w-[640px] mx-auto px-3.5 pt-4 pb-10 grid gap-4">
+        <Field label="Pick any">
+          <MultiChips
+            options={VIBE_CHIPS}
+            values={vibes}
+            onToggle={(v) =>
+              setVibes((prev) =>
+                prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v],
+              )
+            }
+          />
+        </Field>
+        <Field label="Saturday pace">
           <Chips
-            options={ACTIVITY_CHIPS}
-            value={activity}
-            onChange={(v) => setActivity(v === activity ? "" : v)}
-          />
-        </Field>
-        <Field label="Hikes you have in mind">
-          <Textarea
-            rows={2}
-            value={hikes}
-            onChange={(e) => setHikes(e.target.value)}
-            placeholder={SURVEY_PLACEHOLDERS.hikes}
-          />
-        </Field>
-        <Field label="What do you want to do?">
-          <Textarea
-            rows={2}
-            value={wants}
-            onChange={(e) => setWants(e.target.value)}
-            placeholder={SURVEY_PLACEHOLDERS.wants}
-          />
-        </Field>
-        <Field label="Bar Harbor — anything specific?">
-          <Textarea
-            rows={2}
-            value={barHarbor}
-            onChange={(e) => setBarHarbor(e.target.value)}
-            placeholder={SURVEY_PLACEHOLDERS.bar_harbor}
+            options={PACE_CHIPS}
+            value={pace}
+            onChange={(v) => setPace(v === pace ? "" : v)}
           />
         </Field>
         <Field label="Food requests">
-          <Textarea
-            rows={2}
+          <Input
             value={food}
             onChange={(e) => setFood(e.target.value)}
             placeholder={SURVEY_PLACEHOLDERS.food}
+            enterKeyHint="next"
+          />
+        </Field>
+        <Field label="Anything else?">
+          <Input
+            value={extra}
+            onChange={(e) => setExtra(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") finish();
+            }}
+            placeholder={SURVEY_PLACEHOLDERS.extra}
+            enterKeyHint="done"
           />
         </Field>
         <Btn onClick={finish} full>

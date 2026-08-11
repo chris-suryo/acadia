@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Map as MapIcon } from "lucide-react";
-import { Card, SubH } from "./primitives";
+import { Card, Segmented, SubH } from "./primitives";
 import { EATS, EATS_DIRECTORY, GUIDES, LINKS, MAP_PDF_URL, SPOTS, type Spot } from "@/lib/content";
 import { MapOverlay, useMapPrefetch } from "./MapLightbox";
 
@@ -35,23 +35,34 @@ export function Explore({
   highlight,
   clearHighlight,
   onReplayIntro,
+  view,
+  setView,
 }: {
   highlight: string | null;
   clearHighlight: () => void;
   onReplayIntro: () => void;
+  view: string;
+  setView: (v: string) => void;
 }) {
   const refs = useRef<Record<string, HTMLDivElement | null>>({});
   const [photoOf, setPhotoOf] = useState<Spot | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
   useMapPrefetch();
 
+  // A details↗ jump lands on the segment its spot lives in, then scrolls.
   useEffect(() => {
-    if (highlight && refs.current[highlight]) {
+    if (!highlight) return;
+    const zone = SPOTS.find((s) => s.id === highlight)?.zone;
+    if (zone) setView(zone);
+    const scrollT = setTimeout(() => {
       refs.current[highlight]?.scrollIntoView({ behavior: "smooth", block: "center" });
-      const t = setTimeout(clearHighlight, 2500);
-      return () => clearTimeout(t);
-    }
-  }, [highlight, clearHighlight]);
+    }, 80);
+    const clearT = setTimeout(clearHighlight, 2500);
+    return () => {
+      clearTimeout(scrollT);
+      clearTimeout(clearT);
+    };
+  }, [highlight, clearHighlight, setView]);
 
   const Row = ({ p, last }: { p: Spot; last: boolean }) => (
     <div
@@ -107,52 +118,71 @@ export function Explore({
 
   return (
     <div className="px-3.5 pt-4 pb-[60px]">
-      <div className="mb-[22px]">
-        <SubH>Campground</SubH>
-        <Card className="flex items-center gap-[11px] p-[13px]">
-          <button
-            onClick={() => setMapOpen(true)}
-            className="flex-1 min-w-0 flex items-center gap-[11px] text-left bg-transparent border-none p-0 cursor-pointer"
-          >
-            <MapIcon size={19} className="text-blaze shrink-0" />
-            <span className="min-w-0">
-              <span className="block text-[14.5px] font-semibold text-ink">
-                Blackwoods loop map
+      <Segmented
+        value={view}
+        onChange={setView}
+        options={[
+          { id: "park", label: "Park" },
+          { id: "town", label: "Town" },
+          { id: "info", label: "Info" },
+        ]}
+      />
+
+      {view === "park" && (
+        <div className="mb-[22px]">
+          <SubH>In the park</SubH>
+          <Card>
+            {park.map((p, i) => (
+              <Row key={p.id} p={p} last={i === park.length - 1} />
+            ))}
+          </Card>
+        </div>
+      )}
+
+      {view === "town" && (
+        <>
+          <div className="mb-[22px]">
+            <SubH>Bar Harbor & nearby</SubH>
+            <Card>
+              {town.map((p, i) => (
+                <Row key={p.id} p={p} last={i === town.length - 1} />
+              ))}
+            </Card>
+          </div>
+        </>
+      )}
+
+      {view === "info" && (
+        <div className="mb-[22px]">
+          <SubH>Campground</SubH>
+          <Card className="flex items-center gap-[11px] p-[13px]">
+            <button
+              onClick={() => setMapOpen(true)}
+              className="flex-1 min-w-0 flex items-center gap-[11px] text-left bg-transparent border-none p-0 cursor-pointer"
+            >
+              <MapIcon size={19} className="text-blaze shrink-0" />
+              <span className="min-w-0">
+                <span className="block text-[14.5px] font-semibold text-ink">
+                  Blackwoods loop map
+                </span>
+                <span className="block font-mono text-[10.5px] text-mute mt-0.5">
+                  tap to open · site numbers on it
+                </span>
               </span>
-              <span className="block font-mono text-[10.5px] text-mute mt-0.5">
-                tap to open · site numbers on it
-              </span>
-            </span>
-          </button>
-          <a
-            href={MAP_PDF_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 shrink-0 text-[12px] font-semibold text-blaze no-underline"
-          >
-            PDF <ExternalLink size={11} />
-          </a>
-        </Card>
-      </div>
+            </button>
+            <a
+              href={MAP_PDF_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 shrink-0 text-[12px] font-semibold text-blaze no-underline"
+            >
+              PDF <ExternalLink size={11} />
+            </a>
+          </Card>
+        </div>
+      )}
 
-      <div className="mb-[22px]">
-        <SubH>In the park</SubH>
-        <Card>
-          {park.map((p, i) => (
-            <Row key={p.id} p={p} last={i === park.length - 1} />
-          ))}
-        </Card>
-      </div>
-
-      <div className="mb-[22px]">
-        <SubH>Bar Harbor & nearby</SubH>
-        <Card>
-          {town.map((p, i) => (
-            <Row key={p.id} p={p} last={i === town.length - 1} />
-          ))}
-        </Card>
-      </div>
-
+      {view === "town" && (
       <div className="mb-[22px]">
         <SubH right="call ahead — none reserve for 12">Eat with a group</SubH>
         <Card>
@@ -216,7 +246,9 @@ export function Explore({
           </a>
         </Card>
       </div>
+      )}
 
+      {view === "info" && (
       <div className="mb-[22px]">
         <SubH>Guides</SubH>
         <Card>
@@ -246,7 +278,9 @@ export function Explore({
           ))}
         </Card>
       </div>
+      )}
 
+      {view === "info" && (
       <div>
         <SubH>Links</SubH>
         <Card>
@@ -273,13 +307,16 @@ export function Explore({
           ))}
         </Card>
       </div>
+      )}
 
-      <button
-        onClick={onReplayIntro}
-        className="block mx-auto mt-7 bg-transparent border-none cursor-pointer font-mono text-[11px] text-mute underline underline-offset-2"
-      >
-        replay the intro
-      </button>
+      {view === "info" && (
+        <button
+          onClick={onReplayIntro}
+          className="block mx-auto mt-7 bg-transparent border-none cursor-pointer font-mono text-[11px] text-mute underline underline-offset-2"
+        >
+          replay the intro
+        </button>
+      )}
 
       {mapOpen && <MapOverlay onClose={() => setMapOpen(false)} />}
 

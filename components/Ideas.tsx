@@ -1,23 +1,28 @@
 "use client";
 
 // The Ideas board: everyone's questionnaire answers as cards. Your own card
-// is the tap target — edits happen inline and save on tap-away, same grammar
-// as the schedule entries. Others' cards are read-only.
+// edits inline with the same chips as the intro — chip taps save instantly,
+// the two type-ins save on Done or tap-away. Others' cards are read-only.
 
 import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
-import { Btn, Card, Textarea } from "./primitives";
-import { Chips } from "./ui/Chips";
+import { Btn, Card, Input } from "./primitives";
+import { Chips, MultiChips } from "./ui/Chips";
 import { useOutside } from "./ui/useOutside";
-import { ACTIVITY_CHIPS, SURVEY_PLACEHOLDERS } from "./Welcome";
+import {
+  PACE_CHIPS,
+  SURVEY_PLACEHOLDERS,
+  VIBE_CHIPS,
+  splitVibes,
+} from "./Welcome";
 import { useData } from "@/lib/data/context";
 import type { SurveyRow } from "@/lib/types";
 
+// Text fields on the card (survey columns predate the shape: hikes holds the
+// anything-else line).
 const TEXT_FIELDS = [
-  { key: "hikes", label: "hikes" },
-  { key: "wants", label: "want to do" },
-  { key: "bar_harbor", label: "bar harbor" },
-  { key: "food", label: "food requests" },
+  { key: "food", label: "food requests", placeholder: SURVEY_PLACEHOLDERS.food },
+  { key: "hikes", label: "anything else", placeholder: SURVEY_PLACEHOLDERS.extra },
 ] as const;
 
 type TextKey = (typeof TEXT_FIELDS)[number]["key"];
@@ -37,6 +42,12 @@ function CardBody({ s, name }: { s: SurveyRow; name: string }) {
           </span>
         )}
       </div>
+      {s.wants && (
+        <div className="font-mono text-[10.5px] text-moss mt-1">{s.wants}</div>
+      )}
+      {s.bar_harbor && (
+        <div className="text-[13.5px] text-ink leading-[1.5] mt-2">{s.bar_harbor}</div>
+      )}
       {TEXT_FIELDS.filter((f) => s[f.key]).map((f) => (
         <div key={f.key} className="mt-2">
           <div className="font-mono text-[10px] tracking-[.1em] uppercase text-mute">
@@ -52,15 +63,11 @@ function CardBody({ s, name }: { s: SurveyRow; name: string }) {
 export function Ideas() {
   const { surveys, profiles, userId, name, upsertSurvey, ensureName } = useData();
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<TextDraft>({
-    hikes: "",
-    wants: "",
-    bar_harbor: "",
-    food: "",
-  });
+  const [draft, setDraft] = useState<TextDraft>({ food: "", hikes: "" });
   const editRef = useRef<HTMLDivElement | null>(null);
 
   const mine = surveys.find((s) => s.user_id === userId);
+  const vibes = splitVibes(mine?.wants ?? "");
   const others = surveys
     .filter((s) => s.user_id !== userId && answered(s))
     .sort((a, b) =>
@@ -68,21 +75,14 @@ export function Ideas() {
     );
 
   const startEdit = () => {
-    setDraft({
-      hikes: mine?.hikes ?? "",
-      wants: mine?.wants ?? "",
-      bar_harbor: mine?.bar_harbor ?? "",
-      food: mine?.food ?? "",
-    });
+    setDraft({ food: mine?.food ?? "", hikes: mine?.hikes ?? "" });
     setEditing(true);
   };
 
   const commit = () => {
     const patch: TextDraft = {
-      hikes: draft.hikes.trim(),
-      wants: draft.wants.trim(),
-      bar_harbor: draft.bar_harbor.trim(),
       food: draft.food.trim(),
+      hikes: draft.hikes.trim(),
     };
     if (TEXT_FIELDS.some((f) => patch[f.key] !== (mine?.[f.key] ?? "")))
       upsertSurvey(patch);
@@ -104,10 +104,25 @@ export function Ideas() {
               </div>
               <div>
                 <div className="font-mono text-[10px] tracking-[.1em] uppercase text-mute mb-1.5">
-                  activity level
+                  pick any
+                </div>
+                <MultiChips
+                  options={VIBE_CHIPS}
+                  values={vibes}
+                  onToggle={(v) => {
+                    const next = vibes.includes(v)
+                      ? vibes.filter((x) => x !== v)
+                      : [...vibes, v];
+                    upsertSurvey({ wants: next.join(" · ") });
+                  }}
+                />
+              </div>
+              <div>
+                <div className="font-mono text-[10px] tracking-[.1em] uppercase text-mute mb-1.5">
+                  saturday pace
                 </div>
                 <Chips
-                  options={ACTIVITY_CHIPS}
+                  options={PACE_CHIPS}
                   value={mine?.activity ?? ""}
                   onChange={(v) =>
                     upsertSurvey({ activity: v === mine?.activity ? "" : v })
@@ -119,11 +134,11 @@ export function Ideas() {
                   <div className="font-mono text-[10px] tracking-[.1em] uppercase text-mute mb-1.5">
                     {f.label}
                   </div>
-                  <Textarea
-                    rows={2}
+                  <Input
                     value={draft[f.key]}
                     onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
-                    placeholder={SURVEY_PLACEHOLDERS[f.key]}
+                    placeholder={f.placeholder}
+                    className="min-h-[42px] p-2.5"
                   />
                 </div>
               ))}
@@ -154,7 +169,7 @@ export function Ideas() {
               <Plus size={14} /> Add yours
             </span>
             <span className="block font-mono text-[10.5px] text-mute mt-0.5 ml-[22px]">
-              activity · hikes · bar harbor · food
+              the weekend you want · pace · food
             </span>
           </button>
         </Card>

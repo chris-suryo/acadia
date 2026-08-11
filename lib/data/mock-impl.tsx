@@ -74,9 +74,9 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
     // One neighbor's answers so the Ideas board renders populated in mock runs.
     {
       user_id: "mock-alana",
-      activity: "A hike a day",
+      activity: "One good hike",
       hikes: "Beehive if the ladders aren't crowded",
-      wants: "One quiet morning at the tide pools",
+      wants: "Big hikes · Swimming · Camp hangs",
       bar_harbor: "",
       food: "S'mores. Non-negotiable.",
       updated_at: "2026-08-10T12:00:00Z",

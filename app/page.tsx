@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { DataProvider } from "@/lib/data/provider";
 import { useData } from "@/lib/data/context";
@@ -21,6 +21,7 @@ function Shell() {
   const [itinView, setItinViewState] = useState("ideas");
   const [packView, setPackViewState] = useState("group");
   const [foodView, setFoodViewState] = useState("menu");
+  const [exploreView, setExploreViewState] = useState("park");
   const [highlight, setHighlight] = useState<string | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const welcomeChecked = useRef(false);
@@ -56,6 +57,8 @@ function Shell() {
       if (pv) setPackViewState(pv);
       const fv = sessionStorage.getItem("abc.foodView");
       if (fv) setFoodViewState(fv);
+      const ev = sessionStorage.getItem("abc.exploreView");
+      if (ev) setExploreViewState(ev);
     }, 0);
     return () => clearTimeout(timer);
   }, []);
@@ -68,6 +71,12 @@ function Shell() {
     setItinViewState(v);
     sessionStorage.setItem("abc.itinView", v);
   };
+  // Stable identities: Explore's jump effect lists these as deps.
+  const setExploreView = useCallback((v: string) => {
+    setExploreViewState(v);
+    sessionStorage.setItem("abc.exploreView", v);
+  }, []);
+  const clearHighlight = useCallback(() => setHighlight(null), []);
   const setPackView = (v: string) => {
     setPackViewState(v);
     sessionStorage.setItem("abc.packView", v);
@@ -152,8 +161,10 @@ function Shell() {
             {tab === "explore" && (
               <Explore
                 highlight={highlight}
-                clearHighlight={() => setHighlight(null)}
+                clearHighlight={clearHighlight}
                 onReplayIntro={() => setShowWelcome(true)}
+                view={exploreView}
+                setView={setExploreView}
               />
             )}
           </>
