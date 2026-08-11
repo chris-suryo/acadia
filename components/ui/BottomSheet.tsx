@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 export function BottomSheet({
   open,
   onClose,
@@ -9,6 +11,16 @@ export function BottomSheet({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  // Escape closes — the scrim is the only other way out.
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50">
