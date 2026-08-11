@@ -3,11 +3,18 @@
 
 export type SpotLink = { label: string; url: string };
 
+/** Trail rating. Rendered as a bar meter, never spelled out. */
+export type TrailLevel = "easy" | "moderate" | "hard";
+
 export type Spot = {
   id: string;
   zone: "park" | "town";
   name: string;
   meta: string;
+  /** Hikes only — drives the difficulty meter next to the distance. */
+  difficulty?: TrailLevel;
+  /** Carousel form of `meta`, which is too long for a 128px card. */
+  short?: string;
   links: SpotLink[];
   note: string;
   /** Storage-hosted photo + attribution (shown in the tap-to-open viewer). */
@@ -29,7 +36,9 @@ export const SPOTS: Spot[] = [
     id: "great-head",
     zone: "park",
     name: "Great Head Loop",
-    meta: "1.7 mi loop · moderate · dogs allowed",
+    meta: "1.7 mi loop · dogs allowed",
+    difficulty: "moderate",
+    short: "1.7 mi loop",
     links: [{ label: "Trail map", url: "https://www.alltrails.com/trail/us/maine/great-head-trail-loop" }],
     note: "Starts at the far end of Sand Beach, up a set of granite steps. Open ledges look back over the beach to the Beehive, then the trail rounds the headland past the ruins of a 1915 tea house. Footing is rock most of the way — a few boulders where a small dog needs a boost. Go counterclockwise for the Sand Beach overlook early.",
     photo: photo("great-head.jpg", "John, Wikimedia · CC BY-SA 2.0"),
@@ -38,7 +47,9 @@ export const SPOTS: Spot[] = [
     id: "beehive",
     zone: "park",
     name: "Beehive Loop",
-    meta: "1.5 mi loop · strenuous · no dogs",
+    meta: "1.5 mi loop · no dogs",
+    difficulty: "hard",
+    short: "1.5 mi loop",
     links: [
       { label: "Trail map", url: "https://www.alltrails.com/trail/us/maine/the-beehive-loop-trail" },
       { label: "NPS", url: "https://www.nps.gov/thingstodo/hike-beehive-loop.htm" },
@@ -50,7 +61,9 @@ export const SPOTS: Spot[] = [
     id: "ocean-path",
     zone: "park",
     name: "Ocean Path",
-    meta: "4.4 mi round trip · easy · dogs allowed",
+    meta: "4.4 mi round trip · dogs allowed",
+    difficulty: "easy",
+    short: "4.4 mi round trip",
     links: [{ label: "Trail map", url: "https://www.alltrails.com/trail/us/maine/ocean-path-trail--2" }],
     note: "Flat coastal walk from Sand Beach to Otter Point past Thunder Hole and Monument Cove. Full sun the whole way and it parallels the Park Loop Road, so it's about the views, not solitude. Early morning is quietest.",
     photo: photo("ocean-path.jpg", "John, Wikimedia · CC BY-SA 2.0"),
@@ -59,7 +72,9 @@ export const SPOTS: Spot[] = [
     id: "gorham",
     zone: "park",
     name: "Gorham Mountain",
-    meta: "1.6 mi up-and-back · moderate · dogs allowed",
+    meta: "1.6 mi up-and-back · dogs allowed",
+    difficulty: "moderate",
+    short: "1.6 mi up-and-back",
     links: [
       { label: "Trail map", url: "https://www.alltrails.com/trail/us/maine/gorham-mountain-loop" },
       { label: "NPS", url: "https://www.nps.gov/thingstodo/hike-gorham-mountain-loop.htm" },
@@ -71,7 +86,9 @@ export const SPOTS: Spot[] = [
     id: "jordan-pond",
     zone: "park",
     name: "Jordan Pond Path",
-    meta: "3.3 mi loop · easy · dogs allowed",
+    meta: "3.3 mi loop · dogs allowed",
+    difficulty: "easy",
+    short: "3.3 mi loop",
     links: [
       { label: "Trail map", url: "https://www.alltrails.com/trail/us/maine/jordan-pond-path" },
       { label: "NPS", url: "https://www.nps.gov/thingstodo/hike-jordan-pond-path.htm" },
@@ -83,7 +100,9 @@ export const SPOTS: Spot[] = [
     id: "carriage",
     zone: "park",
     name: "Carriage roads",
-    meta: "45 mi network · easy · dogs allowed",
+    meta: "45 mi network · dogs allowed",
+    difficulty: "easy",
+    short: "45 mi network",
     links: [
       { label: "NPS", url: "https://www.nps.gov/acad/planyourvisit/carriage-roads.htm" },
       { label: "Map PDF", url: "https://www.nps.gov/acad/planyourvisit/upload/CRUMmap_508.pdf" },
@@ -96,6 +115,7 @@ export const SPOTS: Spot[] = [
     zone: "park",
     name: "Sand Beach",
     meta: "swim at your own risk · 55°F water",
+    short: "55°F swim",
     links: [{ label: "NPS", url: "https://www.nps.gov/thingstodo/swim-sand-beach.htm" }],
     note: "The only true sand beach on this side of the island, boxed in by granite headlands. The water is a dare — most people last about a minute. Lot fills by 8 a.m.; the Island Explorer or the Ocean Path from another lot solves it.",
     photo: photo("sand-beach.jpg", "Dougtone · CC BY-SA 2.0"),
@@ -105,6 +125,7 @@ export const SPOTS: Spot[] = [
     zone: "park",
     name: "Echo Lake Beach",
     meta: "the warm swim · 20 min from camp",
+    short: "the warm swim",
     links: [{ label: "NPS", url: "https://www.nps.gov/thingstodo/swim-echo-lake-beach.htm" }],
     note: "Freshwater and genuinely swimmable — 10 to 15 degrees warmer than the ocean, with Beech Cliff rising straight off the far shore. Lifeguards in summer. This is the one the swimsuits on the packing list are for. No dogs in summer.",
     photo: photo("echo-lake.jpg", "NPS / Victoria Stauffenberg · public domain"),
@@ -184,14 +205,22 @@ export const SPOTS: Spot[] = [
 ];
 
 // Apple Maps opens the app on an iPhone and a web map elsewhere — it's the
-// reliable path to hours, directions and menus. Official sites are listed
-// only where a request confirmed them live (Aug 2026); Testa's, CherrySTONES
-// and Thirsty Whale had no reachable site. Ordered group-friendliest first.
-const appleMaps = (q: string) =>
-  `https://maps.apple.com/?q=${encodeURIComponent(`${q} Bar Harbor ME`)}`;
+// reliable path to hours, directions and menus. Addresses confirmed Aug 2026;
+// `street` doubles as the card caption so the list reads as a walking route.
+//
+// Order: best fit for twelve people first (big menus, walk-ins, patios), then
+// the rest. Bar Harbor's restaurants sit in three clusters — Rodick/Cottage in
+// the middle of town, Main St running south, West St on the waterfront — and
+// the order keeps each cluster together so a night out doesn't zig-zag.
+//
+// Photos are each restaurant's own published shot, resized into our `spots`
+// bucket; West Street Cafe's is a CC0 Commons photo. Credit rides along.
+const appleMaps = (q: string, street: string) =>
+  `https://maps.apple.com/?q=${encodeURIComponent(`${q}, ${street}, Bar Harbor ME`)}`;
 
 export const EATS: {
   name: string;
+  street: string;
   meta: string;
   maps: string;
   site?: string;
@@ -199,56 +228,83 @@ export const EATS: {
 }[] = [
   {
     name: "Side Street Cafe",
-    meta: "big menu · in town",
-    maps: appleMaps("Side Street Cafe"),
+    street: "49 Rodick St",
+    meta: "big menu · dog patio",
+    maps: appleMaps("Side Street Cafe", "49 Rodick St"),
     site: "https://sidestreetbarharbor.com",
+    photo: photo("eat-side-street.jpg", "Side Street Cafe"),
+  },
+  {
+    name: "Thirsty Whale",
+    street: "40 Cottage St",
+    meta: "tavern · walk-ins, late",
+    maps: appleMaps("Thirsty Whale Tavern", "40 Cottage St"),
+    site: "https://www.thirstywhaletavern.com",
+    photo: photo("eat-thirsty-whale.jpg", "Thirsty Whale Tavern"),
   },
   {
     name: "Geddy's",
-    meta: "casual seafood",
-    maps: appleMaps("Geddy's"),
+    street: "19 Main St",
+    meta: "casual seafood · live music",
+    maps: appleMaps("Geddy's", "19 Main St"),
     site: "https://www.geddys.com",
+    photo: photo("eat-geddys.jpg", "Geddy's"),
+  },
+  {
+    name: "Galyn's",
+    street: "17 Main St",
+    meta: "harbor views upstairs",
+    maps: appleMaps("Galyn's", "17 Main St"),
+    site: "https://www.galynsbarharbor.com",
+    photo: photo("eat-galyns.jpg", "Aaron Snow Photography / Galyn's"),
+  },
+  {
+    name: "Testa's",
+    street: "53 Main St",
+    meta: "heated dog patio",
+    maps: appleMaps("Testa's Bar & Grill", "53 Main St"),
+    site: "https://www.testasbarharbor.com",
+    photo: photo("eat-testas.jpg", "Testa's Bar & Grill"),
+  },
+  {
+    name: "CherrySTONES",
+    street: "185 Main St",
+    meta: "covered dog patio",
+    maps: appleMaps("CherrySTONES", "185 Main St"),
+    site: "https://cherrystonesme.com",
+    photo: photo("eat-cherrystones.jpg", "CherrySTONES"),
   },
   {
     name: "Poor Boy's Gourmet",
-    meta: "big menu",
-    maps: appleMaps("Poor Boy's Gourmet"),
+    street: "300 Main St",
+    meta: "big menu · closest to camp",
+    maps: appleMaps("Poor Boy's Gourmet", "300 Main St"),
     site: "https://www.poorboysgourmet.com",
+    photo: photo("eat-poor-boys.jpg", "Poor Boy's Gourmet"),
   },
   {
     name: "Stewman's Lobster Pound",
+    street: "35 West St",
     meta: "waterfront · dog patio",
-    maps: appleMaps("Stewman's Lobster Pound"),
+    maps: appleMaps("Stewman's Lobster Pound", "35 West St"),
     site: "https://stewmanslobsterpound.com",
     photo: photo("eat-stewmans.jpg", "Aaron Zhu · CC BY-SA 3.0"),
   },
   {
-    name: "Galyn's",
-    meta: "waterfront",
-    maps: appleMaps("Galyn's"),
-    site: "https://www.galynsbarharbor.com",
+    name: "Paddy's Irish Pub",
+    street: "50 West St",
+    meta: "pub · dog patio",
+    maps: appleMaps("Paddy's Irish Pub", "50 West St"),
+    site: "https://paddysbarharbor.com",
+    photo: photo("eat-paddys.jpg", "Paddy's Irish Pub"),
   },
   {
     name: "West Street Cafe",
-    meta: "seafood + lobster dinners",
-    maps: appleMaps("West Street Cafe"),
+    street: "76 West St",
+    meta: "lobster dinners",
+    maps: appleMaps("West Street Cafe", "76 West St"),
     site: "https://www.weststreetcafe.com",
-  },
-  {
-    name: "Paddy's Irish Pub",
-    meta: "waterfront · dog patio",
-    maps: appleMaps("Paddy's Irish Pub"),
-    site: "https://paddysbarharbor.com",
-  },
-  {
-    name: "Testa's",
-    meta: "heated dog patio",
-    maps: appleMaps("Testa's Restaurant"),
-  },
-  {
-    name: "CherrySTONES",
-    meta: "covered dog patio",
-    maps: appleMaps("CherrySTONES"),
+    photo: photo("eat-west-street.jpg", "Saalebaer, Wikimedia · CC0"),
   },
 ];
 

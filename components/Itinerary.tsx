@@ -7,6 +7,7 @@ import {
   CloudRain,
   CloudSun,
   GripVertical,
+  MapPin,
   Sun,
   Trash2,
   UtensilsCrossed,
@@ -33,7 +34,7 @@ import { Btn, Card, SubH } from "./primitives";
 import { Ideas } from "./Ideas";
 import { MapOverlay, useMapPrefetch } from "./MapLightbox";
 import { splitVibes } from "./Welcome";
-import { Favicon } from "./Explore";
+import { Difficulty } from "./ui/Difficulty";
 import { TRIP_DATES } from "@/lib/config";
 import { CAMP_NOTES, EATS, SPOTS } from "@/lib/content";
 import { AddRow } from "./ui/AddRow";
@@ -419,7 +420,7 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
           <button
             key={s.id}
             onClick={() => jump(s.id)}
-            className="snap-start shrink-0 w-[128px] text-left bg-card border border-rule rounded-[10px] overflow-hidden p-0 cursor-pointer"
+            className="snap-start shrink-0 w-[140px] text-left bg-card border border-rule rounded-[10px] overflow-hidden p-0 cursor-pointer"
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- storage-hosted thumb */}
             <img
@@ -432,8 +433,9 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
               <span className="block text-[12.5px] font-semibold text-ink leading-[1.2]">
                 {s.name}
               </span>
-              <span className="block font-mono text-[9.5px] text-blaze mt-0.5 truncate">
-                {s.meta}
+              <span className="flex items-center gap-1 font-mono text-[9.5px] text-blaze mt-0.5">
+                {s.difficulty && <Difficulty level={s.difficulty} />}
+                <span className="truncate">{s.short ?? s.meta}</span>
               </span>
             </span>
           </button>
@@ -450,7 +452,7 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
             href={e.maps}
             target="_blank"
             rel="noopener noreferrer"
-            className="snap-start shrink-0 w-[128px] bg-card border border-rule rounded-[10px] overflow-hidden no-underline"
+            className="snap-start shrink-0 w-[140px] bg-card border border-rule rounded-[10px] overflow-hidden no-underline"
           >
             {e.photo ? (
               // eslint-disable-next-line @next/next/no-img-element -- storage-hosted thumb
@@ -472,7 +474,8 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
                 {e.name}
               </span>
               <span className="flex items-center gap-1 font-mono text-[9.5px] text-blaze mt-0.5">
-                <Favicon url={e.maps} size={10} /> maps
+                <MapPin size={10} className="shrink-0" />
+                <span className="truncate">{e.street}</span>
               </span>
             </span>
           </a>

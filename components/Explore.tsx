@@ -5,6 +5,7 @@ import { ExternalLink, Map as MapIcon } from "lucide-react";
 import { Card, Segmented, SubH } from "./primitives";
 import { EATS, EATS_DIRECTORY, GUIDES, LINKS, MAP_PDF_URL, SPOTS, type Spot } from "@/lib/content";
 import { MapOverlay, useMapPrefetch } from "./MapLightbox";
+import { Difficulty } from "./ui/Difficulty";
 
 // Source favicon via Google's service — resolves on the client (phones have
 // internet); a failed load hides itself and the label stands alone.
@@ -76,7 +77,10 @@ export function Explore({
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="text-[14.5px] font-semibold text-ink">{p.name}</div>
-          <div className="font-mono text-[10.5px] text-blaze mt-[3px]">{p.meta}</div>
+          <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-blaze mt-[3px]">
+            {p.difficulty && <Difficulty level={p.difficulty} />}
+            {p.meta}
+          </div>
         </div>
         {p.photo && (
           <button
@@ -200,11 +204,9 @@ export function Explore({
                 <span className="text-[14px] font-medium text-blaze underline decoration-[#E5C9B4] underline-offset-[3px]">
                   {e.name}
                 </span>
-                {e.meta && (
-                  <span className="block font-mono text-[10.5px] text-mute mt-0.5">
-                    {e.meta}
-                  </span>
-                )}
+                <span className="block font-mono text-[10.5px] text-mute mt-0.5">
+                  {e.street} · {e.meta}
+                </span>
               </a>
               <span className="inline-flex items-center gap-3 shrink-0">
                 <a
