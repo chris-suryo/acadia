@@ -186,12 +186,19 @@ export const SPOTS: Spot[] = [
 // Maps links are the reliable path on a phone (hours, directions, menus);
 // official sites are added only where verified live (pg_net, Aug 2026 —
 // Testa's and CherrySTONES had no reachable site).
-export const EATS: { name: string; meta: string; maps: string; site?: string }[] = [
+export const EATS: {
+  name: string;
+  meta: string;
+  maps: string;
+  site?: string;
+  photo?: { src: string; credit: string };
+}[] = [
   {
     name: "Stewman's Lobster Pound",
     meta: "waterfront picnic tables · dog patio",
     maps: "https://www.google.com/maps/search/?api=1&query=Stewman%27s+Lobster+Pound+Bar+Harbor+ME",
     site: "https://stewmanslobsterpound.com",
+    photo: photo("eat-stewmans.jpg", "Aaron Zhu · CC BY-SA 3.0"),
   },
   {
     name: "Side Street Cafe",
@@ -254,6 +261,20 @@ export const GUIDES: { name: string; why: string; url: string; domain: string }[
     url: "https://www.roamingroadtrippers.com/dog-friendly-guide-acadia/",
     domain: "roamingroadtrippers.com",
   },
+];
+
+// The things about Blackwoods people ask at camp, once each.
+export const CAMP_NOTES: { label: string; text: string; link?: SpotLink }[] = [
+  {
+    label: "showers",
+    text: "None at Blackwoods. Coin-op showers at Otter Creek, half a mile up Route 3.",
+    link: { label: "Otter Creek", url: "https://www.google.com/maps/search/?api=1&query=Hot+Showers+Acadia+Otter+Creek+ME" },
+  },
+  { label: "water", text: "Spigots and flush toilets in every loop. No hookups." },
+  { label: "food", text: "Everything edible sleeps in a car overnight — raccoons work this campground." },
+  { label: "firewood", text: "Buy it on the island. Out-of-state wood is banned." },
+  { label: "quiet hours", text: "10 pm to 6 am, and they're enforced." },
+  { label: "signal", text: "Patchy to none. Download maps before you drive in." },
 ];
 
 export const MAP_PDF_URL =

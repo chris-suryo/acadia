@@ -15,7 +15,6 @@ export const SEED_BLOCKS: {
   link_slug: string | null;
   sort: number;
 }[] = [
-  { day_id: "fri", title: "Rolling in all day", detail: "", day_part: null, link_slug: null, sort: 1 },
   { day_id: "fri", title: "Check in", detail: "from 1 pm", day_part: "afternoon", link_slug: null, sort: 2 },
   { day_id: "fri", title: "Camp setup", detail: "tents, kitchen, tarp", day_part: "afternoon", link_slug: null, sort: 3 },
   { day_id: "fri", title: "Firewood, ice, water", detail: "buy wood on the island", day_part: "afternoon", link_slug: null, sort: 4 },

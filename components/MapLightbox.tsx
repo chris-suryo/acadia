@@ -41,14 +41,6 @@ export function MapOverlay({ onClose }: { onClose: () => void }) {
           />
         </div>
       </PinchSurface>
-      <div className="fixed bottom-3 inset-x-0 text-center pointer-events-none">
-        <div className="font-mono text-[11px] text-blaze">
-          B080 + B082 — boxed in orange
-        </div>
-        <div className="font-mono text-[10.5px] text-[#CFCABC] mt-1">
-          pinch to zoom · drag to move
-        </div>
-      </div>
     </div>
   );
 }

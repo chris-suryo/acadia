@@ -9,6 +9,7 @@ import {
   GripVertical,
   Sun,
   Trash2,
+  UtensilsCrossed,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -34,8 +35,9 @@ import { MapOverlay, useMapPrefetch } from "./MapLightbox";
 import { splitVibes } from "./Welcome";
 import { Favicon } from "./Explore";
 import { TRIP_DATES } from "@/lib/config";
-import { EATS, SPOTS } from "@/lib/content";
+import { CAMP_NOTES, EATS, SPOTS } from "@/lib/content";
 import { AddRow } from "./ui/AddRow";
+import { BottomSheet } from "./ui/BottomSheet";
 import { focusCenter } from "./ui/focusCenter";
 import { Chips } from "./ui/Chips";
 import { useUi } from "./ui/UiProvider";
@@ -130,8 +132,12 @@ function Entry({
         {...attributes}
         {...listeners}
         onClick={onExpand}
-        className={`flex items-center gap-3 px-3.5 py-[11px] cursor-pointer ${isDragging ? "opacity-60" : ""}`}
+        className={`flex items-start gap-3 px-3.5 py-[11px] cursor-pointer ${isDragging ? "opacity-60" : ""}`}
       >
+        <span
+          aria-hidden
+          className="w-1.5 h-1.5 rounded-full bg-moss shrink-0 mt-[7px]"
+        />
         <div className="flex-1 min-w-0">
           <div className="text-[15px] font-semibold text-ink leading-[1.35]">
             {block.title}
@@ -251,6 +257,7 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
   const { days, blocks, weather, surveys, addBlock, updateBlock, reorderDay } =
     useData();
   const [mapOpen, setMapOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   useMapPrefetch();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -389,6 +396,12 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
             >
               show map
             </button>
+            <button
+              onClick={() => setNotesOpen(true)}
+              className="inline-flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-[12px] font-semibold text-blaze"
+            >
+              camp notes
+            </button>
           </div>
         </div>
       </div>
@@ -399,7 +412,7 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
   const satOptions = (
     <div className="mb-3">
       <div className="font-mono text-[10px] tracking-[.1em] uppercase text-granite mb-1.5">
-        Saturday options
+        Hikes
       </div>
       <div className="flex gap-2.5 overflow-x-auto snap-x pb-1 -mx-3.5 px-3.5">
         {SAT_OPTIONS.map((s) => (
@@ -426,19 +439,42 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
           </button>
         ))}
       </div>
-      <div className="font-mono text-[10px] tracking-[.1em] uppercase text-granite mt-2.5 mb-1.5">
+
+      <div className="font-mono text-[10px] tracking-[.1em] uppercase text-granite mt-3 mb-1.5">
         Dinner
       </div>
-      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
+      <div className="flex gap-2.5 overflow-x-auto snap-x pb-1 -mx-3.5 px-3.5">
         {EATS.map((e) => (
           <a
             key={e.name}
             href={e.maps}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-blaze no-underline"
+            className="snap-start shrink-0 w-[128px] bg-card border border-rule rounded-[10px] overflow-hidden no-underline"
           >
-            <Favicon url={e.maps} /> {e.name}
+            {e.photo ? (
+              // eslint-disable-next-line @next/next/no-img-element -- storage-hosted thumb
+              <img
+                src={e.photo.src}
+                alt=""
+                loading="lazy"
+                className="w-full h-[76px] object-cover block"
+              />
+            ) : (
+              // No licensed photo for this one — a plain tile beats a stock
+              // shot that isn't the place. The name sits right below.
+              <span className="w-full h-[76px] bg-pine flex items-center justify-center">
+                <UtensilsCrossed size={22} className="text-sky" />
+              </span>
+            )}
+            <span className="block px-2 pt-1.5 pb-2">
+              <span className="block text-[12.5px] font-semibold text-ink leading-[1.2]">
+                {e.name}
+              </span>
+              <span className="flex items-center gap-1 font-mono text-[9.5px] text-blaze mt-0.5">
+                <Favicon url={e.maps} size={10} /> maps
+              </span>
+            </span>
           </a>
         ))}
       </div>
@@ -563,6 +599,37 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
       </div>
 
       {mapOpen && <MapOverlay onClose={() => setMapOpen(false)} />}
+
+      <BottomSheet open={notesOpen} onClose={() => setNotesOpen(false)}>
+        <div className="grid gap-3">
+          <div className="font-mono text-[10.5px] tracking-[.1em] uppercase text-granite">
+            Camp notes
+          </div>
+          {CAMP_NOTES.map((n) => (
+            <div key={n.label}>
+              <div className="font-mono text-[10px] tracking-[.1em] uppercase text-blaze">
+                {n.label}
+              </div>
+              <div className="text-[13.5px] text-ink leading-[1.5] mt-0.5">
+                {n.text}
+                {n.link && (
+                  <a
+                    href={n.link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 ml-1.5 text-[12px] font-semibold text-blaze no-underline"
+                  >
+                    {n.link.label} <ArrowUpRight size={11} />
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+          <Btn onClick={() => setNotesOpen(false)} full>
+            Got it
+          </Btn>
+        </div>
+      </BottomSheet>
     </div>
   );
 }
