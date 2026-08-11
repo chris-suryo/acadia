@@ -16,3 +16,6 @@ create policy "avatars update own" on storage.objects
   for update to authenticated
   using (bucket_id = 'avatars' and name = auth.uid()::text || '.jpg')
   with check (bucket_id = 'avatars' and name = auth.uid()::text || '.jpg');
+create policy "avatars delete own" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'avatars' and name = auth.uid()::text || '.jpg');
