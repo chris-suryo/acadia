@@ -70,6 +70,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   );
   const [shopping, setShopping] = useState<ShoppingItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [surveys, setSurveys] = useState<SurveyRow[]>([
     // One neighbor's answers so the Ideas board renders populated in mock runs.
     {
@@ -94,6 +95,9 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       setName,
       ensureName,
       profiles: { [ME]: name.trim(), "mock-alana": "Alana" },
+      avatars,
+      setAvatar: (file) =>
+        setAvatars((prev) => ({ ...prev, [ME]: URL.createObjectURL(file) })),
       days: SEED_DAYS,
       blocks,
       gear,
@@ -286,7 +290,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       restoreExpense: (row) =>
         setExpenses((prev) => [...prev.filter((e) => e.id !== row.id), row]),
     };
-  }, [name, ensureName, blocks, gear, personal, menu, shopping, expenses, surveys]);
+  }, [name, ensureName, blocks, gear, personal, menu, shopping, expenses, surveys, avatars]);
 
   return (
     <Ctx.Provider value={value}>

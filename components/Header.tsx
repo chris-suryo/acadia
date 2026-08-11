@@ -27,9 +27,10 @@ export function Topo() {
 }
 
 // Names are set once in the intro (or the name sheet) — the header just
-// greets. Editing lives behind "replay the intro" on Explore.
+// greets, with the profile photo (or a monogram) in the corner.
 export function Header() {
-  const { name } = useData();
+  const { name, avatars, userId } = useData();
+  const myAvatar = avatars[userId];
 
   return (
     // In the installed app the pine flows under the iOS status bar
@@ -47,8 +48,18 @@ export function Header() {
           </h1>
         </div>
         {name.trim() && (
-          <div className="text-[13px] text-sky pb-0.5 shrink-0">
-            Hi {name.trim()}
+          <div className="flex items-center gap-2.5 shrink-0 pb-0.5">
+            <span className="text-[13px] text-sky">Hi {name.trim()}</span>
+            <span className="w-9 h-9 rounded-full overflow-hidden border border-granite bg-pinelift flex items-center justify-center">
+              {myAvatar ? (
+                // eslint-disable-next-line @next/next/no-img-element -- user avatar
+                <img src={myAvatar} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="font-display font-bold text-[15px] text-parchment">
+                  {name.trim().charAt(0).toUpperCase()}
+                </span>
+              )}
+            </span>
           </div>
         )}
       </div>

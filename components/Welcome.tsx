@@ -4,7 +4,8 @@
 // short type-ins, one screen. Every exit path calls onDone; answers prefill
 // from the existing row so a replay edits instead of blanking.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Camera } from "lucide-react";
 import { Btn, Input } from "./primitives";
 import { Chips, MultiChips } from "./ui/Chips";
 import { Topo } from "./Header";
@@ -53,8 +54,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export function Welcome({ onDone }: { onDone: () => void }) {
-  const { name, setName, upsertSurvey, surveys, userId } = useData();
+  const { name, setName, upsertSurvey, surveys, userId, avatars, setAvatar } =
+    useData();
   const mine = surveys.find((s) => s.user_id === userId);
+  const myAvatar = avatars[userId];
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
   const [nm, setNm] = useState(name);
   const [vibes, setVibes] = useState<string[]>(splitVibes(mine?.wants ?? ""));
@@ -99,9 +103,36 @@ export function Welcome({ onDone }: { onDone: () => void }) {
           <h1 className="font-display font-bold text-[clamp(32px,9vw,44px)] text-parchment m-0 leading-[1.05]">
             Acadia Base Camp
           </h1>
-          <p className="text-[14px] text-sky mt-3 mb-9 leading-[1.55]">
+          <p className="text-[14px] text-sky mt-3 mb-7 leading-[1.55]">
             12 of us · 2 sites · 3 days on the island
           </p>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) setAvatar(f);
+            }}
+          />
+          <div className="flex items-center gap-3 mb-5">
+            <button
+              onClick={() => fileRef.current?.click()}
+              aria-label="Add a photo"
+              className="w-16 h-16 rounded-full border-[1.5px] border-granite bg-pinelift flex items-center justify-center overflow-hidden shrink-0 cursor-pointer p-0"
+            >
+              {myAvatar ? (
+                // eslint-disable-next-line @next/next/no-img-element -- user avatar
+                <img src={myAvatar} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <Camera size={20} className="text-sky" />
+              )}
+            </button>
+            <span className="font-mono text-[10.5px] text-sky">
+              {myAvatar ? "looking good" : "add a photo — optional"}
+            </span>
+          </div>
           <label className="block text-[15px] font-medium text-parchment mb-2">
             What&apos;s your name?
           </label>

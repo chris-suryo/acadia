@@ -32,11 +32,31 @@ type TextDraft = Record<TextKey, string>;
 const answered = (s: SurveyRow) =>
   !!(s.activity || s.hikes || s.wants || s.bar_harbor || s.food);
 
+function Avatar({ userId, name }: { userId: string; name: string }) {
+  const { avatars } = useData();
+  const url = avatars[userId];
+  return (
+    <span className="w-6 h-6 rounded-full overflow-hidden border border-rule bg-[#E9EEE4] flex items-center justify-center shrink-0">
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element -- user avatar
+        <img src={url} alt="" className="w-full h-full object-cover" />
+      ) : (
+        <span className="font-display font-bold text-[11px] text-moss">
+          {name.charAt(0).toUpperCase()}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function CardBody({ s, name }: { s: SurveyRow; name: string }) {
   return (
     <>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[14.5px] font-semibold text-ink">{name}</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 min-w-0">
+          <Avatar userId={s.user_id} name={name} />
+          <span className="text-[14.5px] font-semibold text-ink truncate">{name}</span>
+        </span>
         <span className="flex items-baseline gap-2 shrink-0">
           {s.bar_harbor && (
             <span className="font-mono text-[10px] text-mute uppercase tracking-[.07em]">

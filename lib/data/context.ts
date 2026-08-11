@@ -39,6 +39,10 @@ export type DataCtx = {
   ensureName: (action: () => void) => void;
 
   profiles: Record<string, string>;
+  /** Avatar URL by user id ('' / absent = none — render a monogram). */
+  avatars: Record<string, string>;
+  /** Downscales client-side, uploads to storage, saves the URL on the profile. */
+  setAvatar: (file: File) => void;
   days: ItineraryDay[];
   blocks: ItineraryBlock[];
   gear: GearItem[];

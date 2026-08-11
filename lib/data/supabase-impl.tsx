@@ -11,6 +11,7 @@ import {
   SUPABASE_URL,
   TRIP_DATES,
 } from "@/lib/config";
+import { downscaleAvatar } from "@/lib/avatar";
 import type {
   Expense,
   ForecastRow,
@@ -229,7 +230,8 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       if (!uid) return;
       setProfileRows((prev) => {
         const rest = prev.filter((p) => p.id !== uid);
-        return [...rest, { id: uid, name: n.trim() }];
+        const me = prev.find((p) => p.id === uid);
+        return [...rest, { id: uid, name: n.trim(), avatar_url: me?.avatar_url ?? "" }];
       });
       if (nameTimer.current) clearTimeout(nameTimer.current);
       nameTimer.current = setTimeout(() => {
@@ -253,6 +255,43 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     return m;
   }, [profileRows]);
 
+  const avatars = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const p of profileRows) if (p.avatar_url) m[p.id] = p.avatar_url;
+    return m;
+  }, [profileRows]);
+
+  const setAvatar = useCallback(
+    (file: File) => {
+      const uid = userIdRef.current;
+      if (!uid) return;
+      (async () => {
+        const blob = await downscaleAvatar(file);
+        const path = `${uid}.jpg`;
+        const { error: err } = await supabase.storage
+          .from("avatars")
+          .upload(path, blob, { contentType: "image/jpeg", upsert: true });
+        if (err) throw err;
+        // Deterministic public URL; the version param busts caches on re-upload.
+        const url = `${SUPABASE_URL}/storage/v1/object/public/avatars/${path}?v=${new Date().getTime()}`;
+        setProfileRows((prev) => {
+          const rest = prev.filter((p) => p.id !== uid);
+          const me = prev.find((p) => p.id === uid);
+          return [...rest, { id: uid, name: me?.name ?? "", avatar_url: url }];
+        });
+        const { error: perr } = await supabase
+          .from("profiles")
+          .upsert({ id: uid, avatar_url: url });
+        if (perr) throw perr;
+      })().catch((e) => {
+        console.error("[avatar]", e);
+        showNotice("Couldn't save photo — retry");
+        refetch("profiles");
+      });
+    },
+    [supabase, showNotice, refetch],
+  );
+
   const weather = useMemo(() => {
     const m: Record<string, DayWeather | undefined> = {};
     for (const r of forecast) {
@@ -271,6 +310,8 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     setName,
     ensureName,
     profiles,
+    avatars,
+    setAvatar,
     days,
     blocks,
     gear,
