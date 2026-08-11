@@ -10,6 +10,7 @@ import { Btn, Card, Input } from "./primitives";
 import { Chips, MultiChips } from "./ui/Chips";
 import { useOutside } from "./ui/useOutside";
 import {
+  EXPERIENCE_CHIPS,
   PACE_CHIPS,
   SURVEY_PLACEHOLDERS,
   VIBE_CHIPS,
@@ -36,17 +37,21 @@ function CardBody({ s, name }: { s: SurveyRow; name: string }) {
     <>
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[14.5px] font-semibold text-ink">{name}</span>
-        {s.activity && (
-          <span className="font-mono text-[10.5px] text-blaze uppercase tracking-[.07em] shrink-0">
-            {s.activity}
-          </span>
-        )}
+        <span className="flex items-baseline gap-2 shrink-0">
+          {s.bar_harbor && (
+            <span className="font-mono text-[10px] text-mute uppercase tracking-[.07em]">
+              {s.bar_harbor}
+            </span>
+          )}
+          {s.activity && (
+            <span className="font-mono text-[10.5px] text-blaze uppercase tracking-[.07em]">
+              {s.activity}
+            </span>
+          )}
+        </span>
       </div>
       {s.wants && (
         <div className="font-mono text-[10.5px] text-moss mt-1">{s.wants}</div>
-      )}
-      {s.bar_harbor && (
-        <div className="text-[13.5px] text-ink leading-[1.5] mt-2">{s.bar_harbor}</div>
       )}
       {TEXT_FIELDS.filter((f) => s[f.key]).map((f) => (
         <div key={f.key} className="mt-2">
@@ -104,7 +109,7 @@ export function Ideas() {
               </div>
               <div>
                 <div className="font-mono text-[10px] tracking-[.1em] uppercase text-mute mb-1.5">
-                  pick any
+                  pick what sounds good
                 </div>
                 <MultiChips
                   options={VIBE_CHIPS}
@@ -126,6 +131,18 @@ export function Ideas() {
                   value={mine?.activity ?? ""}
                   onChange={(v) =>
                     upsertSurvey({ activity: v === mine?.activity ? "" : v })
+                  }
+                />
+              </div>
+              <div>
+                <div className="font-mono text-[10px] tracking-[.1em] uppercase text-mute mb-1.5">
+                  camped before?
+                </div>
+                <Chips
+                  options={EXPERIENCE_CHIPS}
+                  value={mine?.bar_harbor ?? ""}
+                  onChange={(v) =>
+                    upsertSurvey({ bar_harbor: v === mine?.bar_harbor ? "" : v })
                   }
                 />
               </div>

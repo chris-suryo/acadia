@@ -10,16 +10,16 @@ import { Chips, MultiChips } from "./ui/Chips";
 import { Topo } from "./Header";
 import { useData } from "@/lib/data/context";
 
-// The vibe check: pick-any weekend shapes, one pace, and what's stored where
-// (survey columns predate this shape: wants = vibes joined, hikes = the
-// anything-else line).
+// The vibe check, in plain language a first-timer can answer. Survey columns
+// predate this shape: wants = vibes joined, hikes = the anything-else line,
+// bar_harbor = camping experience.
 export const VIBE_CHIPS = [
-  "Big hikes",
+  "A big hike",
   "Easy walks",
   "Swimming",
-  "Sunsets + views",
-  "Camp hangs",
-  "Bar Harbor",
+  "Views + sunsets",
+  "Hanging at camp",
+  "Town food + shops",
 ] as const;
 
 export const PACE_CHIPS = [
@@ -28,9 +28,15 @@ export const PACE_CHIPS = [
   { value: "Wander, no plan", label: "Wander, no plan" },
 ];
 
+export const EXPERIENCE_CHIPS = [
+  { value: "First timer", label: "First timer" },
+  { value: "Done it a bit", label: "Done it a bit" },
+  { value: "Old hand", label: "Old hand" },
+];
+
 export const SURVEY_PLACEHOLDERS = {
   food: "s'mores night, a dish, allergies…",
-  extra: "Beehive, lobster roll, a shop in town…",
+  extra: "anything you're hoping to do or see…",
 } as const;
 
 export const splitVibes = (s: string) => s.split(" · ").filter(Boolean);
@@ -53,6 +59,7 @@ export function Welcome({ onDone }: { onDone: () => void }) {
   const [nm, setNm] = useState(name);
   const [vibes, setVibes] = useState<string[]>(splitVibes(mine?.wants ?? ""));
   const [pace, setPace] = useState(mine?.activity ?? "");
+  const [exp, setExp] = useState(mine?.bar_harbor ?? "");
   const [food, setFood] = useState(mine?.food ?? "");
   const [extra, setExtra] = useState(mine?.hikes ?? "");
 
@@ -66,12 +73,14 @@ export function Welcome({ onDone }: { onDone: () => void }) {
     const patch = {
       activity: pace,
       wants: vibes.join(" · "),
+      bar_harbor: exp,
       food: food.trim(),
       hikes: extra.trim(),
     };
     const before = {
       activity: mine?.activity ?? "",
       wants: mine?.wants ?? "",
+      bar_harbor: mine?.bar_harbor ?? "",
       food: mine?.food ?? "",
       hikes: mine?.hikes ?? "",
     };
@@ -136,7 +145,14 @@ export function Welcome({ onDone }: { onDone: () => void }) {
         </div>
       </div>
       <div className="max-w-[640px] mx-auto px-3.5 pt-4 pb-10 grid gap-4">
-        <Field label="Pick any">
+        <Field label="Camped before?">
+          <Chips
+            options={EXPERIENCE_CHIPS}
+            value={exp}
+            onChange={(v) => setExp(v === exp ? "" : v)}
+          />
+        </Field>
+        <Field label="Pick what sounds good">
           <MultiChips
             options={VIBE_CHIPS}
             values={vibes}

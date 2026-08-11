@@ -8,7 +8,7 @@ import { MapOverlay, useMapPrefetch } from "./MapLightbox";
 
 // Source favicon via Google's service — resolves on the client (phones have
 // internet); a failed load hides itself and the label stands alone.
-function Favicon({ url, size = 14 }: { url: string; size?: number }) {
+export function Favicon({ url, size = 14 }: { url: string; size?: number }) {
   let domain = "";
   try {
     domain = new URL(url).hostname;
