@@ -11,7 +11,11 @@
 // service worker cache of authenticated API responses would be harder to
 // reason about and would outlive sign-out.
 
-const VERSION = "abc-v1";
+// Bump VERSION whenever a cached asset changes behind a URL that stays the
+// same — a replaced photo in the `spots` bucket, say. Cached entries are
+// served without revalidating, so an old copy would otherwise stick around on
+// phones that already have it.
+const VERSION = "abc-v2";
 const SHELL = `${VERSION}-shell`;
 const ASSETS = `${VERSION}-assets`;
 
@@ -33,6 +37,51 @@ self.addEventListener("activate", (e) => {
       )
       .then(() => self.clients.claim()),
   );
+});
+
+// Waiting for a photo to scroll into view is too late — by then you're at the
+// campsite with no bars. The page posts its media list (lib/content.ts stays
+// the single source of truth) and we fetch whatever isn't already on disk.
+// Failures are silent: a phone that's offline right now simply tries again on
+// the next launch.
+async function precache(urls) {
+  const cache = await caches.open(ASSETS);
+  const missing = [];
+  for (const url of urls) if (!(await cache.match(url))) missing.push(url);
+
+  let next = 0;
+  const worker = async () => {
+    while (next < missing.length) {
+      const url = missing[next++];
+      // A hanging request on a weak connection would otherwise sit on one of
+      // the browser's few sockets and starve the app's own requests.
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), 15000);
+      try {
+        const res = await fetch(url, {
+          mode: "cors",
+          credentials: "omit",
+          signal: abort.signal,
+        });
+        // Only store real responses — an opaque one can't be checked and
+        // would report success while caching an error page.
+        if (res.ok && res.type !== "opaque") await cache.put(url, res);
+      } catch {
+        /* no network for this one; next launch picks it up */
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  };
+  // Two at a time: this is background work and must never be the reason a
+  // tap feels slow.
+  await Promise.all(Array.from({ length: 2 }, worker));
+}
+
+self.addEventListener("message", (e) => {
+  const msg = e.data;
+  if (!msg || msg.type !== "precache" || !Array.isArray(msg.urls)) return;
+  e.waitUntil(precache(msg.urls));
 });
 
 const cacheFirst = async (req, cacheName) => {

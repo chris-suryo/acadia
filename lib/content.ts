@@ -363,6 +363,23 @@ export const CAMP_NOTES: { text: string; link?: SpotLink }[] = [
 export const MAP_PDF_URL =
   "https://cdn.recreation.gov/public/2020/01/21/20/51/232508_d298a543-8e13-4df2-bf05-711c7aae2523.pdf";
 
+/**
+ * Everything the app needs on disk before anyone leaves for the trip.
+ *
+ * Blackwoods has no signal, and images are otherwise only cached once they
+ * scroll into view — seven of the ten dinner cards start off-screen, so the
+ * one moment you'd open the app at camp to pick a restaurant is the moment
+ * those cards would be blank. The service worker pulls this list down while
+ * there's still a network. Roughly 2 MB.
+ */
+export const OFFLINE_MEDIA: string[] = [
+  ...SPOTS.flatMap((s) => (s.photo ? [s.photo.src] : [])),
+  ...EATS.flatMap((e) => (e.photo ? [e.photo.src] : [])),
+  "/maps/blackwoods-thumb.png",
+  "/maps/blackwoods-map-small.png",
+  "/maps/blackwoods-map.png",
+];
+
 export const LINKS: { label: string; url: string; domain: string }[] = [
   { label: "Blackwoods on Recreation.gov", url: "https://www.recreation.gov/camping/poi/232508", domain: "recreation.gov" },
   { label: "Blackwoods map (PDF)", url: MAP_PDF_URL, domain: "recreation.gov" },
