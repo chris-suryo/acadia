@@ -374,31 +374,75 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
           <div className="font-mono text-[10.5px] text-moss mt-1">
             sites B080 + B082 · B loop
           </div>
-          <div className="font-mono text-[10.5px] text-mute mt-0.5 leading-[1.45]">
-            State Highway 3, 6 mi south of Bar Harbor
-          </div>
-          <div className="font-mono text-[10.5px] text-mute mt-0.5">
-            check-in 1 pm · out 11 am
+          <div className="flex items-center gap-4 mt-2">
+            <a
+              href="https://maps.apple.com/?q=Blackwoods%20Campground&ll=44.3096,-68.2044"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[12px] font-semibold text-blaze no-underline"
+            >
+              directions <ArrowUpRight size={11} />
+            </a>
+            <button
+              onClick={() => setMapOpen(true)}
+              className="inline-flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-[12px] font-semibold text-blaze"
+            >
+              show map
+            </button>
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-4 mt-2.5 pt-2.5 border-t border-rule">
-        <a
-          href="https://maps.apple.com/?q=Blackwoods%20Campground&ll=44.3096,-68.2044"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[12px] font-semibold text-blaze no-underline"
-        >
-          directions <ArrowUpRight size={11} />
-        </a>
-        <button
-          onClick={() => setMapOpen(true)}
-          className="inline-flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-[12px] font-semibold text-blaze"
-        >
-          loop map — our sites marked
-        </button>
-      </div>
     </Card>
+  );
+
+  // Saturday leads with the options — the day is a choice, not a script.
+  const satOptions = (
+    <div className="mb-3">
+      <div className="font-mono text-[10px] tracking-[.1em] uppercase text-granite mb-1.5">
+        Saturday options
+      </div>
+      <div className="flex gap-2.5 overflow-x-auto snap-x pb-1 -mx-3.5 px-3.5">
+        {SAT_OPTIONS.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => jump(s.id)}
+            className="snap-start shrink-0 w-[128px] text-left bg-card border border-rule rounded-[10px] overflow-hidden p-0 cursor-pointer"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- storage-hosted thumb */}
+            <img
+              src={s.photo!.src}
+              alt=""
+              loading="lazy"
+              className="w-full h-[76px] object-cover block"
+            />
+            <span className="block px-2 pt-1.5 pb-2">
+              <span className="block text-[12.5px] font-semibold text-ink leading-[1.2]">
+                {s.name}
+              </span>
+              <span className="block font-mono text-[9.5px] text-blaze mt-0.5 truncate">
+                {s.meta}
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="font-mono text-[10px] tracking-[.1em] uppercase text-granite mt-2.5 mb-1.5">
+        Dinner
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
+        {EATS.map((e) => (
+          <a
+            key={e.name}
+            href={e.maps}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-blaze no-underline"
+          >
+            <Favicon url={e.maps} /> {e.name}
+          </a>
+        ))}
+      </div>
+    </div>
   );
 
   return (
@@ -447,6 +491,7 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
             {w && <div className="text-[11.5px] text-mute mb-2">{w.condition}</div>}
 
             {d.id === "fri" && campCard}
+            {d.id === "sat" && satOptions}
 
             <Card className="overflow-hidden mb-0">
               {sections.length === 0 ? (
@@ -490,69 +535,24 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
                             jump={jump}
                           />
                         ))}
-                        <AddRow
-                          label="Add"
-                          placeholder="Title"
-                          onAdd={(t) => addBlock(d.id, s.part, t)}
-                        />
                       </div>
                     ))}
                   </SortableContext>
                 </DndContext>
               )}
+              {/* One add per day, at the end — it lands in the last group, so
+                  what you type appears right where you typed it. */}
+              {sections.length > 0 && (
+                <AddRow
+                  label="Add"
+                  placeholder="Title"
+                  onAdd={(t) =>
+                    addBlock(d.id, sections[sections.length - 1].part, t)
+                  }
+                />
+              )}
             </Card>
 
-            {d.id === "sat" && (
-              <div className="mt-3">
-                <div className="font-mono text-[10px] tracking-[.1em] uppercase text-granite mb-1.5">
-                  Saturday options
-                </div>
-                <div className="flex gap-2.5 overflow-x-auto snap-x pb-1 -mx-3.5 px-3.5">
-                  {SAT_OPTIONS.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => jump(s.id)}
-                      className="snap-start shrink-0 w-[128px] text-left bg-card border border-rule rounded-[10px] overflow-hidden p-0 cursor-pointer"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element -- storage-hosted thumb */}
-                      <img
-                        src={s.photo!.src}
-                        alt=""
-                        loading="lazy"
-                        className="w-full h-[76px] object-cover block"
-                      />
-                      <span className="block px-2 pt-1.5 pb-2">
-                        <span className="block text-[12.5px] font-semibold text-ink leading-[1.2]">
-                          {s.name}
-                        </span>
-                        <span className="block font-mono text-[9.5px] text-blaze mt-0.5 truncate">
-                          {s.meta}
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <div className="font-mono text-[10px] tracking-[.1em] uppercase text-granite mt-2.5 mb-1.5">
-                  Dinner in town
-                </div>
-                <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-                  {EATS.map((e) => (
-                    <a
-                      key={e.name}
-                      href={e.maps}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-blaze no-underline"
-                    >
-                      <Favicon url={e.maps} /> {e.name}
-                    </a>
-                  ))}
-                </div>
-                <div className="font-mono text-[10px] text-mute mt-1.5">
-                  more on the Explore tab
-                </div>
-              </div>
-            )}
           </div>
         );
       })}

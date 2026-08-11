@@ -8,6 +8,7 @@ import { Camera } from "lucide-react";
 import { BottomSheet } from "./ui/BottomSheet";
 import { Btn } from "./primitives";
 import { PinchSurface, usePinchPan } from "./ui/PinchPan";
+import { useUi } from "./ui/UiProvider";
 import { useData } from "@/lib/data/context";
 
 const OUT = 256;
@@ -20,6 +21,7 @@ export function AvatarEditor({
   onClose: () => void;
 }) {
   const { avatars, userId, setAvatar } = useData();
+  const { showNotice } = useUi();
   const [src, setSrc] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -36,13 +38,19 @@ export function AvatarEditor({
   const save = async () => {
     const el = imgRef.current;
     const box = surface.current;
-    if (!el || !box || !current) return;
+    if (!el || !box || !current) {
+      onClose();
+      return;
+    }
 
     const canvas = document.createElement("canvas");
     canvas.width = OUT;
     canvas.height = OUT;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) {
+      onClose();
+      return;
+    }
 
     // The frame is square and the image is object-contain inside it, so the
     // drawn size at scale 1 is the contain fit; the transform then scales
@@ -54,15 +62,23 @@ export function AvatarEditor({
     const h = el.naturalHeight * fit * t.scale;
     const left = S / 2 + t.x - w / 2;
     const top = S / 2 + t.y - h / 2;
-    ctx.fillStyle = "#F7F3E8";
-    ctx.fillRect(0, 0, OUT, OUT);
-    ctx.drawImage(el, left * k, top * k, w * k, h * k);
-
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", 0.85),
-    );
-    if (blob) setAvatar(new File([blob], "avatar.jpg", { type: "image/jpeg" }));
-    onClose();
+    // Close no matter what: re-framing a stored photo reads it cross-origin,
+    // and any canvas failure must not strand the sheet open.
+    try {
+      ctx.fillStyle = "#F7F3E8";
+      ctx.fillRect(0, 0, OUT, OUT);
+      ctx.drawImage(el, left * k, top * k, w * k, h * k);
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", 0.85),
+      );
+      if (blob) setAvatar(new File([blob], "avatar.jpg", { type: "image/jpeg" }));
+      else showNotice("Couldn't save photo — retry");
+    } catch (e) {
+      console.error("[avatar crop]", e);
+      showNotice("Couldn't save photo — retry");
+    } finally {
+      onClose();
+    }
   };
 
   return (
@@ -93,6 +109,9 @@ export function AvatarEditor({
                   src={current}
                   alt=""
                   draggable={false}
+                  // Stored photos come from Supabase storage; without this the
+                  // canvas is tainted and the crop can't be read back.
+                  crossOrigin="anonymous"
                   className="max-w-full max-h-full w-auto h-auto select-none"
                 />
               </div>
