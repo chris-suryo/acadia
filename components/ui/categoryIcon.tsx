@@ -7,6 +7,7 @@ import {
   Package,
   Shirt,
   ShowerHead,
+  Snowflake,
   Sparkles,
   Tent,
   Utensils,
@@ -22,6 +23,7 @@ import {
  */
 const ICONS: [RegExp, LucideIcon][] = [
   [/shelter|tent|sleep/i, Tent],
+  [/cooler|water|drink|ice/i, Snowflake],
   [/kitchen|cook|mess|food/i, UtensilsCrossed],
   [/fire|light/i, Flame],
   [/safety|first.?aid|site/i, BriefcaseMedical],

@@ -48,10 +48,10 @@ export const SEED_GEAR: {
   { category: "Camp Kitchen", label: "Propane ×2", sort: 1, parent: "Camp stove + fuel" , essential: true },
   { category: "Camp Kitchen", label: "Pots, pans, utensils", sort: 2 , essential: true },
   { category: "Camp Kitchen", label: "Cutting board + knife", sort: 3 , essential: true },
-  { category: "Camp Kitchen", label: "Big cooler + ice", sort: 4 , essential: true },
+  { category: "Coolers & Water", label: "Big cooler + ice", sort: 1 , essential: true },
   { category: "Camp Kitchen", label: "Dish bin + soap", sort: 5 , essential: true },
   { category: "Camp Kitchen", label: "Camp table", sort: 6 },
-  { category: "Camp Kitchen", label: "Water jug", sort: 7 , essential: true },
+  { category: "Coolers & Water", label: "Water jug", sort: 4 , essential: true },
   { category: "Camp Kitchen", label: "Foil + ziplocks", sort: 8 },
   { category: "Fire & Light", label: "Firewood — buy on the island", sort: 1 , essential: true },
   { category: "Fire & Light", label: "Fire starter + lighter", sort: 2 , essential: true },
@@ -62,19 +62,30 @@ export const SEED_GEAR: {
   // Round 11: the gaps a twelve-person, two-night camp actually hits.
   { category: "Shelter", label: "Ground tarps", sort: 4 },
   { category: "Shelter", label: "Stakes + guylines", sort: 5 },
+  // Blackwoods pitches are hard-packed; stakes don't go in by hand.
+  { category: "Shelter", label: "Mallet for the stakes", sort: 6 },
   { category: "Camp Kitchen", label: "Coffee + filters", sort: 9 , essential: true },
-  { category: "Camp Kitchen", label: "Second cooler — drinks", sort: 10 },
-  { category: "Camp Kitchen", label: "Ice", sort: 11 },
+  { category: "Coolers & Water", label: "Second cooler — drinks", sort: 2 },
+  { category: "Coolers & Water", label: "Ice", sort: 3 },
   { category: "Camp Kitchen", label: "Grill grate", sort: 12 },
   { category: "Camp Kitchen", label: "Mugs + cups", sort: 13 },
   { category: "Camp Kitchen", label: "Spice kit", sort: 14 },
   { category: "Camp Kitchen", label: "Bottle opener", sort: 15 },
+  // Two of five Friday dinners open cans, and nothing else lifts a burger off
+  // a grate or a foil packet out of the coals.
+  { category: "Camp Kitchen", label: "Can opener", sort: 18, essential: true },
+  { category: "Camp Kitchen", label: "Tongs + spatula", sort: 19, essential: true },
+  { category: "Camp Kitchen", label: "Paper towels", sort: 20 },
   // One burner for eleven is the bottleneck of the weekend; pancakes on it is
   // about eight rounds, and a griddle over the fire makes that two.
   { category: "Camp Kitchen", label: "Flat griddle for the fire", sort: 16, essential: true },
   { category: "Camp Kitchen", label: "Second stove or burner", sort: 17, essential: true },
   { category: "Fire & Light", label: "Spare batteries", sort: 4 },
   { category: "Fire & Light", label: "Fire gloves + poker", sort: 5 },
+  { category: "Fire & Light", label: "Roasting sticks", sort: 6 },
+  // Fires out before you sleep. This is the thing that does it.
+  { category: "Fire & Light", label: "Water bucket for the fire", sort: 7, essential: true },
+  { category: "Fire & Light", label: "Backup headlamp", sort: 8 },
   { category: "Site & Safety", label: "Tick remover", sort: 4 },
   { category: "Site & Safety", label: "Food bins for the cars", sort: 5 },
   { category: "Site & Safety", label: "Clothesline", sort: 6 },
@@ -90,6 +101,7 @@ export const SEED_GEAR: {
 export const GEAR_CATEGORIES = [
   "Shelter",
   "Camp Kitchen",
+  "Coolers & Water",
   "Fire & Light",
   "Site & Safety",
   "Dogs",
@@ -132,10 +144,13 @@ export const SEED_PERSONAL: {
   { category: "Sleep", label: "Earplugs + eye mask", note: "", sort: 5 },
   { category: "Clothing", label: "Long pants", note: "", sort: 7 },
   { category: "Clothing", label: "Beanie", note: "", sort: 8 },
+  { category: "Clothing", label: "Underwear", note: "", sort: 9 },
   { category: "Mess Kit", label: "Mug for coffee", note: "", sort: 3 },
   { category: "Mess Kit", label: "Dish towel", note: "", sort: 4 },
   { category: "Essentials", label: "Daypack", note: "", sort: 6 },
   { category: "Essentials", label: "Cash + quarters", note: "the showers are coin-op", sort: 7 },
+  // People bring the battery and forget the cable.
+  { category: "Essentials", label: "Charging cable", note: "", sort: 8 },
   { category: "Toiletries", label: "Shower flip-flops", note: "", sort: 6 },
   { category: "Toiletries", label: "Lip balm", note: "", sort: 7 },
   { category: "Extras", label: "Dry bag for your phone", note: "", sort: 4 },

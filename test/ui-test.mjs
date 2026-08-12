@@ -229,6 +229,18 @@ const ok = (name, cond, detail = "") => {
   // and one number on the bar rather than two.
   ok("no must-have tags", (await page.locator("main").getByText("must-have", { exact: true }).count()) === 0);
   ok("no filter pills", (await page.getByRole("button", { name: /^(Unclaimed|Must-haves|Yours|To pack) \d+$/ }).count()) === 0);
+  // The menu asks for things the gear list has to supply. Cross-referencing
+  // the two turned up seven holes, three of which a label trim had made.
+  ok("the cans can be opened", await page.getByText("Can opener").isVisible());
+  ok("something lifts a burger", await page.getByText("Tongs + spatula").isVisible());
+  ok("the fire can be put out", await page.getByText("Water bucket for the fire").isVisible());
+  ok("s'mores have something to roast on", await page.getByText("Roasting sticks").isVisible());
+  ok("paper towels came back", await page.getByText("Paper towels").isVisible());
+  ok("so did the mallet", await page.getByText("Mallet for the stakes").isVisible());
+  ok("and the backup headlamp", await page.getByText("Backup headlamp").isVisible());
+  // Camp Kitchen had grown to a scroll; the cold half is its own section.
+  ok("coolers are their own section", await page.locator("main").getByText("Coolers & Water", { exact: true }).isVisible());
+
   ok("labels say the thing and stop",
     await page.getByText("Firewood — buy on the island").isVisible() &&
     (await page.getByText(/buy local, don't transport/).count()) === 0);
@@ -300,9 +312,11 @@ const ok = (name, cond, detail = "") => {
   ok("dnd reorder within category", shelterTexts[0] === "Tarp or canopy", shelterTexts.join(" | ").slice(0, 90));
   ok("drop click swallowed — nothing claimed", (await claimed()) === 0);
 
+  // Across a section boundary — from the bottom of Coolers & Water into the
+  // top of Fire & Light, which are adjacent in the canonical order.
   const fireCard = page.locator("div.mb-5").filter({ has: page.getByText("Fire & Light", { exact: true }) });
-  await drag("Bottle opener", "Firewood — buy on the island", true);
-  ok("dnd cross-category move", await fireCard.getByText("Bottle opener").isVisible());
+  await drag("Water jug", "Firewood — buy on the island", true);
+  ok("dnd cross-category move", await fireCard.getByText("Water jug").isVisible());
   await page.screenshot({ path: `${SHOT_DIR}/5-packing-dnd.png`, fullPage: true });
 
   // My list
@@ -311,6 +325,7 @@ const ok = (name, cond, detail = "") => {
   ok("privacy line", await page.getByText("only visible to you").isVisible());
   // The notes that stopped a real mistake survived; the narration didn't.
   ok("the useful notes stayed", await page.getByText("no showers at Blackwoods").isVisible());
+  ok("the cable people forget", await page.getByText("Charging cable").isVisible());
   ok("the narration went", (await page.getByText(/the thing first-timers forget/).count()) === 0);
   const packedLine = async () =>
     await page.locator("main").getByText(/^\d+ of \d+ packed$/).first().innerText();
