@@ -91,6 +91,9 @@ export type MenuItem = {
 };
 
 export type ShoppingItem = {
+  /** Set when the line was added under a particular heading — that wins over
+   *  guessing the aisle from the words. Empty means guess. */
+  aisle: string;
   id: string;
   menu_item_id: string | null; // null = standalone add (snacks, ice)
   label: string;

@@ -200,9 +200,13 @@ export function Food({
 
   const sunkStoreRows = sink(merged);
   // Grouped by where things sit in a shop, not by where the row came from.
+  // A line added under a heading stays under it; the rest are guessed from
+  // the words, which is right often enough and never load-bearing.
+  const shelfOf = (r: { label: string; aisle: string }) =>
+    (AISLES as readonly string[]).includes(r.aisle) ? r.aisle : aisleOf(r.label);
   const byAisle = AISLES.map((aisle) => ({
     aisle,
-    rows: sunkStoreRows.filter((r) => aisleOf(r.label) === aisle),
+    rows: sunkStoreRows.filter((r) => shelfOf(r) === aisle),
   })).filter((g) => g.rows.length > 0);
   const storeLeft = merged.filter((r) => !r.checked).length;
 
@@ -423,19 +427,6 @@ export function Food({
               </Card>
             </div>
           )}
-          {/* The two things that shaped this ballot. Said once, at the top,
-              rather than as a description under every dish. */}
-          <Card className="px-3.5 py-3 mb-5">
-            <div className="text-[13.5px] text-ink leading-[1.5]">
-              Every option works without meat.
-            </div>
-            <div className="text-[11.5px] text-mute mt-1 leading-[1.45]">
-              The meat cooks separately and goes in at the end, so nobody needs
-              a different dinner. One burner and the fire, so nothing here needs
-              two pans at once.
-            </div>
-          </Card>
-
           {/* Two questions, not nine. Everything else on the menu is being
               bought rather than decided, and says so below. */}
           {VOTED_SLOTS.map(([night, meal]) => {
@@ -500,11 +491,6 @@ export function Food({
                 ? "Both meals went to a vote. This is what won."
                 : "Everything here is being bought, not decided."}
           </div>
-          <AddRow
-            label="Ask for something"
-            placeholder="Clif bars, oat milk, hot sauce…"
-            onAdd={(t) => ensureName(() => addShopping(t))}
-          />
         </Card>
         {byAisle.map(({ aisle, rows }) => (
         <div key={aisle} className="mb-5">
@@ -566,6 +552,7 @@ export function Food({
                       added_by: snap.added_by,
                       checked: snap.checked,
                       checked_by: snap.checked_by,
+                      aisle: snap.aisle,
                     }),
                   );
                 }}
@@ -578,6 +565,13 @@ export function Food({
               </div>
             );
           })}
+          {/* Add it where you're already looking, and it stays there — the
+              heading you tapped under wins over guessing from the words. */}
+          <AddRow
+            label="Add"
+            placeholder="Something else"
+            onAdd={(t) => ensureName(() => addShopping(t, aisle))}
+          />
         </Card>
         </div>
         ))}

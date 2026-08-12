@@ -385,8 +385,6 @@ const ok = (name, cond, detail = "") => {
   // Every dish is built vegetarian with the meat added at the end, so a
   // per-dish "veg" badge stopped meaning anything. The rule is stated once.
   ok("no per-dish veg badges", (await page.locator("main").getByText("veg", { exact: true }).count()) === 0);
-  ok("the rule is stated once", await page.getByText("Every option works without meat.").isVisible());
-  ok("and so is the kit constraint", await page.getByText(/One burner and the fire/).isVisible());
   // Nothing on the ballot needs an oven or a toaster.
   ok("nothing uncookable on the ballot",
     (await page.getByText("Pizza").count()) === 0 &&
@@ -422,7 +420,7 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(300);
   ok("pencil opens the editor", (await page.locator('input[value="Pancakes + bacon"]').count()) === 1);
   await page.getByRole("button", { name: "Add ingredient" }).click();
-  await page.keyboard.type("Blueberries ×2 pints");
+  await page.keyboard.type("Blueberries");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(200);
   await page.keyboard.press("Escape");
@@ -439,13 +437,13 @@ const ok = (name, cond, detail = "") => {
   // ---- the list is what the votes decided, plus what people asked for ----
   await page.getByRole("button", { name: /^List( ·|$)/ }).click();
   await page.waitForTimeout(300);
-  ok("the winner's ingredients are on it", await page.getByText("Taco seasoning ×3").first().isVisible());
+  ok("the winner's ingredients are on it", await page.getByText("Taco seasoning").first().isVisible());
   ok(
     "the loser's are not",
-    (await page.getByText("Blueberries ×2 pints").count()) === 0,
+    (await page.getByText("Blueberries").count()) === 0,
   );
   // The trail lunch nobody voted on is bought all the same.
-  ok("what isn't voted on is still bought", await page.getByText("Deli turkey 2 lb").first().isVisible());
+  ok("what isn't voted on is still bought", await page.getByText("Deli turkey").first().isVisible());
   ok("and a hand-added ask lands here", await page.getByText("Cheez-Its").first().isVisible());
   ok("requester name on the line", await page.locator("main").getByText("Chris", { exact: true }).first().isVisible());
   // Grouped by where things sit in a shop, not by where the row came from.
@@ -453,23 +451,39 @@ const ok = (name, cond, detail = "") => {
   ok("rows are tagged with their dish", await page.getByText(/Taco bar · Friday/).first().isVisible());
 
   // Tortillas belong to two dishes on the plan. You buy tortillas once.
-  const tortillaRows = await page.locator("main").getByText(/^Tortillas ×\d+$/).allTextContents();
-  ok("one line per thing in the cart", tortillaRows.length === 1, tortillaRows.join(" | "));
-  ok("and the quantities are added up", parseInt(tortillaRows[0].split("×")[1], 10) >= 24, tortillaRows[0]);
+  const tortillaRows = await page.locator("main").getByText(/^Tortillas$/).count();
+  ok("one line per thing in the cart", tortillaRows === 1, `${tortillaRows} tortilla lines`);
 
-  await page.getByRole("button", { name: /Ask for something/ }).click();
+  // No invented amounts anywhere on the seeded list — checked before anything
+  // is typed by hand, since a person may well write "×4" and that's theirs.
+  const numbered = await page.locator("main").getByText(/^[A-Z][^·]*\s(×\d|\d+\s?(lb|oz))/).count();
+  ok("no quantities on the list", numbered === 0, `${numbered} numbered lines`);
+
+  // Every heading takes an add of its own, and what you add stays under the
+  // heading you tapped rather than wherever the words would have sent it.
+  const produce = page.locator("div.mb-5").filter({ has: page.getByText("Produce", { exact: true }) });
+  await produce.getByRole("button", { name: "Add", exact: true }).click();
+  await page.keyboard.type("Bananas");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(300);
+  await page.keyboard.press("Escape");
+  ok("added under a heading, stays there", await produce.getByText("Bananas").isVisible());
+
+  // "Ice ×4" would classify into Ice + Frozen on its own; typed under Produce
+  // it stays under Produce.
+  await produce.getByRole("button", { name: "Add", exact: true }).click();
   await page.keyboard.type("Ice ×4");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(250);
   await page.keyboard.press("Escape");
-  ok("ice lands in its own aisle", await page.locator("main").getByText("Ice + Frozen", { exact: true }).isVisible());
+  ok("a pinned aisle beats the classifier", await produce.getByText("Ice ×4").isVisible());
   const storeLeft = async () =>
     Number(
       (await page.getByRole("button", { name: /^List · \d+ left$/ }).textContent())
         .match(/(\d+) left/)[1],
     );
   const beforeCheck = await storeLeft();
-  await page.getByText("Taco seasoning ×3").first().click();
+  await page.getByText("Taco seasoning").first().click();
   await page.waitForTimeout(250);
   await page.screenshot({ path: `${SHOT_DIR}/9-food-store.png`, fullPage: true });
 
@@ -810,7 +824,7 @@ const ok = (name, cond, detail = "") => {
   ok("reload lands on schedule", await page.getByText("Camp setup", { exact: true }).isVisible());
   await page.getByRole("button", { name: "Food", exact: true }).click();
   await page.waitForTimeout(300);
-  ok("food segment restored", await page.getByRole("button", { name: /Ask for something/ }).isVisible());
+  ok("food segment restored", await page.locator("main").getByText("Everything for the weekend, added up.").isVisible());
   // A phone that visited before Expenses moved out still has "money" stored;
   // without a fallback the Food tab renders blank on that phone forever.
   await page.evaluate(() => sessionStorage.setItem("abc.foodView", "money"));

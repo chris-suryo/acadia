@@ -115,7 +115,9 @@ export type DataCtx = {
   menuVotes: MenuVote[];
   /** Adds or removes your vote for a candidate dish. */
   toggleVote: (menuItemId: string) => void;
-  addShopping: (label: string) => void;
+  /** `aisle` pins the line to the heading it was added under; omitted, the
+   *  classifier guesses from the words. */
+  addShopping: (label: string, aisle?: string) => void;
   toggleShopping: (id: string) => void;
   deleteShopping: (id: string) => void;
   /** Merges the patch into the caller's own survey row (creating it if absent). */

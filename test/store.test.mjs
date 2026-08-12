@@ -1,35 +1,25 @@
-// Adding up a shopping list.
+// Folding a shopping list down to one line per thing.
 //
-// The failure this prevents is quiet and expensive: you walk past the eggs
-// because the line you ticked was the other eggs, or you buy five jars of
-// salsa twice. Every case below is a real pair off the menu.
+// The failure this prevents is quiet: you tick the salsa, walk on, and walk
+// past the other salsa. There are no quantities on the list any more — the
+// numbers were invented from a party size and whoever shops works them out
+// better in the aisle — so this only has to recognise the same product twice.
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeLines, parseLine, productKey, formatLine } from "../lib/store.ts";
+import { mergeLines, productKey, productName } from "../lib/store.ts";
 
 const rows = (...labels) =>
   labels.map((label, i) => ({ id: `r${i}`, label, checked: false }));
 const labels = (merged) => merged.map((m) => m.label);
 
-test("a quantity is read off the end, whichever way it's written", () => {
-  assert.deepEqual(parseLine("Tortillas ×24"), {
-    name: "Tortillas",
-    qty: { style: "count", n: 24, unit: "" },
-  });
-  assert.deepEqual(parseLine("Salsa ×2 jars"), {
-    name: "Salsa",
-    qty: { style: "count", n: 2, unit: "jars" },
-  });
-  assert.deepEqual(parseLine("Ground beef 4 lb"), {
-    name: "Ground beef",
-    qty: { style: "weight", n: 4, unit: "lb" },
-  });
-  // Nothing to parse: the whole label is the name, and it never gets summed.
-  assert.deepEqual(parseLine("Mayo + mustard"), {
-    name: "Mayo + mustard",
-    qty: null,
-  });
+test("a hand-typed quantity doesn't make a second product", () => {
+  assert.equal(productName("Bananas ×2"), "Bananas");
+  assert.equal(productName("Ground beef 4 lb"), "Ground beef");
+  assert.equal(productName("Salsa ×2 jars"), "Salsa");
+  // Nothing to strip — and a name with no quantity is left exactly alone.
+  assert.equal(productName("Mayo + mustard"), "Mayo + mustard");
+  assert.equal(productName("Lettuce"), "Lettuce");
 });
 
 test("singular and plural are the same product", () => {
@@ -41,65 +31,42 @@ test("singular and plural are the same product", () => {
 });
 
 test("the same thing asked for by two dishes becomes one line", () => {
-  assert.deepEqual(labels(mergeLines(rows("Eggs ×24", "Eggs ×36"))), ["Eggs ×60"]);
-  assert.deepEqual(labels(mergeLines(rows("Onion ×2", "Onions ×3"))), ["Onions ×5"]);
-  assert.deepEqual(
-    labels(mergeLines(rows("Shredded cheese 1 lb", "Shredded cheese 2 lb"))),
-    ["Shredded cheese 3 lb"],
-  );
-  assert.deepEqual(labels(mergeLines(rows("Salsa ×2 jars", "Salsa ×3 jars"))), [
-    "Salsa ×5 jars",
+  assert.deepEqual(labels(mergeLines(rows("Tortillas", "Tortillas", "Tortillas"))), [
+    "Tortillas",
   ]);
-  // Five dishes want tortillas. You buy tortillas once.
-  assert.deepEqual(
-    labels(mergeLines(rows("Tortillas ×24", "Tortillas ×24", "Tortillas ×24"))),
-    ["Tortillas ×72"],
-  );
-});
-
-test("one jar and five jars are the same shelf", () => {
-  // Two dishes wanted salsa and two wanted lettuce; the plural was the only
-  // thing keeping them on separate lines, and you'd have walked past one.
-  assert.deepEqual(labels(mergeLines(rows("Salsa ×5 jars", "Salsa ×1 jar"))), [
-    "Salsa ×6 jars",
-  ]);
-  assert.deepEqual(labels(mergeLines(rows("Lettuce ×1 head", "Lettuce ×2 heads"))), [
-    "Lettuce ×3 heads",
-  ]);
-  // Weight abbreviations too — 2 lbs and 1 lb.
-  assert.deepEqual(labels(mergeLines(rows("Ground beef 2 lbs", "Ground beef 1 lb"))), [
-    "Ground beef 3 lb",
+  assert.deepEqual(labels(mergeLines(rows("Onion", "Onions"))), ["Onion"]);
+  assert.deepEqual(labels(mergeLines(rows("Shredded cheese", "Shredded cheese"))), [
+    "Shredded cheese",
   ]);
 });
 
-test("what can't be added up stays apart", () => {
-  // Sliced cheese by weight and by the slice are two different buys.
-  assert.deepEqual(
-    labels(mergeLines(rows("Cheese slices 1 lb", "Cheese slices ×16"))),
-    ["Cheese slices 1 lb", "Cheese slices ×16"],
-  );
-  // No quantity to combine — one line, not a phantom sum.
-  assert.deepEqual(
-    labels(mergeLines(rows("Chili powder + cumin", "Chili powder + cumin"))),
-    ["Chili powder + cumin"],
-  );
-  assert.deepEqual(labels(mergeLines(rows("Limes ×6", "Lemons ×6"))), [
-    "Limes ×6",
-    "Lemons ×6",
+test("a typed quantity folds into the plain line, and the plain one shows", () => {
+  // Someone adds "Bananas ×2" under Produce; the menu already wants bananas.
+  assert.deepEqual(labels(mergeLines(rows("Bananas", "Bananas ×2"))), ["Bananas"]);
+  assert.deepEqual(labels(mergeLines(rows("Ground beef 4 lb", "Ground beef"))), [
+    "Ground beef",
+  ]);
+});
+
+test("different things stay different", () => {
+  assert.deepEqual(labels(mergeLines(rows("Limes", "Lemons"))), ["Limes", "Lemons"]);
+  assert.deepEqual(labels(mergeLines(rows("Cheese slices", "Shredded cheese"))), [
+    "Cheese slices",
+    "Shredded cheese",
   ]);
 });
 
 test("order of first appearance is kept, so the aisle order survives", () => {
   assert.deepEqual(
-    labels(mergeLines(rows("Bacon 3 lb", "Eggs ×24", "Bacon 2 lb", "Bread ×3 loaves"))),
-    ["Bacon 5 lb", "Eggs ×24", "Bread ×3 loaves"],
+    labels(mergeLines(rows("Bacon", "Eggs", "Bacon", "Bread"))),
+    ["Bacon", "Eggs", "Bread"],
   );
 });
 
 test("a merged line is only bought once every part of it is", () => {
   const merged = mergeLines([
-    { id: "a", label: "Eggs ×24", checked: true },
-    { id: "b", label: "Eggs ×36", checked: false },
+    { id: "a", label: "Tortillas", checked: true },
+    { id: "b", label: "Tortillas", checked: false },
   ]);
   assert.equal(merged.length, 1);
   assert.equal(merged[0].checked, false, "one of the two is still on the shelf");
@@ -108,11 +75,4 @@ test("a merged line is only bought once every part of it is", () => {
     ["a", "b"],
     "both rows ride along, so ticking the line ticks the dishes behind it",
   );
-});
-
-test("fractions survive the round trip", () => {
-  assert.equal(formatLine("Butter", { style: "weight", n: 1.5, unit: "lb" }), "Butter 1.5 lb");
-  assert.deepEqual(labels(mergeLines(rows("Butter 0.5 lb", "Butter 1 lb"))), [
-    "Butter 1.5 lb",
-  ]);
 });

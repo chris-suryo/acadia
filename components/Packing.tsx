@@ -172,8 +172,6 @@ export function Packing({
   const [dragActive, setDragActive] = useState(false);
   // A drop lands a click on the dragged row — swallow it briefly.
   const justDropped = useRef(false);
-  // Opens on the work, not the inventory. Once there's nothing outstanding the
-  // lens has nothing to show, so the effect below hands the tab back to "all".
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: { y: 8 } } }),

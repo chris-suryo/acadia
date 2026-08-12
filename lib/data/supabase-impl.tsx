@@ -1001,12 +1001,13 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         added_by: userIdRef.current,
         checked: false,
         checked_by: null,
+        aisle: "",
       };
       setShopping((prev) => [...prev, row]);
       persist(supabase.from("shopping_items").insert(row), "shopping_items");
     },
 
-    addShopping: (label) => {
+    addShopping: (label, aisle = "") => {
       const row = {
         id: newId(),
         menu_item_id: null,
@@ -1014,6 +1015,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         added_by: userIdRef.current,
         checked: false,
         checked_by: null,
+        aisle,
       };
       setShopping((prev) => [...prev, row]);
       persist(supabase.from("shopping_items").insert(row), "shopping_items");

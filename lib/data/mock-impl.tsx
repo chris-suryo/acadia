@@ -125,6 +125,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       added_by: null,
       checked: false,
       checked_by: null,
+        aisle: "",
     }));
   });
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -370,12 +371,29 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       addIngredient: (menuItemId, label) =>
         setShopping((prev) => [
           ...prev,
-          { id: newId(), menu_item_id: menuItemId, label, added_by: ME, checked: false, checked_by: null },
+          {
+            id: newId(),
+            menu_item_id: menuItemId,
+            label,
+            added_by: ME,
+            checked: false,
+            checked_by: null,
+            // Belongs to a dish, so the words decide where it shows.
+            aisle: "",
+          },
         ]),
-      addShopping: (label) =>
+      addShopping: (label, aisle = "") =>
         setShopping((prev) => [
           ...prev,
-          { id: newId(), menu_item_id: null, label, added_by: ME, checked: false, checked_by: null },
+          {
+            id: newId(),
+            menu_item_id: null,
+            label,
+            added_by: ME,
+            checked: false,
+            checked_by: null,
+            aisle,
+          },
         ]),
       toggleShopping: (id) =>
         setShopping((prev) =>
