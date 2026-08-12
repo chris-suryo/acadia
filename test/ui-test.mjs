@@ -24,6 +24,18 @@ const ok = (name, cond, detail = "") => {
 
 (async () => {
   fs.mkdirSync(SHOT_DIR, { recursive: true });
+  /** Drag a row left far enough to trip SwipeRow's delete. */
+  const swipeRow = async (row) => {
+    await row.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(150);
+    const b = await row.boundingBox();
+    await page.mouse.move(b.x + b.width - 16, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width - 40, b.y + b.height / 2, { steps: 3 });
+    await page.mouse.move(b.x + 20, b.y + b.height / 2, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+  };
   // CI installs the browser Playwright expects and needs no override. Sandboxes
   // that ship a pinned Chromium of a different build set PW_CHROMIUM to it.
   const browser = await chromium.launch(
@@ -529,20 +541,45 @@ const ok = (name, cond, detail = "") => {
   ok("one payment per debtor", settleCents.length === 10, `${settleCents.length}`);
   await page.screenshot({ path: `${SHOT_DIR}/10c-expenses-settle.png`, fullPage: true });
 
+  // Settling has to move the numbers, or the same debts sit there all trip.
+  // Venmo is how this group actually pays each other, so the link carries the
+  // amount and — when the roster has it — the handle.
+  await page.locator("[data-settle]").first().getByRole("button").click();
+  await page.waitForTimeout(250);
+  const payHref = await page
+    .locator('a[href*="venmo.com"]')
+    .first()
+    .getAttribute("href");
+  const pay = new URL(payHref);
+  ok("venmo link opens a payment", pay.searchParams.get("txn") === "charge",
+    "you're owed, so it's a request");
+  ok("venmo link carries the amount",
+    /^\d+\.\d\d$/.test(pay.searchParams.get("amount") ?? ""), `${pay.searchParams.get("amount")}`);
+
+  const owedBefore = settleCents.reduce((a, b) => a + b, 0);
+  const firstPayment = settleCents[0];
+  await page.getByRole("button", { name: "Mark paid" }).first().click();
+  await page.waitForTimeout(450);
+  const afterCents = await page
+    .locator("[data-settle]")
+    .evaluateAll((els) => els.map((e) => Number(e.dataset.settle)));
+  ok("marking paid clears that row", afterCents.length === settleCents.length - 1,
+    `${settleCents.length} → ${afterCents.length}`);
+  ok("and takes it off what you're owed",
+    afterCents.reduce((a, b) => a + b, 0) === owedBefore - firstPayment);
+  ok("the payment is logged", await page.getByText("Already paid back").isVisible());
+
+  // A wrong entry has to be reversible — it's money.
+  const settledRow = page.locator("main").getByText(/paid Chris$/).first();
+  await swipeRow(settledRow);
+  ok("a settlement can be swiped away", (await page.getByText("Already paid back").count()) === 0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await page.waitForTimeout(450);
+  ok("undo puts it back", await page.getByText("Already paid back").isVisible());
+
   // Removing someone mid-ledger would rewrite everyone's balance without saying
   // so, so it's refused while they're on an expense.
-  const swipe = async (row) => {
-    await row.scrollIntoViewIfNeeded();
-    await page.waitForTimeout(150);
-    const b = await row.boundingBox();
-    await page.mouse.move(b.x + b.width - 16, b.y + b.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(b.x + b.width - 40, b.y + b.height / 2, { steps: 3 });
-    await page.mouse.move(b.x + 20, b.y + b.height / 2, { steps: 12 });
-    await page.mouse.up();
-    await page.waitForTimeout(400);
-  };
-  await swipe(page.locator("main").getByRole("button", { name: /Erin/ }).last());
+  await swipeRow(page.locator("main").getByRole("button", { name: /Erin/ }).last());
   ok("can't remove someone who's on an expense",
     await page.getByText(/Erin is on \d expense/).isVisible());
   ok("they're still on the roster",
@@ -635,7 +672,13 @@ const ok = (name, cond, detail = "") => {
   }
   ok("the ledger is empty again", await page.getByText(/Nothing logged yet/).isVisible());
 
-  await swipe(page.locator("main").getByRole("button", { name: /Chris/ }).last());
+  // A recorded payment pins both of its members exactly like an expense does,
+  // so it has to go before anyone can leave the roster.
+  await swipeRow(page.locator("main").getByText(/paid Chris$/).first());
+  await page.waitForTimeout(300);
+  ok("no payments left either", (await page.getByText("Already paid back").count()) === 0);
+
+  await swipeRow(page.locator("main").getByRole("button", { name: /Chris/ }).last());
   ok("someone on no expense can be removed",
     (await page.locator("main").getByText("Chris", { exact: true }).count()) === 0);
   ok("and the you marker goes with them", (await meMarker()) === 0);

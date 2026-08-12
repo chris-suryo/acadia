@@ -25,6 +25,7 @@ import type {
   MenuVote,
   PersonalItem,
   Receipt,
+  Settlement,
   ShoppingItem,
   SurveyRow,
 } from "@/lib/types";
@@ -41,7 +42,7 @@ const MOCK_WEATHER: Record<string, DayWeather> = {
 export function MockProvider({ children }: { children: React.ReactNode }) {
   const [name, setNameState] = useState("");
   const [members, setMembers] = useState<Member[]>(() =>
-    SEED_MEMBERS.map((n, i) => ({ id: `member-${i}`, name: n, sort: i + 1 })),
+    SEED_MEMBERS.map((n, i) => ({ id: `member-${i}`, name: n, sort: i + 1, venmo: "" })),
   );
   // Which roster member this device is. Set by typing a name or tapping one.
   const [myMemberId, setMyMemberId] = useState("");
@@ -60,7 +61,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       setMyMemberId(hit.id);
       return;
     }
-    const row: Member = { id: newId(), name: clean, sort: nextSort(members) };
+    const row: Member = { id: newId(), name: clean, sort: nextSort(members), venmo: "" };
     setMembers((prev) => [...prev, row]);
     setMyMemberId(row.id);
   }, [members]);
@@ -115,6 +116,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseShares, setShareRows] = useState<ExpenseShare[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [surveys, setSurveys] = useState<SurveyRow[]>([
     // One neighbor's answers so the Ideas board renders populated in mock runs.
@@ -160,8 +162,30 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       addMember: (n) =>
         setMembers((prev) => [
           ...prev,
-          { id: newId(), name: n.trim(), sort: nextSort(prev) },
+          { id: newId(), name: n.trim(), sort: nextSort(prev), venmo: "" },
         ]),
+      setMemberVenmo: (id, handle) =>
+        setMembers((prev) =>
+          prev.map((m) =>
+            m.id === id ? { ...m, venmo: handle.trim().replace(/^@/, "") } : m,
+          ),
+        ),
+      settlements,
+      addSettlement: (fromMember, toMember, cents) =>
+        setSettlements((prev) => [
+          ...prev,
+          {
+            id: newId(),
+            from_member: fromMember,
+            to_member: toMember,
+            amount_cents: cents,
+            user_id: ME,
+            created_at: new Date().toISOString(),
+          },
+        ]),
+      deleteSettlement: (id) => setSettlements((prev) => prev.filter((x) => x.id !== id)),
+      restoreSettlement: (row) =>
+        setSettlements((prev) => [...prev.filter((x) => x.id !== row.id), row]),
       renameMember: (id, n) =>
         setMembers((prev) =>
           prev.map((m) => (m.id === id ? { ...m, name: n.trim() } : m)),
@@ -404,7 +428,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
         ]);
       },
     };
-  }, [name, ensureName, linkName, claimMember, blocks, gear, personal, menu, menuVotes, shopping, expenses, expenseShares, receipts, members, myMemberId, surveys, avatars]);
+  }, [name, ensureName, linkName, claimMember, blocks, gear, personal, menu, menuVotes, shopping, expenses, expenseShares, receipts, settlements, members, myMemberId, surveys, avatars]);
 
   return (
     <Ctx.Provider value={value}>

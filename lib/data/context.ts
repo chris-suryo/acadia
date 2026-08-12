@@ -14,6 +14,7 @@ import type {
   MenuVote,
   PersonalItem,
   Receipt,
+  Settlement,
   ShoppingItem,
   SurveyRow,
 } from "@/lib/types";
@@ -65,6 +66,8 @@ export type DataCtx = {
   claimedMembers: string[];
   addMember: (name: string) => void;
   renameMember: (id: string, name: string) => void;
+  /** Venmo handle for a member — anyone can fill in anyone's. */
+  setMemberVenmo: (id: string, handle: string) => void;
   deleteMember: (id: string) => void;
   /** Puts a removed person back under their original id — re-adding by name
    *  would mint a new one, and every device linked to the old id stays
@@ -132,6 +135,11 @@ export type DataCtx = {
   deleteReceipt: (id: string) => void;
   setExpenseShares: (expenseId: string, memberIds: string[]) => void;
   deleteExpense: (id: string) => void;
+  settlements: Settlement[];
+  /** Records that `from` paid `to`, which nets both of them down. */
+  addSettlement: (fromMember: string, toMember: string, cents: number) => void;
+  deleteSettlement: (id: string) => void;
+  restoreSettlement: (row: Settlement) => void;
   restoreGear: (row: GearItem, children?: GearItem[]) => void;
   restorePersonal: (row: PersonalItem, children?: PersonalItem[]) => void;
   restoreShopping: (row: ShoppingItem) => void;

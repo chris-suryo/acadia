@@ -8,7 +8,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { balances, money, settle, shares } from "../lib/settle.ts";
+import { balances, money, settle, shares, venmoLink } from "../lib/settle.ts";
 
 const sum = (xs) => xs.reduce((a, b) => a + b, 0);
 
@@ -117,4 +117,73 @@ test("every transfer moves a positive amount", () => {
     { payer: "c", cents: 100, among: ["a", "b", "c"] },
   ]);
   for (const t of settle(net)) assert.equal(t.cents > 0, true);
+});
+
+// ---- settlements: paying someone back has to move the numbers ----
+
+test("a settlement for the suggested amount squares that pair", () => {
+  const ledger = [{ payer: "a", cents: 3000, among: ["a", "b", "c"] }];
+  const [t] = settle(balances(ledger));
+  const after = balances(ledger, [{ from: t.from, to: t.to, cents: t.cents }]);
+  assert.equal(after.get(t.from) ?? 0, 0);
+  assert.equal((after.get(t.to) ?? 0) < 3000 - t.cents + 1, true);
+});
+
+test("settling every suggested transfer clears the whole ledger", () => {
+  const ledger = [
+    { payer: "chris", cents: 24350, among: ["chris", "alana", "erin", "sam"] },
+    { payer: "erin", cents: 4225, among: ["erin", "sam"] },
+    { payer: "sam", cents: 1999, among: ["chris", "alana", "erin", "sam"] },
+  ];
+  const paid = settle(balances(ledger)).map((t) => ({
+    from: t.from,
+    to: t.to,
+    cents: t.cents,
+  }));
+  assert.equal(balances(ledger, paid).size, 0, "nobody owes anybody");
+  assert.deepEqual(settle(balances(ledger, paid)), []);
+});
+
+test("a partial payment leaves exactly the remainder", () => {
+  const ledger = [{ payer: "a", cents: 10000, among: ["a", "b"] }];
+  const after = balances(ledger, [{ from: "b", to: "a", cents: 2000 }]);
+  assert.equal(after.get("b"), -3000, "owed 5000, paid 2000");
+  assert.equal(after.get("a"), 3000);
+});
+
+test("overpaying flips the debt rather than going negative-zero", () => {
+  const ledger = [{ payer: "a", cents: 10000, among: ["a", "b"] }];
+  const after = balances(ledger, [{ from: "b", to: "a", cents: 8000 }]);
+  assert.equal(after.get("b"), 3000, "b is now owed the excess");
+  assert.equal(after.get("a"), -3000);
+});
+
+test("settlements between people with no expenses still balance", () => {
+  const after = balances([], [{ from: "x", to: "y", cents: 500 }]);
+  assert.equal(after.get("x"), 500);
+  assert.equal(after.get("y"), -500);
+  assert.equal([...after.values()].reduce((s, v) => s + v, 0), 0);
+});
+
+// ---- venmo links ----
+
+test("venmo link carries the amount, the txn kind and the handle", () => {
+  const u = new URL(venmoLink("pay", "chris-suryo", 8199));
+  assert.equal(u.origin + u.pathname, "https://venmo.com/");
+  assert.equal(u.searchParams.get("txn"), "pay");
+  assert.equal(u.searchParams.get("amount"), "81.99");
+  assert.equal(u.searchParams.get("recipients"), "chris-suryo");
+  assert.equal(u.searchParams.get("audience"), "private");
+});
+
+test("venmo link tolerates a missing handle and a leading @", () => {
+  assert.equal(
+    new URL(venmoLink("charge", "", 500)).searchParams.get("recipients"),
+    null,
+    "no recipient rather than an empty one",
+  );
+  assert.equal(
+    new URL(venmoLink("pay", "@erin", 500)).searchParams.get("recipients"),
+    "erin",
+  );
 });

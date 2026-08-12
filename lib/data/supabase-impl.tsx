@@ -27,6 +27,7 @@ import type {
   PersonalItem,
   Profile,
   Receipt,
+  Settlement,
   ShoppingItem,
   SurveyRow,
 } from "@/lib/types";
@@ -57,6 +58,7 @@ type Table =
   | "expenses"
   | "expense_shares"
   | "expense_receipts"
+  | "settlements"
   | "survey"
   | "forecast_cache";
 
@@ -71,6 +73,7 @@ const REALTIME_TABLES: Table[] = [
   "expenses",
   "expense_shares",
   "expense_receipts",
+  "settlements",
   "survey",
   "forecast_cache",
 ];
@@ -110,6 +113,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   // can actually load is signed below and cached by path.
   const [receiptRows, setReceiptRows] = useState<Receipt[]>([]);
   const [signedReceipts, setSignedReceipts] = useState<Record<string, string>>({});
+  const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [surveys, setSurveys] = useState<SurveyRow[]>([]);
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
 
@@ -155,6 +159,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           break;
         case "expense_receipts":
           setReceiptRows(data as Receipt[]);
+          break;
+        case "settlements":
+          setSettlements(data as Settlement[]);
           break;
         case "survey":
           setSurveys(data as SurveyRow[]);
@@ -223,6 +230,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       "expenses",
       "expense_shares",
       "expense_receipts",
+      "settlements",
       "survey",
       "forecast_cache",
     ];
@@ -282,6 +290,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         refetch("expenses"),
         refetch("expense_shares"),
         refetch("expense_receipts"),
+        refetch("settlements"),
         refetch("members"),
         refetch("survey"),
       ]);
@@ -517,6 +526,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         id: newId(),
         name: name.trim(),
         sort: nextSort(membersRef.current),
+        venmo: "",
       };
       setMembers((prev) => byRosterOrder([...prev, row]));
       persist(supabase.from("members").insert(row), "members");
@@ -529,6 +539,48 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       const clean = name.trim();
       setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, name: clean } : m)));
       persist(supabase.from("members").update({ name: clean }).eq("id", id), "members");
+    },
+    [supabase, persist],
+  );
+
+  const setMemberVenmo = useCallback(
+    (id: string, handle: string) => {
+      // Stored bare; the @ and the URL are presentation.
+      const clean = handle.trim().replace(/^@/, "");
+      setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, venmo: clean } : m)));
+      persist(supabase.from("members").update({ venmo: clean }).eq("id", id), "members");
+    },
+    [supabase, persist],
+  );
+
+  const addSettlement = useCallback(
+    (fromMember: string, toMember: string, cents: number) => {
+      const row: Settlement = {
+        id: newId(),
+        from_member: fromMember,
+        to_member: toMember,
+        amount_cents: cents,
+        user_id: userIdRef.current || null,
+        created_at: new Date().toISOString(),
+      };
+      setSettlements((prev) => [...prev, row]);
+      persist(supabase.from("settlements").insert(row), "settlements");
+    },
+    [supabase, persist],
+  );
+
+  const deleteSettlement = useCallback(
+    (id: string) => {
+      setSettlements((prev) => prev.filter((x) => x.id !== id));
+      persist(supabase.from("settlements").delete().eq("id", id), "settlements");
+    },
+    [supabase, persist],
+  );
+
+  const restoreSettlement = useCallback(
+    (row: Settlement) => {
+      setSettlements((prev) => [...prev.filter((x) => x.id !== row.id), row]);
+      persist(supabase.from("settlements").upsert(row), "settlements");
     },
     [supabase, persist],
   );
@@ -681,7 +733,12 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     claimedMembers,
     addMember,
     renameMember,
+    setMemberVenmo,
     deleteMember,
+    settlements,
+    addSettlement,
+    deleteSettlement,
+    restoreSettlement,
     restoreMember,
     claimMember,
     expenseShares,

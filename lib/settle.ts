@@ -44,6 +44,7 @@ export function shares(cents: number, ids: string[]): Map<string, number> {
  */
 export function balances(
   expenses: { payer: string; cents: number; among: string[] }[],
+  settlements: { from: string; to: string; cents: number }[] = [],
 ): Map<string, number> {
   const net = new Map<string, number>();
   const bump = (id: string, by: number) => net.set(id, (net.get(id) ?? 0) + by);
@@ -51,6 +52,12 @@ export function balances(
     if (e.among.length === 0) continue;
     bump(e.payer, e.cents);
     for (const [id, owed] of shares(e.cents, e.among)) bump(id, -owed);
+  }
+  // Paying someone back is the same move as the transfer that was suggested,
+  // so it cancels exactly: the debtor climbs toward zero, the creditor drops.
+  for (const s of settlements) {
+    bump(s.from, s.cents);
+    bump(s.to, -s.cents);
   }
   for (const [id, v] of net) if (v === 0) net.delete(id);
   return net;
@@ -88,4 +95,32 @@ export function settle(net: Map<string, number>): Transfer[] {
     if (db[j][1] === 0) j++;
   }
   return out;
+}
+
+/**
+ * A Venmo link that opens the app with the amount already in it.
+ *
+ * The https form is a universal link: iOS hands it to the Venmo app when it's
+ * installed and falls back to the web page when it isn't, which beats sniffing
+ * for a custom scheme and stranding anyone it guesses wrong about.
+ *
+ * `handle` is optional — without it Venmo opens on its own people picker, which
+ * still saves typing the amount and is better than nothing while the roster is
+ * half filled in.
+ */
+export function venmoLink(
+  txn: "pay" | "charge",
+  handle: string,
+  cents: number,
+  note = "Acadia Base Camp",
+): string {
+  const q = new URLSearchParams({
+    txn,
+    audience: "private",
+    amount: (cents / 100).toFixed(2),
+    note,
+  });
+  const who = handle.trim().replace(/^@/, "");
+  if (who) q.set("recipients", who);
+  return `https://venmo.com/?${q.toString()}`;
 }

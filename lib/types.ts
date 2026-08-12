@@ -17,6 +17,18 @@ export type Member = {
   id: string;
   name: string;
   sort: number;
+  /** Venmo handle, without the @. Empty when nobody's added one. */
+  venmo: string;
+};
+
+/** Somebody paying somebody back. Not an expense — nothing was bought. */
+export type Settlement = {
+  id: string;
+  from_member: string;
+  to_member: string;
+  amount_cents: number;
+  user_id: string | null;
+  created_at: string;
 };
 
 export type ItineraryDay = {
