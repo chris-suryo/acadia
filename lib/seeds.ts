@@ -138,7 +138,7 @@ export const PERSONAL_CATEGORIES = ["Sleep", "Clothing", "Mess Kit", "Essentials
 export const SEED_MEMBERS = [
   "Alana",
   "Alexis",
-  "Arianna",
+  "Ariana",
   "Ashley",
   "Chris",
   "Erin",

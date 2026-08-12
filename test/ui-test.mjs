@@ -24,7 +24,11 @@ const ok = (name, cond, detail = "") => {
 
 (async () => {
   fs.mkdirSync(SHOT_DIR, { recursive: true });
-  const browser = await chromium.launch();
+  // CI installs the browser Playwright expects and needs no override. Sandboxes
+  // that ship a pinned Chromium of a different build set PW_CHROMIUM to it.
+  const browser = await chromium.launch(
+    process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {},
+  );
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 
