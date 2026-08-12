@@ -375,7 +375,7 @@ const ok = (name, cond, detail = "") => {
   // Nine meal slots and twenty-seven dishes asked eleven people to hold an
   // opinion about Sunday's oatmeal. One vote came back in three days.
   const ballot = await page.locator("main").getByRole("button", { name: /^Vote for / }).count();
-  ok("the ballot is short", ballot === 7, `${ballot} options`);
+  ok("the ballot is short", ballot === 8, `${ballot} options`);
   ok("friday dinner is a question", await page.getByText("Friday dinner").isVisible());
   ok("saturday breakfast is a question", await page.getByText("Saturday breakfast").isVisible());
   ok("nothing else is", (await page.locator("main").getByText(/^(Sunday|Anytime) /).count()) === 0);
@@ -386,6 +386,17 @@ const ok = (name, cond, detail = "") => {
   // per-dish "veg" badge stopped meaning anything. The rule is stated once.
   ok("no per-dish veg badges", (await page.locator("main").getByText("veg", { exact: true }).count()) === 0);
   // Nothing on the ballot needs an oven or a toaster.
+  // Five options are a starting point, not the whole menu — anyone can put a
+  // sixth on the same ballot.
+  ok("every ballot takes a suggestion", (await page.getByRole("button", { name: /Suggest another/ }).count()) === 2);
+  const friday = page.locator("div.mb-5").filter({ has: page.getByText("Friday dinner", { exact: true }) });
+  await friday.getByRole("button", { name: /Suggest another/ }).click();
+  await page.keyboard.type("Grilled cheese");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(300);
+  await page.keyboard.press("Escape");
+  ok("a suggested dish joins the ballot", await friday.getByRole("button", { name: "Vote for Grilled cheese" }).isVisible());
+
   ok("nothing uncookable on the ballot",
     (await page.getByText("Pizza").count()) === 0 &&
     (await page.getByText(/toast/i).count()) === 0 &&

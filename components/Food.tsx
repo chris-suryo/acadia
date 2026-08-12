@@ -36,6 +36,7 @@ export function Food({
     isMe,
     memberOf,
     ensureName,
+    addDish,
     updateDish,
     deleteDish,
     restoreDish,
@@ -441,7 +442,18 @@ export function Food({
                 <SubH right="tap to vote">
                   {night} {meal.toLowerCase()}
                 </SubH>
-                <Card className="overflow-hidden">{rows.map((f) => dishRow(f))}</Card>
+                <Card className="overflow-hidden">
+                  {rows.map((f) => dishRow(f))}
+                  {/* Five options are what I'd cook; someone else knows a
+                      sixth. Anything added here joins the same ballot. */}
+                  <AddRow
+                    label="Suggest another"
+                    placeholder="Something you'd rather eat"
+                    onAdd={(t) =>
+                      ensureName(() => addDish({ night, meal, dish: t, notes: "" }))
+                    }
+                  />
+                </Card>
               </div>
             );
           })}
