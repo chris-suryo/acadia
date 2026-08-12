@@ -14,6 +14,7 @@ import { Expenses } from "@/components/Expenses";
 import { Explore } from "@/components/Explore";
 import { IntroField, IntroMasthead, Welcome } from "@/components/Welcome";
 import { ServiceWorker } from "@/components/ServiceWorker";
+import { keepVisible } from "@/components/ui/keepVisible";
 
 function Shell() {
   const { ready, error, name } = useData();
@@ -96,14 +97,16 @@ function Shell() {
     window.scrollTo(0, v ? parseInt(v, 10) || 0 : 0);
   }, [tab, ready]);
 
-  // Keep the focused inline field visible when the keyboard opens.
+  // Keep the focused inline field visible when the keyboard opens. The field's
+  // own onFocus handler usually gets there first; this covers the case where
+  // the keyboard appears late, and `keepVisible` no-ops when there's nothing
+  // to do, so the two can't fight each other into a lurch.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     const h = () => {
       const el = document.activeElement as HTMLElement | null;
-      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA"))
-        setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) keepVisible(el);
     };
     vv.addEventListener("resize", h);
     return () => vv.removeEventListener("resize", h);

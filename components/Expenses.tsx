@@ -5,7 +5,7 @@ import { ArrowRight, Camera, Plus, Trash2, X } from "lucide-react";
 import { Btn, Card, SubH } from "./primitives";
 import { AvatarEditor } from "./AvatarEditor";
 import { Avatar } from "./ui/Avatar";
-import { focusCenter } from "./ui/focusCenter";
+import { onFieldFocus } from "./ui/keepVisible";
 import { PeoplePicker, splitLabel } from "./ui/PeoplePicker";
 import { RosterSheet } from "./ui/RosterSheet";
 import { VenmoButton } from "./ui/VenmoButton";
@@ -81,7 +81,7 @@ function ExpenseEditor({
     <div className="grid gap-3 px-3.5 py-3.5 bg-[#FBF8EE] border-b border-rule">
       <input
         autoFocus
-        onFocus={focusCenter}
+        onFocus={onFieldFocus}
         value={draft.description}
         onChange={(e) => setDraft({ ...draft, description: e.target.value })}
         onKeyDown={(e) => {
@@ -99,7 +99,7 @@ function ExpenseEditor({
           $
         </span>
         <input
-          onFocus={focusCenter}
+          onFocus={onFieldFocus}
           value={draft.amount}
           onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
           onKeyDown={(e) => {

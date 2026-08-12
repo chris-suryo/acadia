@@ -6,7 +6,7 @@ import { Box, Btn, Card, Kill, Segmented, SubH } from "./primitives";
 import { Avatar } from "./ui/Avatar";
 import { AddRow } from "./ui/AddRow";
 import { Chips } from "./ui/Chips";
-import { focusCenter } from "./ui/focusCenter";
+import { onFieldFocus } from "./ui/keepVisible";
 import { SwipeRow } from "./ui/SwipeRow";
 import { useOutside } from "./ui/useOutside";
 import { useSink, vtName } from "./ui/useSink";
@@ -181,6 +181,9 @@ export function Food({
   const merged = mergeLines(storeRows).map((line) => {
     const first = line.rows[0];
     const extra = line.rows.length - 1;
+    // Whoever ticked it — the first row that carries a name, since a merged
+    // line only reads as bought once every part of it is.
+    const gotBy = line.rows.find((r) => r.checked_by)?.checked_by ?? null;
     return {
       ...first,
       id: first.id,
@@ -192,6 +195,7 @@ export function Food({
       // single person to credit.
       standalone: extra === 0 && first.standalone,
       added_by: extra === 0 ? first.added_by : null,
+      gotBy,
     };
   });
 
@@ -205,7 +209,6 @@ export function Food({
     aisle,
     rows: sunkStoreRows.filter((r) => shelfOf(r) === aisle),
   })).filter((g) => g.rows.length > 0);
-  const storeLeft = merged.filter((r) => !r.checked).length;
 
   /** Ticking a merged line ticks every row behind it — you bought the
    *  tortillas, so all five dishes have their tortillas. Rows already in the
@@ -299,7 +302,7 @@ export function Food({
         <div className="grid gap-2">
           <input
             autoFocus
-            onFocus={focusCenter}
+            onFocus={onFieldFocus}
             value={draft.dish}
             onChange={(e) => setDraft({ ...draft, dish: e.target.value })}
             onKeyDown={(e) => {
@@ -315,7 +318,7 @@ export function Food({
             onChange={(v) => updateDish(f.id, { meal: v })}
           />
           <input
-            onFocus={focusCenter}
+            onFocus={onFieldFocus}
             value={draft.notes}
             onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
             onKeyDown={(e) => {
@@ -389,7 +392,7 @@ export function Food({
         onChange={setView}
         options={[
           { id: "menu", label: "Vote" },
-          { id: "shop", label: storeLeft > 0 ? `List · ${storeLeft} left` : "List" },
+          { id: "shop", label: "List" },
         ]}
       />
       {view === "menu" && (
@@ -456,20 +459,38 @@ export function Food({
                     {g.label}
                   </span>
                   <span className="flex items-center gap-1.5 mt-0.5">
-                    {g.added_by && (
-                      <Avatar
-                        userId={g.added_by}
-                        name={profiles[g.added_by]?.trim() || "?"}
-                        size={16}
-                      />
+                    {/* Once it's in the cart, whose cart is the useful fact —
+                        same as a claimed row on the gear list. What it was for
+                        stops mattering the moment it's bought. */}
+                    {g.checked && g.gotBy ? (
+                      <>
+                        <Avatar
+                          userId={g.gotBy}
+                          name={profiles[g.gotBy]?.trim() || "?"}
+                          size={16}
+                        />
+                        <span className="font-mono text-[10.5px] text-moss truncate">
+                          {profiles[g.gotBy]?.trim() || "someone"} got it
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        {g.added_by && (
+                          <Avatar
+                            userId={g.added_by}
+                            name={profiles[g.added_by]?.trim() || "?"}
+                            size={16}
+                          />
+                        )}
+                        <span
+                          className={`font-mono text-[10.5px] truncate ${
+                            g.tagTone === "moss" ? "text-moss" : "text-blaze"
+                          }`}
+                        >
+                          {g.tag}
+                        </span>
+                      </>
                     )}
-                    <span
-                      className={`font-mono text-[10.5px] truncate ${
-                        g.tagTone === "moss" ? "text-moss" : "text-blaze"
-                      }`}
-                    >
-                      {g.tag}
-                    </span>
                   </span>
                 </span>
               </button>

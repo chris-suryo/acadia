@@ -5,6 +5,7 @@
 
 import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
+import { onFieldFocus } from "./keepVisible";
 
 export function AddRow({
   onAdd,
@@ -53,12 +54,7 @@ export function AddRow({
           }
         }}
         onBlur={() => commit(false)}
-        onFocus={(e) =>
-          setTimeout(
-            () => e.target.scrollIntoView({ block: "center", behavior: "smooth" }),
-            150,
-          )
-        }
+        onFocus={onFieldFocus}
         placeholder={placeholder}
         enterKeyHint="done"
         className="w-full p-2.5 rounded-lg border border-rule bg-white text-[16px] text-ink min-h-[42px]"

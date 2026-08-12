@@ -39,7 +39,7 @@ import { TRIP_DATES } from "@/lib/config";
 import { CAMP_NOTES, EATS, SPOTS } from "@/lib/content";
 import { AddRow } from "./ui/AddRow";
 import { BottomSheet } from "./ui/BottomSheet";
-import { focusCenter } from "./ui/focusCenter";
+import { onFieldFocus } from "./ui/keepVisible";
 import { Chips } from "./ui/Chips";
 import { useUi } from "./ui/UiProvider";
 import { useData, type BlockPatch } from "@/lib/data/context";
@@ -215,7 +215,7 @@ function Entry({
         <div className="flex-1 grid gap-2">
           <input
             autoFocus
-            onFocus={focusCenter}
+            onFocus={onFieldFocus}
             value={draft.title}
             onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             onKeyDown={(e) => {
@@ -226,7 +226,7 @@ function Entry({
             className="w-full p-2.5 rounded-lg border border-rule bg-white text-[16px] font-medium text-ink min-h-[42px]"
           />
           <input
-            onFocus={focusCenter}
+            onFocus={onFieldFocus}
             value={draft.detail}
             onChange={(e) => setDraft({ ...draft, detail: e.target.value })}
             onKeyDown={(e) => {

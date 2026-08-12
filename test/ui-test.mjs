@@ -447,7 +447,7 @@ const ok = (name, cond, detail = "") => {
   ok("no ingredient byline under the dish", (await page.getByText(/\d\/\d ingredients/).count()) === 0);
 
   // ---- the list is what the votes decided, plus what people asked for ----
-  await page.getByRole("button", { name: /^List( ·|$)/ }).click();
+  await page.getByRole("button", { name: "List", exact: true }).click();
   await page.waitForTimeout(300);
   ok("the winner's ingredients are on it", await page.getByText("Taco seasoning").first().isVisible());
   ok(
@@ -496,18 +496,14 @@ const ok = (name, cond, detail = "") => {
   await page.getByRole("button", { name: "Undo" }).click();
   await page.waitForTimeout(400);
   ok("and undo brings it back", await page.getByText("Taco seasoning").first().isVisible());
-  const storeLeft = async () =>
-    Number(
-      (await page.getByRole("button", { name: /^List · \d+ left$/ }).textContent())
-        .match(/(\d+) left/)[1],
-    );
-  const beforeCheck = await storeLeft();
+  // No running count on the tab — it read as a target nobody set.
+  ok("the tab is just List", (await page.getByRole("button", { name: /left$/ }).count()) === 0);
   await page.getByText("Taco seasoning").first().click();
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(350);
+  // Ticking a line is a claim: you got it, so your name goes on it.
+  ok("a ticked line says who got it", await page.getByText("Chris got it").first().isVisible());
   await page.screenshot({ path: `${SHOT_DIR}/9-food-store.png`, fullPage: true });
 
-  // The tab counts what's left to buy.
-  ok("list label counts down", (await storeLeft()) === beforeCheck - 1);
   await page.getByRole("button", { name: "Vote", exact: true }).click();
   await page.waitForTimeout(250);
   await page.getByRole("button", { name: "Edit Taco bar" }).click();
@@ -836,7 +832,7 @@ const ok = (name, cond, detail = "") => {
   // ---- persistence: reload lands on the schedule; segments restore per tab ----
   await page.getByRole("button", { name: "Food", exact: true }).click();
   await page.waitForTimeout(250);
-  await page.getByRole("button", { name: /^List( ·|$)/ }).click();
+  await page.getByRole("button", { name: "List", exact: true }).click();
   await page.waitForTimeout(250);
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(800);
