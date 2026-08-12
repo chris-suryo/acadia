@@ -133,6 +133,18 @@ function Entry({
         {...attributes}
         {...listeners}
         onClick={onExpand}
+        // dnd-kit needs this to stay a div it can drive, so the button
+        // semantics are added by hand rather than by using a <button>. Without
+        // them the whole schedule is unreachable from a keyboard.
+        role="button"
+        tabIndex={0}
+        aria-label={`Edit ${block.title}`}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onExpand();
+          }
+        }}
         className={`flex items-start gap-3 px-3.5 py-[11px] cursor-pointer ${isDragging ? "opacity-60" : ""}`}
       >
         <span
@@ -239,7 +251,7 @@ function Entry({
                   showUndo("Deleted", () => restoreBlock(snapshot));
                 }}
                 aria-label="Delete entry"
-                className="bg-transparent border-none cursor-pointer p-2 text-[#C3BCA8]"
+                className="bg-transparent border-none cursor-pointer p-2 text-faint"
               >
                 <Trash2 size={16} />
               </button>

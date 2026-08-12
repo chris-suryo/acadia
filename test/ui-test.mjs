@@ -2,12 +2,12 @@
 //
 //   NEXT_PUBLIC_DATA_MODE=mock pnpm build
 //   NEXT_PUBLIC_DATA_MODE=mock PORT=3107 pnpm start
-//   node test/ui-test.js
+//   node test/ui-test.mjs
 //
 // Kill any old `next start` before restarting — a replaced .next under a
 // running server produces phantom failures that look like real regressions.
-const { chromium } = require("playwright");
-const fs = require("fs");
+import { chromium } from "playwright";
+import fs from "node:fs";
 
 const BASE = "http://localhost:3107";
 const SHOT_DIR = process.env.SHOT_DIR || "/tmp/abc-shots";
@@ -239,7 +239,6 @@ const ok = (name, cond, detail = "") => {
 
   // ghost add per category (pre-filled category, no select)
   ok("no category selects", (await page.locator("select").count()) === 0);
-  const shelter = page.locator("div").filter({ has: page.getByText("Shelter", { exact: true }) }).last();
   await page.getByRole("button", { name: "Add", exact: true }).first().click();
   await page.keyboard.type("Bug net canopy");
   await page.keyboard.press("Enter");
@@ -531,6 +530,90 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(500);
   ok("undo restores the expense and its split",
     await page.getByText(/split 2 ways · not you/).isVisible());
+
+  // An expense split with nobody would never reach the settle-up — `balances`
+  // skips it, so the payer is silently never paid back while the amount still
+  // counts toward what the group spent. The editor refuses to write one.
+  const settleTotal = async () =>
+    (await page.locator("[data-settle]").evaluateAll((els) =>
+      els.map((e) => Number(e.dataset.settle)))).reduce((a, b) => a + b, 0);
+  const beforeGhost = await settleTotal();
+  await page.getByRole("button", { name: "Add an expense" }).click();
+  await page.waitForTimeout(300);
+  await page.getByPlaceholder("What you bought").fill("Bag of ice");
+  await page.getByLabel("Amount").fill("6.00");
+  await page.getByRole("button", { name: "change" }).click();
+  await page.waitForTimeout(350);
+  const ghostSheet = page.locator("div.fixed.inset-0.z-50");
+  // Deselect everyone by toggling off the two the solo shortcut leaves on.
+  await ghostSheet.getByRole("button", { name: "Everyone" }).click();
+  await page.waitForTimeout(150);
+  for (const n of ["Alana", "Alexis", "Ariana", "Ashley", "Chris", "Erin",
+                   "Irene", "Mayank", "Molida", "Patrick", "Sng"]) {
+    const off = ghostSheet.getByRole("button", { name: `Leave out ${n}` });
+    if (await off.count()) await off.click();
+  }
+  await page.waitForTimeout(200);
+  ok("the picker can reach nobody",
+    (await ghostSheet.getByRole("button", { name: /^Include / }).count()) === 11);
+  await ghostSheet.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(300);
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(400);
+  ok("a split with nobody is refused", await page.getByText("Pick who this was for").isVisible());
+  ok("the editor stays open to fix it",
+    (await page.getByPlaceholder("What you bought").count()) === 1);
+  ok("nothing was written", (await page.getByText("Bag of ice").count()) === 0);
+  ok("the ledger is untouched", (await settleTotal()) === beforeGhost, `${await settleTotal()}`);
+  // Picking someone lets the same expense through.
+  await page.getByRole("button", { name: "change" }).click();
+  await page.waitForTimeout(350);
+  await ghostSheet.getByRole("button", { name: "Everyone" }).click();
+  await ghostSheet.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(300);
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(400);
+  ok("picking someone lets it through", await page.getByText("Bag of ice").isVisible());
+
+  // Emptying the description is an edit like any other — silently keeping the
+  // old text is worse than a row that says nothing.
+  await page.getByText("Bag of ice").click();
+  await page.waitForTimeout(300);
+  await page.getByPlaceholder("What you bought").fill("");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(400);
+  ok("a cleared description sticks", (await page.getByText("Bag of ice").count()) === 0);
+  ok("the row is still there, unnamed", await page.getByText("Untitled").isVisible());
+
+  // Undo of a removal must put the person back under their original id. Adding
+  // them again by name would mint a new one, and the devices the delete just
+  // unlinked would stay unlinked — one person quietly becoming two. The tell is
+  // the "you" marker: it only renders on the member this device is linked to,
+  // so it comes back if and only if the id survived.
+  const meMarker = async () =>
+    await page.locator("main").getByText(/^(you|add a photo)$/).count();
+  ok("you are marked before any of this", (await meMarker()) === 1);
+
+  // Clear the ledger first — removing someone mid-ledger is refused, by design.
+  for (const desc of ["Untitled", "Groceries at Hannaford", "Lobster rolls"]) {
+    const row = page.getByText(desc, { exact: true });
+    if (!(await row.count())) continue;
+    await row.first().click();
+    await page.waitForTimeout(250);
+    await page.getByRole("button", { name: "Delete expense" }).click();
+    await page.waitForTimeout(350);
+  }
+  ok("the ledger is empty again", await page.getByText(/Nothing logged yet/).isVisible());
+
+  await swipe(page.locator("main").getByRole("button", { name: /Chris/ }).last());
+  ok("someone on no expense can be removed",
+    (await page.locator("main").getByText("Chris", { exact: true }).count()) === 0);
+  ok("and the you marker goes with them", (await meMarker()) === 0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await page.waitForTimeout(600);
+  ok("undo puts them back exactly once",
+    (await page.locator("main").getByText("Chris", { exact: true }).count()) === 1);
+  ok("undo restores the same person, not a namesake", (await meMarker()) === 1);
 
   // ---- the page must never pan sideways ----
   // Carousels scroll horizontally; the document must not. A stray absolutely

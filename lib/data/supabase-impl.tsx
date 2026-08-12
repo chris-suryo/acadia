@@ -7,6 +7,8 @@ import { NameSheet, useNameSheet } from "@/components/ui/NameSheet";
 import { useUi } from "@/components/ui/UiProvider";
 import {
   FORECAST_STALE_MS,
+  REALTIME_COALESCE_MS,
+  RECEIPT_URL_TTL_S,
   SUPABASE_ANON_KEY,
   SUPABASE_URL,
   TRIP_DATES,
@@ -30,6 +32,17 @@ import type {
 } from "@/lib/types";
 
 const CONFIGURED = SUPABASE_URL.startsWith("https://");
+
+/**
+ * Roster order, imposed rather than inherited.
+ *
+ * `select *` gives no order guarantee, and this array's order is load-bearing:
+ * `shares()` hands the odd cents to the first ids in the order the roster is
+ * read in, so an unordered read could move a penny between two people between
+ * one launch and the next.
+ */
+const byRosterOrder = (rows: Member[]): Member[] =>
+  [...rows].sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));
 
 type Table =
   | "profiles"
@@ -93,7 +106,10 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseShares, setShareRows] = useState<ExpenseShare[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  // Rows carry the storage *path*; the bucket is private, so the link a browser
+  // can actually load is signed below and cached by path.
+  const [receiptRows, setReceiptRows] = useState<Receipt[]>([]);
+  const [signedReceipts, setSignedReceipts] = useState<Record<string, string>>({});
   const [surveys, setSurveys] = useState<SurveyRow[]>([]);
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
 
@@ -135,10 +151,10 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           setShareRows(data as ExpenseShare[]);
           break;
         case "members":
-          setMembers(data as Member[]);
+          setMembers(byRosterOrder(data as Member[]));
           break;
         case "expense_receipts":
-          setReceipts(data as Receipt[]);
+          setReceiptRows(data as Receipt[]);
           break;
         case "survey":
           setSurveys(data as SurveyRow[]);
@@ -301,12 +317,29 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       }
     })();
 
+    // One change is one event, and a batched write is one event per row —
+    // refetching the whole table on each would multiply somebody else's drag
+    // into a burst of full-table reads on every phone at the campsite.
+    // Collect what changed and read each table once on a trailing timer.
+    const dirty = new Set<Table>();
+    let flush: ReturnType<typeof setTimeout> | null = null;
+    const markDirty = (table: Table) => {
+      dirty.add(table);
+      if (flush) return;
+      flush = setTimeout(() => {
+        flush = null;
+        const tables = [...dirty];
+        dirty.clear();
+        for (const t of tables) refetch(t);
+      }, REALTIME_COALESCE_MS);
+    };
+
     const channel = supabase.channel("db-sync");
     for (const table of REALTIME_TABLES) {
       channel.on(
         "postgres_changes",
         { event: "*", schema: "public", table },
-        () => refetch(table),
+        () => markDirty(table),
       );
     }
     channel.subscribe();
@@ -314,6 +347,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
       clearTimeout(hydrate);
+      if (flush) clearTimeout(flush);
       supabase.removeChannel(channel);
     };
   }, [supabase, refetch, applyRows, showNotice]);
@@ -477,7 +511,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         name: name.trim(),
         sort: nextSort(membersRef.current),
       };
-      setMembers((prev) => [...prev, row]);
+      setMembers((prev) => byRosterOrder([...prev, row]));
       persist(supabase.from("members").insert(row), "members");
     },
     [supabase, persist],
@@ -500,6 +534,14 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     [supabase, persist],
   );
 
+  const restoreMember = useCallback(
+    (row: Member) => {
+      setMembers((prev) => byRosterOrder([...prev.filter((m) => m.id !== row.id), row]));
+      persist(supabase.from("members").upsert(row), "members");
+    },
+    [supabase, persist],
+  );
+
   const addReceipt = useCallback(
     (expenseId: string, file: File) => {
       const id = newId();
@@ -512,10 +554,11 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           .from("receipts")
           .upload(path, blob, { contentType: "image/jpeg", upsert: true });
         if (err) throw err;
-        const url = `${SUPABASE_URL}/storage/v1/object/public/receipts/${path}`;
+        // The path, not a URL: the bucket is private, and a signed link would
+        // be stale long before the row is.
         const { error: rerr } = await supabase
           .from("expense_receipts")
-          .insert({ id, expense_id: expenseId, url, sort: 0 });
+          .insert({ id, expense_id: expenseId, url: path, sort: 0 });
         if (rerr) throw rerr;
         refetch("expense_receipts");
       })().catch((e) => {
@@ -529,7 +572,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
   const deleteReceipt = useCallback(
     (id: string) => {
-      setReceipts((prev) => prev.filter((r) => r.id !== id));
+      setReceiptRows((prev) => prev.filter((r) => r.id !== id));
       // The object stays in the bucket; it's a few KB and orphaned storage is
       // cheaper than a delete that half-succeeds.
       persist(supabase.from("expense_receipts").delete().eq("id", id), "expense_receipts");
@@ -564,6 +607,44 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     [supabase, showNotice, refetch, patchMyProfile],
   );
 
+  /** An already-absolute link — a legacy public URL, or a mock blob. */
+  const isAbsolute = (u: string) => u.includes("://");
+
+  // Sign whatever hasn't been signed yet, in one request. Signatures are held
+  // by path, so a re-read of the table doesn't re-sign what's already good.
+  useEffect(() => {
+    const paths = [
+      ...new Set(
+        receiptRows.map((r) => r.url).filter((u) => u && !isAbsolute(u)),
+      ),
+    ].filter((p) => !signedReceipts[p]);
+    if (!paths.length) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error: err } = await supabase.storage
+        .from("receipts")
+        .createSignedUrls(paths, RECEIPT_URL_TTL_S);
+      if (err || !data || cancelled) return;
+      const next: Record<string, string> = {};
+      for (const row of data) if (row.path && row.signedUrl) next[row.path] = row.signedUrl;
+      if (Object.keys(next).length) setSignedReceipts((prev) => ({ ...prev, ...next }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [receiptRows, signedReceipts, supabase]);
+
+  // What the UI renders: the same rows, with `url` resolved to something a
+  // browser can load. A row waits here until its signature lands rather than
+  // rendering a broken thumbnail.
+  const receipts = useMemo(
+    () =>
+      receiptRows
+        .map((r) => (isAbsolute(r.url) ? r : { ...r, url: signedReceipts[r.url] ?? "" }))
+        .filter((r) => r.url),
+    [receiptRows, signedReceipts],
+  );
+
   const weather = useMemo(() => {
     const m: Record<string, DayWeather | undefined> = {};
     for (const r of forecast) {
@@ -591,6 +672,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     addMember,
     renameMember,
     deleteMember,
+    restoreMember,
     claimMember,
     expenseShares,
     receipts,
@@ -644,24 +726,18 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
     reorderDay: (rows) => {
       const byId = new Map(rows.map((r) => [r.id, r]));
-      setBlocks((prev) =>
-        prev.map((b) => {
-          const r = byId.get(b.id);
-          return r ? { ...b, day_part: r.day_part, sort: r.sort } : b;
-        }),
-      );
-      (async () => {
-        for (const r of rows) {
-          await supabase
-            .from("itinerary_blocks")
-            .update({ day_part: r.day_part, sort: r.sort })
-            .eq("id", r.id);
-        }
-        refetch("itinerary_blocks");
-      })().catch((e) => {
-        console.error(e);
-        refetch("itinerary_blocks");
+      const next = blocks.map((b) => {
+        const r = byId.get(b.id);
+        return r ? { ...b, day_part: r.day_part, sort: r.sort } : b;
       });
+      setBlocks(next);
+      // One request for the whole drag. This was a round trip per row, which
+      // on campground signal is the difference between a reorder that lands
+      // and one that hangs halfway through with the list half-rewritten.
+      persist(
+        supabase.from("itinerary_blocks").upsert(next.filter((b) => byId.has(b.id))),
+        "itinerary_blocks",
+      );
     },
 
     toggleClaimGear: (id) => {
@@ -701,46 +777,28 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
     reorderGear: (rows) => {
       const byId = new Map(rows.map((r) => [r.id, r]));
-      setGear((prev) =>
-        prev.map((g) => {
-          const r = byId.get(g.id);
-          return r ? { ...g, category: r.category, sort: r.sort } : g;
-        }),
-      );
-      (async () => {
-        for (const r of rows) {
-          await supabase
-            .from("gear_items")
-            .update({ category: r.category, sort: r.sort })
-            .eq("id", r.id);
-        }
-        refetch("gear_items");
-      })().catch((e) => {
-        console.error(e);
-        refetch("gear_items");
+      const next = gear.map((g) => {
+        const r = byId.get(g.id);
+        return r ? { ...g, category: r.category, sort: r.sort } : g;
       });
+      setGear(next);
+      persist(
+        supabase.from("gear_items").upsert(next.filter((g) => byId.has(g.id))),
+        "gear_items",
+      );
     },
 
     reorderPersonal: (rows) => {
       const byId = new Map(rows.map((r) => [r.id, r]));
-      setPersonal((prev) =>
-        prev.map((p) => {
-          const r = byId.get(p.id);
-          return r ? { ...p, category: r.category, sort: r.sort } : p;
-        }),
-      );
-      (async () => {
-        for (const r of rows) {
-          await supabase
-            .from("personal_items")
-            .update({ category: r.category, sort: r.sort })
-            .eq("id", r.id);
-        }
-        refetch("personal_items");
-      })().catch((e) => {
-        console.error(e);
-        refetch("personal_items");
+      const next = personal.map((p) => {
+        const r = byId.get(p.id);
+        return r ? { ...p, category: r.category, sort: r.sort } : p;
       });
+      setPersonal(next);
+      persist(
+        supabase.from("personal_items").upsert(next.filter((p) => byId.has(p.id))),
+        "personal_items",
+      );
     },
 
     togglePersonal: (id) => {

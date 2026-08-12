@@ -166,6 +166,8 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
           prev.map((m) => (m.id === id ? { ...m, name: n.trim() } : m)),
         ),
       deleteMember: (id) => setMembers((prev) => prev.filter((m) => m.id !== id)),
+      restoreMember: (row) =>
+        setMembers((prev) => [...prev.filter((m) => m.id !== row.id), row]),
       claimMember,
       expenseShares,
       receipts,

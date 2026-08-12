@@ -43,7 +43,7 @@ export function Header() {
       <Topo />
       <div className="relative flex justify-between items-start gap-4">
         <div className="min-w-0">
-          <div className="font-mono text-[11px] tracking-[.12em] text-blaze uppercase mb-1.5">
+          <div className="font-mono text-[11px] tracking-[.12em] text-blazelift uppercase mb-1.5">
             Aug 14–16, 2026 · Blackwoods
           </div>
           <h1 className="font-display font-bold text-[clamp(27px,7vw,36px)] text-parchment m-0 leading-[1.05]">

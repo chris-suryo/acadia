@@ -11,12 +11,14 @@ export const metadata: Metadata = {
   },
 };
 
+// No maximumScale / userScalable: pinning the scale is the usual way to stop
+// iOS zooming on an input focus, but every field here is already 16px, which
+// prevents that on its own. Blocking zoom outright costs more than it saves on
+// a phone read outdoors at arm's length.
 export const viewport: Viewport = {
   themeColor: "#1F3D2B",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
 };
 

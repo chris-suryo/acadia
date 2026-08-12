@@ -64,6 +64,10 @@ export type DataCtx = {
   addMember: (name: string) => void;
   renameMember: (id: string, name: string) => void;
   deleteMember: (id: string) => void;
+  /** Puts a removed person back under their original id — re-adding by name
+   *  would mint a new one, and every device linked to the old id stays
+   *  unlinked, so one person quietly becomes two. */
+  restoreMember: (row: Member) => void;
   /** Says "this device is that person", and adopts their name. */
   claimMember: (memberId: string) => void;
   /** Downscales client-side, uploads to storage, saves the URL on the profile. */
