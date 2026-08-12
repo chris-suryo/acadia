@@ -442,7 +442,7 @@ const ok = (name, cond, detail = "") => {
   ok("split defaults to everyone", await page.getByText("Everyone", { exact: true }).isVisible());
   // The division is visible while you type it, so a wrong amount is obvious
   // before it's saved rather than after the settle-up looks odd.
-  ok("per-head shown as you type", await page.getByText("$60.88 each · 4 people").isVisible());
+  ok("per-head shown as you type", await page.getByText("$22.14 each · 11 people").isVisible());
   // A receipt can be attached before the expense exists — you photograph it
   // while adding, not after saving and reopening.
   await page.setInputFiles('input[type="file"]', {
@@ -457,10 +457,11 @@ const ok = (name, cond, detail = "") => {
   ok("row says who paid and how it split",
     await page.getByText("Chris paid · split with everyone").isVisible());
   ok("the receipt went up with it", (await page.locator('img[src^="blob:"]').count()) >= 1);
-  // $243.50 across four is indivisible; you carry one of the odd cents, so being
-  // owed 182.62 rather than 182.63 is the split reconciling to the penny.
+  // $243.50 across eleven leaves seven odd cents, handed out in roster order;
+  // Chris sorts fifth so he carries one, and 221.36 rather than 221.37 is the
+  // split reconciling to the penny.
   ok("balance says you're owed", await page.getByText("You're owed").isVisible());
-  ok("owed to the cent", await page.getByText("$182.62").first().isVisible());
+  ok("owed to the cent", await page.getByText("$221.36").first().isVisible());
 
   // Someone else pays, split among a subset that leaves you out.
   await page.getByRole("button", { name: "Add an expense" }).click();
@@ -479,10 +480,10 @@ const ok = (name, cond, detail = "") => {
   ok("solo shortcut names the payer",
     await sheet.getByRole("button", { name: "Just Erin" }).isVisible());
   await page.screenshot({ path: `${SHOT_DIR}/10b-split-picker.png` });
-  await sheet.getByRole("button", { name: "Leave out Alana" }).click();
-  await sheet.getByRole("button", { name: "Leave out Chris" }).click();
+  await sheet.getByRole("button", { name: "Just Erin" }).click();
+  await sheet.getByRole("button", { name: "Include Patrick" }).click();
   await page.waitForTimeout(200);
-  ok("picker updates the summary line", await page.getByText("Erin and Sam").isVisible());
+  ok("picker updates the summary line", await page.getByText("Erin and Patrick").isVisible());
   await sheet.getByRole("button", { name: "Done", exact: true }).click();
   await page.waitForTimeout(300);
   await page.getByRole("button", { name: "Done", exact: true }).click();
@@ -495,8 +496,8 @@ const ok = (name, cond, detail = "") => {
     .locator("[data-settle]")
     .evaluateAll((els) => els.map((e) => Number(e.dataset.settle)));
   ok("settle-up pays off exactly what you're owed",
-    settleCents.reduce((a, b) => a + b, 0) === 18262, `${settleCents}`);
-  ok("one payment per debtor", settleCents.length === 3, `${settleCents.length}`);
+    settleCents.reduce((a, b) => a + b, 0) === 22136, `${settleCents}`);
+  ok("one payment per debtor", settleCents.length === 10, `${settleCents.length}`);
   await page.screenshot({ path: `${SHOT_DIR}/10c-expenses-settle.png`, fullPage: true });
 
   // Removing someone mid-ledger would rewrite everyone's balance without saying

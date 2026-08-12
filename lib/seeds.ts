@@ -132,10 +132,22 @@ export const SEED_PERSONAL: { category: string; label: string; note: string; sor
 
 export const PERSONAL_CATEGORIES = ["Sleep", "Clothing", "Mess Kit", "Essentials", "Toiletries", "Extras"];
 
-// A roster for mock runs. The live one isn't seeded from here — migration 0017
-// builds it from the names people have actually typed, and it grows as the rest
-// of the twelve get added on the Expenses tab.
-export const SEED_MEMBERS = ["Alana", "Chris", "Erin", "Sam"];
+// The party, alphabetical — a picker is scanned, not read. Mirrors migration
+// 0019; the live roster keeps whatever display name each person set for
+// themselves, so Erin is "Erin 🍀" there.
+export const SEED_MEMBERS = [
+  "Alana",
+  "Alexis",
+  "Ariana",
+  "Ashley",
+  "Chris",
+  "Erin",
+  "Irene",
+  "Mayank",
+  "Molida",
+  "Patrick",
+  "Sng",
+];
 
 // Candidates for the group to vote on, not decisions. Every cooked meal has a
 // vegetarian option; `veg` drives the badge on the row. Mirrors
