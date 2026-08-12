@@ -246,11 +246,6 @@ export function Food({
                 <span className="text-[14.5px] text-ink font-medium truncate">
                   {f.dish}
                 </span>
-                {f.veg && (
-                  <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[.08em] text-moss border border-moss rounded-full px-1.5 py-[1px]">
-                    veg
-                  </span>
-                )}
                 {leading.has(f.id) && (
                   <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[.08em] text-white bg-moss rounded-full px-1.5 py-[1px]">
                     leading
@@ -363,20 +358,6 @@ export function Food({
             )}
           </div>
           <div className="flex items-center justify-end gap-1">
-            {/* Nothing decides the menu by hand any more — the most-voted
-                dish in a meal reads as leading. This just marks a dish
-                someone adds as vegetarian. */}
-            <button
-              onClick={() => updateDish(f.id, { veg: !f.veg })}
-              aria-pressed={f.veg}
-              className={`mr-auto rounded-full border px-2.5 py-1 cursor-pointer font-mono text-[11px] ${
-                f.veg
-                  ? "bg-moss border-moss text-white"
-                  : "bg-transparent border-rule text-granite"
-              }`}
-            >
-              vegetarian
-            </button>
             <button
               onClick={() => {
                 const snapshot = { ...f };
@@ -442,6 +423,19 @@ export function Food({
               </Card>
             </div>
           )}
+          {/* The two things that shaped this ballot. Said once, at the top,
+              rather than as a description under every dish. */}
+          <Card className="px-3.5 py-3 mb-5">
+            <div className="text-[13.5px] text-ink leading-[1.5]">
+              Every option works without meat.
+            </div>
+            <div className="text-[11.5px] text-mute mt-1 leading-[1.45]">
+              The meat cooks separately and goes in at the end, so nobody needs
+              a different dinner. One burner and the fire, so nothing here needs
+              two pans at once.
+            </div>
+          </Card>
+
           {/* Two questions, not nine. Everything else on the menu is being
               bought rather than decided, and says so below. */}
           {VOTED_SLOTS.map(([night, meal]) => {

@@ -375,14 +375,23 @@ const ok = (name, cond, detail = "") => {
   // Nine meal slots and twenty-seven dishes asked eleven people to hold an
   // opinion about Sunday's oatmeal. One vote came back in three days.
   const ballot = await page.locator("main").getByRole("button", { name: /^Vote for / }).count();
-  ok("the ballot is short", ballot === 6, `${ballot} options`);
+  ok("the ballot is short", ballot === 7, `${ballot} options`);
   ok("friday dinner is a question", await page.getByText("Friday dinner").isVisible());
   ok("saturday breakfast is a question", await page.getByText("Saturday breakfast").isVisible());
   ok("nothing else is", (await page.locator("main").getByText(/^(Sunday|Anytime) /).count()) === 0);
   // Not voting on something doesn't mean not buying it.
   ok("the rest is bought, not decided", await page.getByText("Already on the list").isVisible());
   ok("and it says which", await page.getByText(/Sandwiches packed for the trail/).isVisible());
-  ok("veg options survive the cut", (await page.locator("main").getByText("veg", { exact: true }).count()) === 2);
+  // Every dish is built vegetarian with the meat added at the end, so a
+  // per-dish "veg" badge stopped meaning anything. The rule is stated once.
+  ok("no per-dish veg badges", (await page.locator("main").getByText("veg", { exact: true }).count()) === 0);
+  ok("the rule is stated once", await page.getByText("Every option works without meat.").isVisible());
+  ok("and so is the kit constraint", await page.getByText(/One burner and the fire/).isVisible());
+  // Nothing on the ballot needs an oven or a toaster.
+  ok("nothing uncookable on the ballot",
+    (await page.getByText("Pizza").count()) === 0 &&
+    (await page.getByText(/toast/i).count()) === 0 &&
+    (await page.getByText(/cornbread/i).count()) === 0);
   ok("no leader before a vote", (await page.locator("main").getByText("leading", { exact: true }).count()) === 0);
 
   // Anyone can put a specific thing on the shopping list without going near
@@ -396,22 +405,22 @@ const ok = (name, cond, detail = "") => {
 
   // Tapping a dish used to open the editor, which made voting fiddly. The whole
   // row votes now; editing moved behind the pencil.
-  await page.getByRole("button", { name: "Vote for Tacos" }).click();
+  await page.getByRole("button", { name: "Vote for Taco bar" }).click();
   await page.waitForTimeout(350);
-  ok("row tap votes", (await page.getByRole("button", { name: "Remove your vote for Tacos" }).count()) === 1);
-  ok("row tap opens no editor", (await page.locator('input[value="Tacos"]').count()) === 0);
+  ok("row tap votes", (await page.getByRole("button", { name: "Remove your vote for Taco bar" }).count()) === 1);
+  ok("row tap opens no editor", (await page.locator('input[value="Taco bar"]').count()) === 0);
   ok("a vote crowns a leader", (await page.locator("main").getByText("leading", { exact: true }).count()) >= 1);
   // ...and voting twice quickly is what raised "couldn't save — retry": both
   // taps read "not voted yet" off a stale render and both INSERTed.
-  await page.getByRole("button", { name: "Remove your vote for Tacos" }).click();
-  await page.getByRole("button", { name: "Vote for Tacos" }).click();
+  await page.getByRole("button", { name: "Remove your vote for Taco bar" }).click();
+  await page.getByRole("button", { name: "Vote for Taco bar" }).click();
   await page.waitForTimeout(500);
   ok("fast re-vote raises no error", (await page.getByText("Couldn't save").count()) === 0);
-  ok("fast re-vote leaves one vote", (await page.getByRole("button", { name: "Remove your vote for Tacos" }).count()) === 1);
+  ok("fast re-vote leaves one vote", (await page.getByRole("button", { name: "Remove your vote for Taco bar" }).count()) === 1);
 
-  await page.getByRole("button", { name: "Edit Pancakes" }).click();
+  await page.getByRole("button", { name: "Edit Pancakes + bacon" }).click();
   await page.waitForTimeout(300);
-  ok("pencil opens the editor", (await page.locator('input[value="Pancakes"]').count()) === 1);
+  ok("pencil opens the editor", (await page.locator('input[value="Pancakes + bacon"]').count()) === 1);
   await page.getByRole("button", { name: "Add ingredient" }).click();
   await page.keyboard.type("Blueberries ×2 pints");
   await page.keyboard.press("Enter");
@@ -441,7 +450,7 @@ const ok = (name, cond, detail = "") => {
   ok("requester name on the line", await page.locator("main").getByText("Chris", { exact: true }).first().isVisible());
   // Grouped by where things sit in a shop, not by where the row came from.
   ok("list groups by aisle", await page.locator("main").getByText("Meat + Deli", { exact: true }).isVisible());
-  ok("rows are tagged with their dish", await page.getByText(/Tacos · Friday/).first().isVisible());
+  ok("rows are tagged with their dish", await page.getByText(/Taco bar · Friday/).first().isVisible());
 
   // Tortillas belong to two dishes on the plan. You buy tortillas once.
   const tortillaRows = await page.locator("main").getByText(/^Tortillas ×\d+$/).allTextContents();
@@ -468,7 +477,7 @@ const ok = (name, cond, detail = "") => {
   ok("list label counts down", (await storeLeft()) === beforeCheck - 1);
   await page.getByRole("button", { name: "Vote", exact: true }).click();
   await page.waitForTimeout(250);
-  await page.getByRole("button", { name: "Edit Tacos" }).click();
+  await page.getByRole("button", { name: "Edit Taco bar" }).click();
   await page.waitForTimeout(300);
   ok(
     "a tick in the aisle syncs into the dish",
@@ -809,7 +818,7 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(800);
   await page.getByRole("button", { name: "Food", exact: true }).click();
   await page.waitForTimeout(300);
-  ok("stale money segment falls back to the menu", await page.getByText("Tacos", { exact: true }).isVisible());
+  ok("stale money segment falls back to the menu", await page.getByText("Taco bar", { exact: true }).isVisible());
 
   // ---- intro replay from Explore + ?welcome=1 + PWA endpoints ----
   await page.getByRole("button", { name: "Explore" }).click();
