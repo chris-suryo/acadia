@@ -87,6 +87,10 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(300);
   ok("camp notes sheet", await page.getByText(/No showers at Blackwoods/).isVisible());
   ok("shower link", (await page.locator('a[href*="Hot%20Showers"], a[href*="Hot+Showers"]').count()) === 1);
+  // Park rules that bite: a site takes two tents, six people and one vehicle,
+  // so eleven of us across two sites is four tents and two cars.
+  ok("the site limits are stated", await page.getByText(/Two tents and one car per site/).isVisible());
+  ok("and what the park bans", await page.getByText(/tiki torches or bug zappers/).isVisible());
   ok("body scroll locked", (await page.evaluate(() => getComputedStyle(document.body).overflow)) === "hidden");
   await page.getByRole("button", { name: "Got it" }).click();
   await page.waitForTimeout(250);

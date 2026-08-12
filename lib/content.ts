@@ -353,10 +353,17 @@ export const CAMP_NOTES: { text: string; link?: SpotLink }[] = [
     text: "No showers at Blackwoods.",
     link: { label: "Otter Creek, ½ mi", url: "https://maps.apple.com/?q=Hot+Showers+Acadia+Otter+Creek+ME" },
   },
+  // The park caps each site at two tents, six people and one vehicle. Two
+  // sites is four tents and two cars for eleven of us — which is a problem
+  // that only shows up when four cars arrive at a gate that expects two.
+  { text: "Two tents and one car per site: four tents, two cars for the eleven of us." },
   { text: "Water spigots and flush toilets in every loop." },
   { text: "Food sleeps in the cars — raccoons work this campground." },
   { text: "Buy firewood on the island; out-of-state wood is banned." },
   { text: "Quiet hours 10 pm–6 am." },
+  // Genuinely banned, not merely discouraged — worth knowing before someone
+  // packs a set.
+  { text: "No string lights, tiki torches or bug zappers — the park bans them." },
   { text: "Little to no cell signal." },
 ];
 
