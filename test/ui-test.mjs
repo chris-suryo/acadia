@@ -58,6 +58,8 @@ const ok = (name, cond, detail = "") => {
   ok("nothing above the schedule", (await page.getByText("Before Friday").count()) === 0);
   ok("what people want section", await page.getByText("What people want").isVisible());
   ok("alana idea card below schedule", await page.getByText("Beehive if the ladders aren't crowded").isVisible());
+  // Food requests live here now — the Food tab is votes and a list, nothing else.
+  ok("food requests show on the ideas board", await page.getByText("S'mores. Non-negotiable.").isVisible());
   ok("add yours ghost", await page.getByRole("button", { name: "Add yours" }).isVisible());
   const schedThumbs = await page.locator('[data-day] img.w-11').count();
   ok("schedule entry photos", schedThumbs === 3, `${schedThumbs} linked-entry thumbs`);
@@ -367,9 +369,11 @@ const ok = (name, cond, detail = "") => {
   // ---- Food: a menu you vote on, and a list you can shop ----
   await page.getByRole("button", { name: "Food", exact: true }).click();
   await page.waitForTimeout(300);
-  ok("requests card from questionnaire", await page.getByText("S'mores. Non-negotiable.").isVisible());
-  ok("requests promote to the list", (await page.getByRole("button", { name: "add to list" }).count()) >= 1);
-  ok("own request shows", await page.getByText("Breakfast burritos + hot sauce").isVisible());
+  // The vote page is the ballots and nothing else: no requests card, no
+  // catch-all add row, no list of what's already being bought.
+  ok("nothing but the ballots", (await page.getByText("Requests").count()) === 0
+    && (await page.getByText("Want something specific?").count()) === 0
+    && (await page.getByText("Already on the list").count()) === 0);
 
   // ---- two questions, not nine ----
   // Nine meal slots and twenty-seven dishes asked eleven people to hold an
@@ -380,8 +384,6 @@ const ok = (name, cond, detail = "") => {
   ok("saturday breakfast is a question", await page.getByText("Saturday breakfast").isVisible());
   ok("nothing else is", (await page.locator("main").getByText(/^(Sunday|Anytime) /).count()) === 0);
   // Not voting on something doesn't mean not buying it.
-  ok("the rest is bought, not decided", await page.getByText("Already on the list").isVisible());
-  ok("and it says which", await page.getByText(/Sandwiches packed for the trail/).isVisible());
   // Every dish is built vegetarian with the meat added at the end, so a
   // per-dish "veg" badge stopped meaning anything. The rule is stated once.
   ok("no per-dish veg badges", (await page.locator("main").getByText("veg", { exact: true }).count()) === 0);
@@ -396,21 +398,20 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(300);
   await page.keyboard.press("Escape");
   ok("a suggested dish joins the ballot", await friday.getByRole("button", { name: "Vote for Grilled cheese" }).isVisible());
+  // And swipes back off it — the trash can was buried in the editor.
+  await swipeRow(friday.getByRole("button", { name: "Vote for Grilled cheese" }));
+  ok("a dish swipes off the ballot", (await page.getByText("Grilled cheese").count()) === 0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await page.waitForTimeout(400);
+  ok("undo puts the dish back", await friday.getByText("Grilled cheese").isVisible());
+  await swipeRow(friday.getByRole("button", { name: "Vote for Grilled cheese" }));
+  await page.waitForTimeout(300);
 
   ok("nothing uncookable on the ballot",
     (await page.getByText("Pizza").count()) === 0 &&
     (await page.getByText(/toast/i).count()) === 0 &&
     (await page.getByText(/cornbread/i).count()) === 0);
   ok("no leader before a vote", (await page.locator("main").getByText("leading", { exact: true }).count()) === 0);
-
-  // Anyone can put a specific thing on the shopping list without going near
-  // the menu — the other half of what this tab is for.
-  ok("asking for something is right here", await page.getByRole("button", { name: /Add to the list/ }).isVisible());
-  await page.getByRole("button", { name: /Add to the list/ }).click();
-  await page.keyboard.type("Cheez-Its");
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(250);
-  await page.keyboard.press("Escape");
 
   // Tapping a dish used to open the editor, which made voting fiddly. The whole
   // row votes now; editing moved behind the pencil.
@@ -455,8 +456,6 @@ const ok = (name, cond, detail = "") => {
   );
   // The trail lunch nobody voted on is bought all the same.
   ok("what isn't voted on is still bought", await page.getByText("Deli turkey").first().isVisible());
-  ok("and a hand-added ask lands here", await page.getByText("Cheez-Its").first().isVisible());
-  ok("requester name on the line", await page.locator("main").getByText("Chris", { exact: true }).first().isVisible());
   // Grouped by where things sit in a shop, not by where the row came from.
   ok("list groups by aisle", await page.locator("main").getByText("Meat + Deli", { exact: true }).isVisible());
   ok("rows are tagged with their dish", await page.getByText(/Taco bar · Friday/).first().isVisible());
@@ -479,6 +478,7 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(300);
   await page.keyboard.press("Escape");
   ok("added under a heading, stays there", await produce.getByText("Bananas").isVisible());
+  ok("and it says who wanted it", await produce.getByText("Chris", { exact: true }).first().isVisible());
 
   // "Ice ×4" would classify into Ice + Frozen on its own; typed under Produce
   // it stays under Produce.
@@ -488,6 +488,14 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(250);
   await page.keyboard.press("Escape");
   ok("a pinned aisle beats the classifier", await produce.getByText("Ice ×4").isVisible());
+
+  // Every line swipes away now, not just the hand-added ones — a menu
+  // ingredient you've decided against is exactly as removable.
+  await swipeRow(page.getByText("Taco seasoning").first());
+  ok("a menu ingredient swipes away too", (await page.getByText("Taco seasoning").count()) === 0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await page.waitForTimeout(400);
+  ok("and undo brings it back", await page.getByText("Taco seasoning").first().isVisible());
   const storeLeft = async () =>
     Number(
       (await page.getByRole("button", { name: /^List · \d+ left$/ }).textContent())
@@ -835,7 +843,7 @@ const ok = (name, cond, detail = "") => {
   ok("reload lands on schedule", await page.getByText("Camp setup", { exact: true }).isVisible());
   await page.getByRole("button", { name: "Food", exact: true }).click();
   await page.waitForTimeout(300);
-  ok("food segment restored", await page.locator("main").getByText("Everything for the weekend, added up.").isVisible());
+  ok("food segment restored", await page.locator("main").getByText("Bakery", { exact: true }).isVisible());
   // A phone that visited before Expenses moved out still has "money" stored;
   // without a fallback the Food tab renders blank on that phone forever.
   await page.evaluate(() => sessionStorage.setItem("abc.foodView", "money"));

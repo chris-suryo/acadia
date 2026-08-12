@@ -31,7 +31,6 @@ export function Food({
     menuVotes,
     toggleVote,
     shopping,
-    surveys,
     profiles,
     isMe,
     memberOf,
@@ -133,9 +132,6 @@ export function Food({
       planned.set(inSlot[0].id, "default");
     }
   }
-  const undecided = [...planned.values()].filter((v) => v === "default").length;
-  const votedSlots = [...planned.values()].filter((v) => v === "voted").length;
-  const fixed = menu.filter((m) => !m.votable).map((m) => m.dish);
 
   // Store: dish ingredients in menu order, then standalone adds.
   const menuOrder = new Map(menu.map((m, i) => [m.id, i] as const));
@@ -218,26 +214,26 @@ export function Food({
     const target = !line.checked;
     for (const r of line.rows) if (r.checked !== target) toggleShopping(r.id);
   };
-  // Questionnaire food answers surface here — the menu is where they get acted on.
-  const requests = surveys
-    .filter((s) => s.food.trim())
-    .map((s) => ({
-      id: s.user_id,
-      who: profiles[s.user_id]?.trim() || "Someone",
-      text: s.food,
-    }))
-    .sort((a, b) => a.who.localeCompare(b.who));
-
   const dishRow = (f: MenuItem) => {
     const ings = ingredientsOf(f.id);
     if (expandedId !== f.id) {
       const voters = votersOf(f.id);
       const mine = voters.some((v) => isMe(v));
       return (
-        <div
+        // An option you'd never cook is worth getting rid of, and the trash
+        // can inside the editor was two taps and a guess away. Same swipe as
+        // everywhere else; the dish takes its ingredients with it.
+        <SwipeRow
           key={f.id}
-          className="flex items-center gap-1 pr-1.5 border-b border-rule"
+          className="border-b border-rule"
+          onDelete={() => {
+            const snap = { ...f };
+            const snapIngs = ings.map((x) => ({ ...x }));
+            deleteDish(f.id);
+            showUndo("Deleted", () => restoreDish(snap, snapIngs));
+          }}
         >
+        <div className="flex items-center gap-1 pr-1.5">
           {/* The whole row votes. Voting is what this list is for, so it gets
               the big target; editing moved behind the pencil. */}
           <button
@@ -289,6 +285,7 @@ export function Food({
             <Pencil size={14} />
           </button>
         </div>
+        </SwipeRow>
       );
     }
 
@@ -397,37 +394,6 @@ export function Food({
       />
       {view === "menu" && (
         <>
-          {requests.length > 0 && (
-            <div className="mb-5">
-              <SubH>Requests</SubH>
-              <Card className="overflow-hidden">
-                {requests.map((r, i) => (
-                  <div
-                    key={r.id}
-                    className={`px-3.5 py-3 ${i > 0 ? "border-t border-rule" : ""}`}
-                  >
-                    <div className="text-[13.5px] text-ink leading-[1.5]">{r.text}</div>
-                    <div className="flex items-center justify-between gap-2 mt-1">
-                      <span className="flex items-center gap-1.5 min-w-0">
-                        <Avatar userId={r.id} name={r.who} size={17} />
-                        <span className="font-mono text-[10.5px] text-moss truncate">
-                          {r.who}
-                        </span>
-                      </span>
-                      {/* A request that can't become a line on the shopping
-                          list is just a wish. */}
-                      <button
-                        onClick={() => ensureName(() => addShopping(r.text))}
-                        className="shrink-0 rounded-full border border-rule px-2 py-0.5 bg-transparent cursor-pointer font-mono text-[10.5px] text-blaze"
-                      >
-                        add to list
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </Card>
-            </div>
-          )}
           {/* Two questions, not nine. Everything else on the menu is being
               bought rather than decided, and says so below. */}
           {VOTED_SLOTS.map(([night, meal]) => {
@@ -458,52 +424,11 @@ export function Food({
             );
           })}
 
-          {/* The other half of what this tab is for: someone wants Cheez-Its,
-              and it should take one tap to get onto the shopping list with
-              their name on it — not a trip through the menu. */}
-          <div className="mb-5">
-            <SubH>Want something specific?</SubH>
-            <Card className="overflow-hidden">
-              <div className="px-3.5 pt-3 pb-1 text-[11.5px] text-mute leading-[1.45]">
-                Straight onto the shopping list, with your name next to it.
-              </div>
-              <AddRow
-                label="Add to the list"
-                placeholder="Cheez-Its, oat milk, hot sauce…"
-                onAdd={(t) => ensureName(() => addShopping(t))}
-              />
-            </Card>
-          </div>
-
-          {fixed.length > 0 && (
-            <div className="mb-5">
-              <SubH>Already on the list</SubH>
-              <Card className="px-3.5 py-3">
-                <div className="text-[11.5px] text-mute leading-[1.5]">
-                  {fixed.join(" · ")} — nobody has to vote on these.
-                </div>
-              </Card>
-            </div>
-          )}
         </>
       )}
 
       {view === "shop" && (
         <>
-        {/* What this list covers, said plainly — a list you can't account for
-            is one you second-guess in the aisle. */}
-        <Card className="overflow-hidden mb-5">
-          <div className="px-3.5 pt-3 pb-1 text-[13.5px] text-ink">
-            Everything for the weekend, added up.
-          </div>
-          <div className="px-3.5 pb-2 text-[11.5px] text-mute leading-[1.45]">
-            {undecided > 0
-              ? `${undecided === 1 ? "One meal has" : `${undecided} meals have`} no votes yet, so the first option stands in — vote and this list follows.`
-              : votedSlots > 0
-                ? "Both meals went to a vote. This is what won."
-                : "Everything here is being bought, not decided."}
-          </div>
-        </Card>
         {byAisle.map(({ aisle, rows }) => (
         <div key={aisle} className="mb-5">
         <SubH>{aisle}</SubH>
@@ -549,32 +474,32 @@ export function Food({
                 </span>
               </button>
             );
-            return g.standalone ? (
+            // Swipe takes the whole line, including the several ingredient
+            // rows folded into it — you decided you aren't buying tortillas,
+            // and it shouldn't matter that two dishes asked for them.
+            return (
               <SwipeRow
                 key={g.id}
                 className="border-b border-rule"
                 onDelete={() => {
-                  const snap = { ...g };
-                  deleteShopping(g.id);
-                  showUndo("Deleted", () =>
-                    restoreShopping({
-                      id: snap.id,
-                      menu_item_id: snap.menu_item_id,
-                      label: snap.label,
-                      added_by: snap.added_by,
-                      checked: snap.checked,
-                      checked_by: snap.checked_by,
-                      aisle: snap.aisle,
-                    }),
-                  );
+                  const snaps = g.rows.map((r) => ({ ...r }));
+                  for (const r of snaps) deleteShopping(r.id);
+                  showUndo("Deleted", () => {
+                    for (const r of snaps)
+                      restoreShopping({
+                        id: r.id,
+                        menu_item_id: r.menu_item_id,
+                        label: r.label,
+                        added_by: r.added_by,
+                        checked: r.checked,
+                        checked_by: r.checked_by,
+                        aisle: r.aisle,
+                      });
+                  });
                 }}
               >
                 {row}
               </SwipeRow>
-            ) : (
-              <div key={g.id} className="border-b border-rule">
-                {row}
-              </div>
             );
           })}
           {/* Add it where you're already looking, and it stays there — the
