@@ -7,7 +7,9 @@
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
-const SETTLE_MS = 1000;
+// Long enough that a row doesn't leave under your finger, short enough that
+// you aren't waiting on it. A second was the former and not the latter.
+const SETTLE_MS = 600;
 
 export function useSink() {
   const [unsettled, setUnsettled] = useState<Set<string>>(new Set());

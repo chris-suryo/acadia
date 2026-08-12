@@ -381,6 +381,8 @@ const ok = (name, cond, detail = "") => {
   const ballot = await page.locator("main").getByRole("button", { name: /^Vote for / }).count();
   ok("the ballot is short", ballot === 8, `${ballot} options`);
   ok("friday dinner is a question", await page.getByText("Friday dinner").isVisible());
+  // A vote cast Saturday is a vote that never happened — the shop is Friday.
+  ok("the ballot says when it closes", (await page.getByText("closes Friday am").count()) === 2);
   ok("saturday breakfast is a question", await page.getByText("Saturday breakfast").isVisible());
   ok("nothing else is", (await page.locator("main").getByText(/^(Sunday|Anytime) /).count()) === 0);
   // Not voting on something doesn't mean not buying it.

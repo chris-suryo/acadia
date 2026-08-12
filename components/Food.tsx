@@ -41,7 +41,7 @@ export function Food({
     restoreDish,
     addIngredient,
     addShopping,
-    toggleShopping,
+    setShoppingChecked,
     deleteShopping,
     restoreShopping,
   } = useData();
@@ -211,12 +211,14 @@ export function Food({
   })).filter((g) => g.rows.length > 0);
 
   /** Ticking a merged line ticks every row behind it — you bought the
-   *  tortillas, so all five dishes have their tortillas. Rows already in the
-   *  target state are left alone, or a half-ticked line would flip apart. */
-  const toggleLine = (line: (typeof merged)[number]) => {
-    const target = !line.checked;
-    for (const r of line.rows) if (r.checked !== target) toggleShopping(r.id);
-  };
+   *  tortillas, so both dishes have their tortillas. One statement rather than
+   *  one per row: the old loop meant a write, a realtime event and a full
+   *  refetch each time round, which is why a two-dish line felt slow. */
+  const toggleLine = (line: (typeof merged)[number]) =>
+    setShoppingChecked(
+      line.rows.map((r) => r.id),
+      !line.checked,
+    );
   const dishRow = (f: MenuItem) => {
     const ings = ingredientsOf(f.id);
     if (expandedId !== f.id) {
@@ -333,7 +335,7 @@ export function Food({
               <div key={s.id} className="flex items-center gap-2.5 py-[5px]">
                 <Box
                   on={s.checked}
-                  onClick={() => toggleShopping(s.id)}
+                  onClick={() => setShoppingChecked([s.id], !s.checked)}
                   label={s.label}
                 />
                 <div
@@ -408,7 +410,10 @@ export function Food({
             if (rows.length === 0) return null;
             return (
               <div key={`${night}-${meal}`} className="mb-5">
-                <SubH right="tap to vote">
+                {/* The shop happens Friday morning, so a vote cast Saturday
+                    is a vote that never happened. Nothing else on the page
+                    gave anyone a reason to do it today. */}
+                <SubH right="closes Friday am">
                   {night} {meal.toLowerCase()}
                 </SubH>
                 <Card className="overflow-hidden">

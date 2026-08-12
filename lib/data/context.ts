@@ -118,7 +118,10 @@ export type DataCtx = {
   /** `aisle` pins the line to the heading it was added under; omitted, the
    *  classifier guesses from the words. */
   addShopping: (label: string, aisle?: string) => void;
-  toggleShopping: (id: string) => void;
+  /** Sets a whole line at once. A row on the list can be several ingredient
+   *  rows folded together, and one statement beats one per row: a single
+   *  round-trip, a single realtime event, a single refetch. */
+  setShoppingChecked: (ids: string[], checked: boolean) => void;
   deleteShopping: (id: string) => void;
   /** Merges the patch into the caller's own survey row (creating it if absent). */
   upsertSurvey: (patch: SurveyPatch) => void;

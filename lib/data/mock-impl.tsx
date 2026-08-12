@@ -395,14 +395,13 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
             aisle,
           },
         ]),
-      toggleShopping: (id) =>
-        setShopping((prev) =>
-          prev.map((s) =>
-            s.id === id
-              ? { ...s, checked: !s.checked, checked_by: s.checked ? null : ME }
-              : s,
-          ),
-        ),
+      setShoppingChecked: (ids, checked) =>
+        setShopping((prev) => {
+          const set = new Set(ids);
+          return prev.map((s) =>
+            set.has(s.id) ? { ...s, checked, checked_by: checked ? ME : null } : s,
+          );
+        }),
       deleteShopping: (id) => setShopping((prev) => prev.filter((s) => s.id !== id)),
       upsertSurvey: (patch) =>
         setSurveys((prev) => {

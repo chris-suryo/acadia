@@ -1021,16 +1021,15 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       persist(supabase.from("shopping_items").insert(row), "shopping_items");
     },
 
-    toggleShopping: (id) => {
-      const item = shopping.find((s) => s.id === id);
-      if (!item) return;
-      const checked = !item.checked;
+    setShoppingChecked: (ids, checked) => {
+      if (ids.length === 0) return;
       const checked_by = checked ? userIdRef.current : null;
+      const set = new Set(ids);
       setShopping((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, checked, checked_by } : s)),
+        prev.map((s) => (set.has(s.id) ? { ...s, checked, checked_by } : s)),
       );
       persist(
-        supabase.from("shopping_items").update({ checked, checked_by }).eq("id", id),
+        supabase.from("shopping_items").update({ checked, checked_by }).in("id", ids),
         "shopping_items",
       );
     },
