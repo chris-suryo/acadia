@@ -32,7 +32,8 @@ export function Food({
     shopping,
     surveys,
     profiles,
-    userId,
+    isMe,
+    memberOf,
     ensureName,
     addDish,
     updateDish,
@@ -78,10 +79,21 @@ export function Food({
       .filter((s) => s.menu_item_id === menuItemId)
       .sort((a, b) => a.label.localeCompare(b.label));
 
-  const votersOf = (menuItemId: string) =>
-    menuVotes.filter((v) => v.menu_item_id === menuItemId).map((v) => v.user_id);
-  const voteCount = (menuItemId: string) =>
-    menuVotes.reduce((n, v) => (v.menu_item_id === menuItemId ? n + 1 : n), 0);
+  // One person, one vote. Two devices signed in as the same human shouldn't
+  // count twice or show up as two faces under a dish.
+  const votersOf = (menuItemId: string) => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const v of menuVotes) {
+      if (v.menu_item_id !== menuItemId) continue;
+      const who = memberOf(v.user_id) || v.user_id;
+      if (seen.has(who)) continue;
+      seen.add(who);
+      out.push(v.user_id);
+    }
+    return out;
+  };
+  const voteCount = (menuItemId: string) => votersOf(menuItemId).length;
 
   // Nobody locks the menu in by hand: whichever dish leads its meal is the
   // plan, and a tie marks both. Silent until at least one vote exists, so an
@@ -159,7 +171,7 @@ export function Food({
     const ings = ingredientsOf(f.id);
     if (expandedId !== f.id) {
       const voters = votersOf(f.id);
-      const mine = voters.includes(userId);
+      const mine = voters.some((v) => isMe(v));
       return (
         <div
           key={f.id}

@@ -4,10 +4,12 @@ import { createContext, useContext } from "react";
 import type {
   DayPart,
   Expense,
+  ExpenseShare,
   ForecastRow,
   GearItem,
   ItineraryBlock,
   ItineraryDay,
+  Member,
   MenuItem,
   MenuVote,
   PersonalItem,
@@ -29,6 +31,10 @@ export type SurveyPatch = Partial<
   Pick<SurveyRow, "activity" | "hikes" | "wants" | "bar_harbor" | "food">
 >;
 
+export type ExpensePatch = Partial<
+  Pick<Expense, "description" | "amount_cents" | "payer_id">
+>;
+
 export type DataCtx = {
   ready: boolean;
   error: string | null;
@@ -42,6 +48,23 @@ export type DataCtx = {
   profiles: Record<string, string>;
   /** Avatar URL by user id ('' / absent = none — render a monogram). */
   avatars: Record<string, string>;
+
+  /** Everyone on the trip, whether or not they've opened the app. */
+  members: Member[];
+  /** Your own roster member, or '' if this device hasn't been identified. */
+  myMemberId: string;
+  /** Which person a device belongs to ('' when unlinked). */
+  memberOf: (userId: string | null) => string;
+  /** Is this row yours? Compares people, not devices, so your phone and your
+   *  laptop agree about what you've claimed. */
+  isMe: (userId: string | null) => boolean;
+  /** Avatar URL by member id, borrowed from any device they've signed in on. */
+  memberAvatars: Record<string, string>;
+  addMember: (name: string) => void;
+  renameMember: (id: string, name: string) => void;
+  deleteMember: (id: string) => void;
+  /** Says "this device is that person", and adopts their name. */
+  claimMember: (memberId: string) => void;
   /** Downscales client-side, uploads to storage, saves the URL on the profile. */
   setAvatar: (file: File) => void;
   days: ItineraryDay[];
@@ -87,12 +110,21 @@ export type DataCtx = {
   deleteShopping: (id: string) => void;
   /** Merges the patch into the caller's own survey row (creating it if absent). */
   upsertSurvey: (patch: SurveyPatch) => void;
-  addExpense: (description: string, amountCents: number) => void;
+  expenseShares: ExpenseShare[];
+  /** `among` is the members it's split between — equally, to the cent. */
+  addExpense: (
+    description: string,
+    amountCents: number,
+    payerId: string,
+    among: string[],
+  ) => string;
+  updateExpense: (id: string, patch: ExpensePatch) => void;
+  setExpenseShares: (expenseId: string, memberIds: string[]) => void;
   deleteExpense: (id: string) => void;
   restoreGear: (row: GearItem, children?: GearItem[]) => void;
   restorePersonal: (row: PersonalItem, children?: PersonalItem[]) => void;
   restoreShopping: (row: ShoppingItem) => void;
-  restoreExpense: (row: Expense) => void;
+  restoreExpense: (row: Expense, among: string[]) => void;
 };
 
 export const Ctx = createContext<DataCtx | null>(null);

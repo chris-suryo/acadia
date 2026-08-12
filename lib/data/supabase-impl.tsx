@@ -14,10 +14,12 @@ import {
 import { downscaleAvatar } from "@/lib/avatar";
 import type {
   Expense,
+  ExpenseShare,
   ForecastRow,
   GearItem,
   ItineraryBlock,
   ItineraryDay,
+  Member,
   MenuItem,
   MenuVote,
   PersonalItem,
@@ -30,6 +32,7 @@ const CONFIGURED = SUPABASE_URL.startsWith("https://");
 
 type Table =
   | "profiles"
+  | "members"
   | "itinerary_days"
   | "itinerary_blocks"
   | "gear_items"
@@ -38,17 +41,20 @@ type Table =
   | "menu_votes"
   | "shopping_items"
   | "expenses"
+  | "expense_shares"
   | "survey"
   | "forecast_cache";
 
 const REALTIME_TABLES: Table[] = [
   "profiles",
+  "members",
   "itinerary_blocks",
   "gear_items",
   "menu_items",
   "menu_votes",
   "shopping_items",
   "expenses",
+  "expense_shares",
   "survey",
   "forecast_cache",
 ];
@@ -82,6 +88,8 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const votesRef = useRef<MenuVote[]>([]);
   const [shopping, setShopping] = useState<ShoppingItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenseShares, setShareRows] = useState<ExpenseShare[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [surveys, setSurveys] = useState<SurveyRow[]>([]);
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
 
@@ -118,6 +126,12 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           break;
         case "expenses":
           setExpenses(data as Expense[]);
+          break;
+        case "expense_shares":
+          setShareRows(data as ExpenseShare[]);
+          break;
+        case "members":
+          setMembers(data as Member[]);
           break;
         case "survey":
           setSurveys(data as SurveyRow[]);
@@ -175,6 +189,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     // just beats the network.
     const CACHED: Table[] = [
       "profiles",
+      "members",
       "itinerary_days",
       "itinerary_blocks",
       "gear_items",
@@ -183,6 +198,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       "menu_votes",
       "shopping_items",
       "expenses",
+      "expense_shares",
       "survey",
       "forecast_cache",
     ];
@@ -240,6 +256,8 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         refetch("menu_votes"),
         refetch("shopping_items"),
         refetch("expenses"),
+        refetch("expense_shares"),
+        refetch("members"),
         refetch("survey"),
       ]);
       if (cancelled) return;
@@ -291,30 +309,97 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     };
   }, [supabase, refetch, applyRows, showNotice]);
 
+  // Handlers decide things from this, not from whatever the last render
+  // captured — the same mistake that lost a round of menu votes.
+  const membersRef = useRef<Member[]>([]);
+  useEffect(() => {
+    membersRef.current = members;
+  }, [members]);
+
+  /** Overwrite this device's profile row in place, keeping untouched fields. */
+  const patchMyProfile = useCallback(
+    (uid: string, patch: Partial<Profile>) => {
+      setProfileRows((prev) => {
+        const me = prev.find((p) => p.id === uid);
+        return [
+          ...prev.filter((p) => p.id !== uid),
+          {
+            id: uid,
+            name: me?.name ?? "",
+            avatar_url: me?.avatar_url ?? "",
+            member_id: me?.member_id ?? null,
+            ...patch,
+          },
+        ];
+      });
+    },
+    [],
+  );
+
   const setName = useCallback(
     (n: string) => {
       setNameState(n);
       const uid = userIdRef.current;
       if (!uid) return;
-      setProfileRows((prev) => {
-        const rest = prev.filter((p) => p.id !== uid);
-        const me = prev.find((p) => p.id === uid);
-        return [...rest, { id: uid, name: n.trim(), avatar_url: me?.avatar_url ?? "" }];
-      });
+      const clean = n.trim();
+      patchMyProfile(uid, { name: clean });
       if (nameTimer.current) clearTimeout(nameTimer.current);
       nameTimer.current = setTimeout(() => {
-        persist(
-          supabase.from("profiles").upsert({ id: uid, name: n.trim() }),
-          "profiles",
+        // Typing a name already on the roster is the same as tapping it: two
+        // devices that both say "Chris" are one person, and one person is one
+        // column in the settle-up.
+        const hit = membersRef.current.find(
+          (m) => m.name.trim().toLowerCase() === clean.toLowerCase(),
         );
+        (async () => {
+          let memberId = hit?.id ?? "";
+          if (!hit && clean) {
+            memberId = newId();
+            const { error: err } = await supabase
+              .from("members")
+              .insert({ id: memberId, name: clean, sort: nextSort(membersRef.current) });
+            if (err) throw err;
+            refetch("members");
+          }
+          if (memberId) patchMyProfile(uid, { member_id: memberId });
+          const { error: err } = await supabase
+            .from("profiles")
+            .upsert({ id: uid, name: clean, ...(memberId ? { member_id: memberId } : {}) });
+          if (err) throw err;
+        })().catch((err) => {
+          console.error("[profiles]", err);
+          showNotice("Couldn't save — retry");
+          refetch("profiles");
+        });
       }, 500);
     },
-    [supabase, persist],
+    [supabase, patchMyProfile, refetch, showNotice],
   );
 
-  const { ensureName, sheetOpen, submit, cancel } = useNameSheet(
+  /** "I'm that one." Adopts the member's name so the header matches. */
+  const claimMember = useCallback(
+    (memberId: string) => {
+      const m = membersRef.current.find((x) => x.id === memberId);
+      const uid = userIdRef.current;
+      if (!m || !uid) return;
+      // Cancel any debounced name write, or it lands after this and unlinks us.
+      if (nameTimer.current) clearTimeout(nameTimer.current);
+      setNameState(m.name);
+      patchMyProfile(uid, { name: m.name, member_id: memberId });
+      persist(
+        supabase
+          .from("profiles")
+          .upsert({ id: uid, name: m.name, member_id: memberId }),
+        "profiles",
+      );
+    },
+    [supabase, patchMyProfile, persist],
+  );
+
+  const { ensureName, sheetOpen, submit, submitMember, cancel } = useNameSheet(
     !!name.trim(),
     setName,
+    claimMember,
   );
 
   const profiles = useMemo(() => {
@@ -329,6 +414,83 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     return m;
   }, [profileRows]);
 
+  // Device → person. Everything that used to ask "is this row mine?" by
+  // comparing user ids asks this instead, so a second phone isn't a stranger.
+  const profileMember = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const p of profileRows) if (p.member_id) m[p.id] = p.member_id;
+    return m;
+  }, [profileRows]);
+
+  const myMemberId = profileMember[userId] ?? "";
+
+  const memberOf = useCallback(
+    (uid: string | null) => (uid ? (profileMember[uid] ?? "") : ""),
+    [profileMember],
+  );
+
+  const isMe = useCallback(
+    (uid: string | null) => {
+      if (!uid) return false;
+      if (uid === userId) return true;
+      const mine = profileMember[userId];
+      return !!mine && profileMember[uid] === mine;
+    },
+    [profileMember, userId],
+  );
+
+  // A member has no picture of their own — they borrow one from whichever of
+  // their devices has uploaded it.
+  const memberAvatars = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const p of profileRows)
+      if (p.member_id && p.avatar_url && !m[p.member_id]) m[p.member_id] = p.avatar_url;
+    return m;
+  }, [profileRows]);
+
+  /** `persist` for an expense written across its two tables at once. */
+  const writeBoth = useCallback(
+    (work: Promise<void>) => {
+      work.catch((err) => {
+        console.error("[expenses]", err);
+        showNotice("Couldn't save — retry");
+        refetch("expenses");
+        refetch("expense_shares");
+      });
+    },
+    [refetch, showNotice],
+  );
+
+  const addMember = useCallback(
+    (name: string) => {
+      const row: Member = {
+        id: newId(),
+        name: name.trim(),
+        sort: nextSort(membersRef.current),
+      };
+      setMembers((prev) => [...prev, row]);
+      persist(supabase.from("members").insert(row), "members");
+    },
+    [supabase, persist],
+  );
+
+  const renameMember = useCallback(
+    (id: string, name: string) => {
+      const clean = name.trim();
+      setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, name: clean } : m)));
+      persist(supabase.from("members").update({ name: clean }).eq("id", id), "members");
+    },
+    [supabase, persist],
+  );
+
+  const deleteMember = useCallback(
+    (id: string) => {
+      setMembers((prev) => prev.filter((m) => m.id !== id));
+      persist(supabase.from("members").delete().eq("id", id), "members");
+    },
+    [supabase, persist],
+  );
+
   const setAvatar = useCallback(
     (file: File) => {
       const uid = userIdRef.current;
@@ -342,11 +504,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         if (err) throw err;
         // Deterministic public URL; the version param busts caches on re-upload.
         const url = `${SUPABASE_URL}/storage/v1/object/public/avatars/${path}?v=${new Date().getTime()}`;
-        setProfileRows((prev) => {
-          const rest = prev.filter((p) => p.id !== uid);
-          const me = prev.find((p) => p.id === uid);
-          return [...rest, { id: uid, name: me?.name ?? "", avatar_url: url }];
-        });
+        patchMyProfile(uid, { avatar_url: url });
         const { error: perr } = await supabase
           .from("profiles")
           .upsert({ id: uid, avatar_url: url });
@@ -357,7 +515,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         refetch("profiles");
       });
     },
-    [supabase, showNotice, refetch],
+    [supabase, showNotice, refetch, patchMyProfile],
   );
 
   const weather = useMemo(() => {
@@ -379,6 +537,16 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     ensureName,
     profiles,
     avatars,
+    members,
+    myMemberId,
+    memberOf,
+    isMe,
+    memberAvatars,
+    addMember,
+    renameMember,
+    deleteMember,
+    claimMember,
+    expenseShares,
     setAvatar,
     days,
     blocks,
@@ -710,28 +878,75 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       persist(supabase.from("survey").upsert(row), "survey");
     },
 
-    addExpense: (description, amountCents) => {
-      const row = {
-        id: newId(),
+    addExpense: (description, amountCents, payerId, among) => {
+      const id = newId();
+      const row: Expense = {
+        id,
         user_id: userIdRef.current,
+        payer_id: payerId,
         description,
         amount_cents: amountCents,
         created_at: new Date().toISOString(),
       };
       setExpenses((prev) => [...prev, row]);
-      persist(
-        supabase.from("expenses").insert({
-          id: row.id,
-          user_id: row.user_id,
-          description,
-          amount_cents: amountCents,
-        }),
-        "expenses",
+      setShareRows((prev) => [
+        ...prev,
+        ...among.map((member_id) => ({ expense_id: id, member_id })),
+      ]);
+      // Two writes, one thing: an expense whose shares didn't land would quietly
+      // charge nobody, so a failure on either half re-reads both.
+      writeBoth(
+        (async () => {
+          const { error: e1 } = await supabase.from("expenses").insert({
+            id,
+            user_id: row.user_id,
+            payer_id: payerId,
+            description,
+            amount_cents: amountCents,
+          });
+          if (e1) throw e1;
+          if (among.length) {
+            const { error: e2 } = await supabase
+              .from("expense_shares")
+              .insert(among.map((member_id) => ({ expense_id: id, member_id })));
+            if (e2) throw e2;
+          }
+        })(),
+      );
+      return id;
+    },
+
+    updateExpense: (id, patch) => {
+      setExpenses((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+      persist(supabase.from("expenses").update(patch).eq("id", id), "expenses");
+    },
+
+    setExpenseShares: (expenseId, memberIds) => {
+      setShareRows((prev) => [
+        ...prev.filter((s) => s.expense_id !== expenseId),
+        ...memberIds.map((member_id) => ({ expense_id: expenseId, member_id })),
+      ]);
+      writeBoth(
+        (async () => {
+          const { error: e1 } = await supabase
+            .from("expense_shares")
+            .delete()
+            .eq("expense_id", expenseId);
+          if (e1) throw e1;
+          if (memberIds.length) {
+            const { error: e2 } = await supabase
+              .from("expense_shares")
+              .insert(memberIds.map((member_id) => ({ expense_id: expenseId, member_id })));
+            if (e2) throw e2;
+          }
+        })(),
       );
     },
 
     deleteExpense: (id) => {
       setExpenses((prev) => prev.filter((e) => e.id !== id));
+      setShareRows((prev) => prev.filter((s) => s.expense_id !== id));
+      // The shares go with it — `on delete cascade` on the far side.
       persist(supabase.from("expenses").delete().eq("id", id), "expenses");
     },
 
@@ -772,17 +987,30 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       persist(supabase.from("shopping_items").upsert(row), "shopping_items");
     },
 
-    restoreExpense: (row) => {
+    restoreExpense: (row, among) => {
       setExpenses((prev) => [...prev.filter((e) => e.id !== row.id), row]);
-      persist(
-        supabase.from("expenses").upsert({
-          id: row.id,
-          user_id: row.user_id,
-          description: row.description,
-          amount_cents: row.amount_cents,
-          created_at: row.created_at,
-        }),
-        "expenses",
+      setShareRows((prev) => [
+        ...prev.filter((s) => s.expense_id !== row.id),
+        ...among.map((member_id) => ({ expense_id: row.id, member_id })),
+      ]);
+      writeBoth(
+        (async () => {
+          const { error: e1 } = await supabase.from("expenses").upsert({
+            id: row.id,
+            user_id: row.user_id,
+            payer_id: row.payer_id,
+            description: row.description,
+            amount_cents: row.amount_cents,
+            created_at: row.created_at,
+          });
+          if (e1) throw e1;
+          if (among.length) {
+            const { error: e2 } = await supabase
+              .from("expense_shares")
+              .upsert(among.map((member_id) => ({ expense_id: row.id, member_id })));
+            if (e2) throw e2;
+          }
+        })(),
       );
     },
   };
@@ -790,7 +1018,13 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      <NameSheet open={sheetOpen} onSubmit={submit} onCancel={cancel} />
+      <NameSheet
+        open={sheetOpen}
+        onSubmit={submit}
+        onCancel={cancel}
+        roster={members}
+        onPick={submitMember}
+      />
     </Ctx.Provider>
   );
 }

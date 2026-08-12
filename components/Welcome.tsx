@@ -8,6 +8,7 @@ import { useState } from "react";
 import { Camera } from "lucide-react";
 import { Btn, Input } from "./primitives";
 import { Chips, MultiChips } from "./ui/Chips";
+import { RosterPick } from "./ui/RosterPick";
 import { Topo } from "./Header";
 import { AvatarEditor } from "./AvatarEditor";
 import { useData } from "@/lib/data/context";
@@ -73,7 +74,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export function Welcome({ onDone }: { onDone: () => void }) {
-  const { name, setName, upsertSurvey, surveys, userId, avatars } = useData();
+  const { name, setName, upsertSurvey, surveys, userId, avatars, members, claimMember } =
+    useData();
   const mine = surveys.find((s) => s.user_id === userId);
   const myAvatar = avatars[userId];
   const [photoOpen, setPhotoOpen] = useState(false);
@@ -145,6 +147,18 @@ export function Welcome({ onDone }: { onDone: () => void }) {
           <label className="block text-[15px] font-medium text-parchment mb-2">
             What&apos;s your name?
           </label>
+          {members.length > 0 && (
+            <div className="mb-3">
+              <RosterPick
+                roster={members}
+                tone="dark"
+                onPick={(id) => {
+                  claimMember(id);
+                  setStep(2);
+                }}
+              />
+            </div>
+          )}
           <Input
             value={nm}
             onChange={(e) => setNm(e.target.value)}

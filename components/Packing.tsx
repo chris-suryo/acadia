@@ -153,7 +153,7 @@ export function Packing({
     gear,
     personal,
     profiles,
-    userId,
+    isMe,
     toggleClaimGear,
     addGear,
     deleteGear,
@@ -181,7 +181,7 @@ export function Packing({
   const gCats = orderedCats(GEAR_CATEGORIES, [...new Set(gear.map((i) => i.category))]);
   const mCats = orderedCats(PERSONAL_CATEGORIES, [...new Set(personal.map((i) => i.category))]);
   const claimed = gear.filter((i) => i.owner_id).length;
-  const mine = gear.filter((i) => i.owner_id === userId).length;
+  const mine = gear.filter((i) => isMe(i.owner_id)).length;
   const done = personal.filter((i) => i.checked).length;
 
   const groupTree = (cat: string) =>
@@ -228,7 +228,7 @@ export function Packing({
     // Long-press on someone else's claim lifts the row for reorder — still
     // surface whose it is.
     const it = gear.find((g) => g.id === e.active.id);
-    if (it?.owner_id && it.owner_id !== userId)
+    if (it?.owner_id && !isMe(it.owner_id))
       showNotice(`Claimed by ${profiles[it.owner_id]?.trim() || "someone"}`);
   };
   const endDrag = () => {
@@ -257,13 +257,13 @@ export function Packing({
     const it = gear.find((i) => i.id === id);
     if (!it) return;
     if (!it.owner_id) ensureName(() => toggleClaimGear(id));
-    else if (it.owner_id === userId) toggleClaimGear(id);
+    else if (isMe(it.owner_id)) toggleClaimGear(id);
     // someone else's claim is inert — long-press shows who has it
   };
 
   const gearRow = (i: GearItem, child: boolean) => {
     const ownerName = i.owner_id ? profiles[i.owner_id]?.trim() || "Claimed" : "";
-    const othersClaim = !!i.owner_id && i.owner_id !== userId;
+    const othersClaim = !!i.owner_id && !isMe(i.owner_id);
     return (
       <SortRow
         key={i.id}

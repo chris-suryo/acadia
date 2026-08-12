@@ -2,18 +2,25 @@
 
 import { useData } from "@/lib/data/context";
 
-/** Someone's profile picture, falling back to their initial. */
+/**
+ * Someone's profile picture, falling back to their initial.
+ *
+ * `url` overrides the lookup — roster members aren't devices, so they have no
+ * `avatars` entry of their own and borrow one from whoever's signed in as them.
+ */
 export function Avatar({
   userId,
   name,
   size = 24,
+  url: override,
 }: {
   userId: string;
   name: string;
   size?: number;
+  url?: string;
 }) {
   const { avatars } = useData();
-  const url = avatars[userId];
+  const url = override ?? avatars[userId];
   return (
     <span
       style={{ width: size, height: size }}

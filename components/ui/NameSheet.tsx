@@ -5,9 +5,15 @@
 
 import { useCallback, useState } from "react";
 import { BottomSheet } from "./BottomSheet";
+import { RosterPick } from "./RosterPick";
 import { Btn, Input } from "@/components/primitives";
+import type { Member } from "@/lib/types";
 
-export function useNameSheet(hasName: boolean, commitName: (n: string) => void) {
+export function useNameSheet(
+  hasName: boolean,
+  commitName: (n: string) => void,
+  commitMember?: (memberId: string) => void,
+) {
   const [pending, setPending] = useState<(() => void) | null>(null);
 
   const ensureName = useCallback(
@@ -21,8 +27,7 @@ export function useNameSheet(hasName: boolean, commitName: (n: string) => void) 
     [hasName],
   );
 
-  const submit = (n: string) => {
-    commitName(n);
+  const run = () => {
     const action = pending;
     setPending(null);
     action?.();
@@ -31,7 +36,15 @@ export function useNameSheet(hasName: boolean, commitName: (n: string) => void) 
   return {
     ensureName,
     sheetOpen: pending !== null,
-    submit,
+    submit: (n: string) => {
+      commitName(n);
+      run();
+    },
+    /** Tapped a name already on the roster — same gate, no typing. */
+    submitMember: (memberId: string) => {
+      commitMember?.(memberId);
+      run();
+    },
     cancel: () => setPending(null),
   };
 }
@@ -40,10 +53,14 @@ export function NameSheet({
   open,
   onSubmit,
   onCancel,
+  roster = [],
+  onPick,
 }: {
   open: boolean;
   onSubmit: (name: string) => void;
   onCancel: () => void;
+  roster?: Member[];
+  onPick?: (memberId: string) => void;
 }) {
   const [txt, setTxt] = useState("");
 
@@ -54,8 +71,13 @@ export function NameSheet({
   return (
     <BottomSheet open={open} onClose={onCancel}>
       <div className="grid gap-3">
+        {onPick && roster.length > 0 && (
+          <RosterPick roster={roster} onPick={onPick} />
+        )}
         <Input
-          autoFocus
+          // Autofocus only when there's nothing to tap — otherwise the keyboard
+          // covers the names we just went to the trouble of offering.
+          autoFocus={!roster.length}
           value={txt}
           onChange={(e) => setTxt(e.target.value)}
           onKeyDown={(e) => {

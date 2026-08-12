@@ -4,20 +4,23 @@
 // driven by Playwright) in environments that can't reach Supabase. Selected
 // with NEXT_PUBLIC_DATA_MODE=mock; never bundled into the deployed flow.
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Ctx, newId, nextSort, type DataCtx, type DayWeather } from "./context";
 import { NameSheet, useNameSheet } from "@/components/ui/NameSheet";
 import {
   SEED_BLOCKS,
   SEED_DAYS,
   SEED_GEAR,
+  SEED_MEMBERS,
   SEED_MENU,
   SEED_PERSONAL,
 } from "@/lib/seeds";
 import type {
   Expense,
+  ExpenseShare,
   GearItem,
   ItineraryBlock,
+  Member,
   MenuItem,
   MenuVote,
   PersonalItem,
@@ -26,6 +29,7 @@ import type {
 } from "@/lib/types";
 
 const ME = "mock-user";
+const ALANA = "mock-alana";
 
 const MOCK_WEATHER: Record<string, DayWeather> = {
   fri: { high: 79, low: 57, condition: "Morning shower, then clearing" },
@@ -35,9 +39,45 @@ const MOCK_WEATHER: Record<string, DayWeather> = {
 
 export function MockProvider({ children }: { children: React.ReactNode }) {
   const [name, setNameState] = useState("");
-  const { ensureName, sheetOpen, submit, cancel } = useNameSheet(
+  const [members, setMembers] = useState<Member[]>(() =>
+    SEED_MEMBERS.map((n, i) => ({ id: `member-${i}`, name: n, sort: i + 1 })),
+  );
+  // Which roster member this device is. Set by typing a name or tapping one.
+  const [myMemberId, setMyMemberId] = useState("");
+  // Typing a name that's already on the roster is the same as tapping it — two
+  // devices that both say "Chris" are one person, and one person is one column
+  // in the settle-up. Defined out here so the name sheet and the context op are
+  // the same code; when they weren't, a name typed into the sheet linked nobody.
+  const linkName = useCallback((n: string) => {
+    setNameState(n);
+    const clean = n.trim();
+    if (!clean) return;
+    const hit = members.find(
+      (m) => m.name.trim().toLowerCase() === clean.toLowerCase(),
+    );
+    if (hit) {
+      setMyMemberId(hit.id);
+      return;
+    }
+    const row: Member = { id: newId(), name: clean, sort: nextSort(members) };
+    setMembers((prev) => [...prev, row]);
+    setMyMemberId(row.id);
+  }, [members]);
+
+  const claimMember = useCallback(
+    (id: string) => {
+      const m = members.find((x) => x.id === id);
+      if (!m) return;
+      setNameState(m.name);
+      setMyMemberId(id);
+    },
+    [members],
+  );
+
+  const { ensureName, sheetOpen, submit, submitMember, cancel } = useNameSheet(
     !!name.trim(),
-    (n) => setNameState(n),
+    linkName,
+    claimMember,
   );
 
   const [blocks, setBlocks] = useState<ItineraryBlock[]>(() =>
@@ -72,6 +112,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   );
   const [shopping, setShopping] = useState<ShoppingItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenseShares, setShareRows] = useState<ExpenseShare[]>([]);
   const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [surveys, setSurveys] = useState<SurveyRow[]>([
     // One neighbor's answers so the Ideas board renders populated in mock runs.
@@ -87,17 +128,44 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   ]);
 
   const value = useMemo<DataCtx>(() => {
-    const setName = (n: string) => setNameState(n);
+    const alanaMember = members.find((m) => m.name === "Alana")?.id ?? "";
+    const profileMember: Record<string, string> = {
+      [ME]: myMemberId,
+      [ALANA]: alanaMember,
+    };
+    const memberOf = (uid: string | null) => (uid ? (profileMember[uid] ?? "") : "");
 
     return {
       ready: true,
       error: null,
       userId: ME,
       name,
-      setName,
+      setName: linkName,
       ensureName,
-      profiles: { [ME]: name.trim(), "mock-alana": "Alana" },
+      profiles: { [ME]: name.trim(), [ALANA]: "Alana" },
       avatars,
+      members,
+      myMemberId,
+      memberOf,
+      isMe: (uid) =>
+        !!uid && (uid === ME || (!!myMemberId && memberOf(uid) === myMemberId)),
+      memberAvatars: Object.fromEntries(
+        Object.entries(profileMember)
+          .filter(([uid, mid]) => mid && avatars[uid])
+          .map(([uid, mid]) => [mid, avatars[uid]]),
+      ),
+      addMember: (n) =>
+        setMembers((prev) => [
+          ...prev,
+          { id: newId(), name: n.trim(), sort: nextSort(prev) },
+        ]),
+      renameMember: (id, n) =>
+        setMembers((prev) =>
+          prev.map((m) => (m.id === id ? { ...m, name: n.trim() } : m)),
+        ),
+      deleteMember: (id) => setMembers((prev) => prev.filter((m) => m.id !== id)),
+      claimMember,
+      expenseShares,
       setAvatar: (file) =>
         setAvatars((prev) => ({ ...prev, [ME]: URL.createObjectURL(file) })),
       days: SEED_DAYS,
@@ -272,18 +340,36 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
           };
           return [...prev.filter((s) => s.user_id !== ME), row];
         }),
-      addExpense: (description, amountCents) =>
+      addExpense: (description, amountCents, payerId, among) => {
+        const id = newId();
         setExpenses((prev) => [
           ...prev,
           {
-            id: newId(),
+            id,
             user_id: ME,
+            payer_id: payerId,
             description,
             amount_cents: amountCents,
             created_at: new Date().toISOString(),
           },
+        ]);
+        setShareRows((prev) => [
+          ...prev,
+          ...among.map((member_id) => ({ expense_id: id, member_id })),
+        ]);
+        return id;
+      },
+      updateExpense: (id, patch) =>
+        setExpenses((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e))),
+      setExpenseShares: (expenseId, memberIds) =>
+        setShareRows((prev) => [
+          ...prev.filter((s) => s.expense_id !== expenseId),
+          ...memberIds.map((member_id) => ({ expense_id: expenseId, member_id })),
         ]),
-      deleteExpense: (id) => setExpenses((prev) => prev.filter((e) => e.id !== id)),
+      deleteExpense: (id) => {
+        setExpenses((prev) => prev.filter((e) => e.id !== id));
+        setShareRows((prev) => prev.filter((s) => s.expense_id !== id));
+      },
       restoreGear: (row, children = []) =>
         setGear((prev) => [
           ...prev.filter((g) => g.id !== row.id && !children.some((c) => c.id === g.id)),
@@ -298,15 +384,26 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
         ]),
       restoreShopping: (row) =>
         setShopping((prev) => [...prev.filter((s) => s.id !== row.id), row]),
-      restoreExpense: (row) =>
-        setExpenses((prev) => [...prev.filter((e) => e.id !== row.id), row]),
+      restoreExpense: (row, among) => {
+        setExpenses((prev) => [...prev.filter((e) => e.id !== row.id), row]);
+        setShareRows((prev) => [
+          ...prev.filter((s) => s.expense_id !== row.id),
+          ...among.map((member_id) => ({ expense_id: row.id, member_id })),
+        ]);
+      },
     };
-  }, [name, ensureName, blocks, gear, personal, menu, menuVotes, shopping, expenses, surveys, avatars]);
+  }, [name, ensureName, linkName, claimMember, blocks, gear, personal, menu, menuVotes, shopping, expenses, expenseShares, members, myMemberId, surveys, avatars]);
 
   return (
     <Ctx.Provider value={value}>
       {children}
-      <NameSheet open={sheetOpen} onSubmit={submit} onCancel={cancel} />
+      <NameSheet
+        open={sheetOpen}
+        onSubmit={submit}
+        onCancel={cancel}
+        roster={members}
+        onPick={submitMember}
+      />
     </Ctx.Provider>
   );
 }

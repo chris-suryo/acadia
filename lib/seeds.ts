@@ -132,6 +132,11 @@ export const SEED_PERSONAL: { category: string; label: string; note: string; sor
 
 export const PERSONAL_CATEGORIES = ["Sleep", "Clothing", "Mess Kit", "Essentials", "Toiletries", "Extras"];
 
+// A roster for mock runs. The live one isn't seeded from here — migration 0017
+// builds it from the names people have actually typed, and it grows as the rest
+// of the twelve get added on the Expenses tab.
+export const SEED_MEMBERS = ["Alana", "Chris", "Erin", "Sam"];
+
 // Candidates for the group to vote on, not decisions. Every cooked meal has a
 // vegetarian option; `veg` drives the badge on the row. Mirrors
 // supabase/migrations/0014 and 0016.

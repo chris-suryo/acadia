@@ -2,6 +2,21 @@ export type Profile = {
   id: string;
   name: string;
   avatar_url: string;
+  /** Which person on the roster this device belongs to. */
+  member_id: string | null;
+};
+
+/**
+ * Somebody on the trip.
+ *
+ * Separate from Profile because a profile is a *device* — it can't exist for
+ * someone who hasn't opened the app, and one person with a phone and a laptop
+ * has two. Splitting a bill needs people, so people get their own table.
+ */
+export type Member = {
+  id: string;
+  name: string;
+  sort: number;
 };
 
 export type ItineraryDay = {
@@ -67,10 +82,19 @@ export type ShoppingItem = {
 
 export type Expense = {
   id: string;
+  /** Who typed the row in — usually the payer, but not necessarily. */
   user_id: string;
+  /** Who actually put money down. Null only if a member was removed. */
+  payer_id: string | null;
   description: string;
   amount_cents: number;
   created_at: string;
+};
+
+/** One person this expense was split with. */
+export type ExpenseShare = {
+  expense_id: string;
+  member_id: string;
 };
 
 export type SurveyRow = {

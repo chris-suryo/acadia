@@ -72,15 +72,19 @@ function CardBody({ s, name }: { s: SurveyRow; name: string }) {
 }
 
 export function Ideas() {
-  const { surveys, profiles, userId, name, upsertSurvey, ensureName } = useData();
+  const { surveys, profiles, userId, isMe, name, upsertSurvey, ensureName } =
+    useData();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<TextDraft>({ food: "", hikes: "" });
   const editRef = useRef<HTMLDivElement | null>(null);
 
-  const mine = surveys.find((s) => s.user_id === userId);
+  // This device's own row wins; another of your devices is the fallback, so
+  // answering on a laptop doesn't read as blank on a phone.
+  const mine =
+    surveys.find((s) => s.user_id === userId) ?? surveys.find((s) => isMe(s.user_id));
   const vibes = splitVibes(mine?.wants ?? "");
   const others = surveys
-    .filter((s) => s.user_id !== userId && answered(s))
+    .filter((s) => !isMe(s.user_id) && answered(s))
     .sort((a, b) =>
       (profiles[a.user_id] || "").localeCompare(profiles[b.user_id] || ""),
     );
