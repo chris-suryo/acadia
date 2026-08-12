@@ -11,6 +11,7 @@ import {
   SEED_BLOCKS,
   SEED_DAYS,
   SEED_GEAR,
+  SEED_INGREDIENTS,
   SEED_MEMBERS,
   SEED_MENU,
   SEED_PERSONAL,
@@ -112,7 +113,17 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   const [menu, setMenu] = useState<MenuItem[]>(() =>
     SEED_MENU.map((m, i) => ({ id: `menu-${i}`, added_by: null, ...m })),
   );
-  const [shopping, setShopping] = useState<ShoppingItem[]>([]);
+  const [shopping, setShopping] = useState<ShoppingItem[]>(() => {
+    const idByDish = new Map(SEED_MENU.map((m, i) => [m.dish, `menu-${i}`]));
+    return SEED_INGREDIENTS.map(([dish, label], i) => ({
+      id: `ing-${i}`,
+      menu_item_id: idByDish.get(dish) ?? null,
+      label,
+      added_by: null,
+      checked: false,
+      checked_by: null,
+    }));
+  });
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseShares, setShareRows] = useState<ExpenseShare[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);

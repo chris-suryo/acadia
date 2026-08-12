@@ -398,13 +398,19 @@ const ok = (name, cond, detail = "") => {
   await page.getByRole("button", { name: "Lunch", exact: true }).click();
   await page.waitForTimeout(250);
   await page.getByRole("button", { name: "Add ingredient" }).click();
-  await page.keyboard.type("Ground beef 4 lb");
+  await page.keyboard.type("Stew beef 3 lb");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(200);
-  await page.keyboard.type("Canned beans ×6");
+  await page.keyboard.type("Chipotle peppers ×2");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(200);
   await page.keyboard.press("Escape");
+  // A dish nobody has voted for isn't being cooked, so its ingredients stay off
+  // the list — said here, where they're typed, not discovered in the aisle.
+  ok(
+    "unplanned dish warns its ingredients won't ship",
+    await page.getByText(/stays? off the store list|stay off the store list/).isVisible(),
+  );
   await page.screenshot({ path: `${SHOT_DIR}/8-food-dish-ingredients.png`, fullPage: true });
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.waitForTimeout(300);
@@ -412,10 +418,43 @@ const ok = (name, cond, detail = "") => {
   ok("no description under the dish", (await page.getByText("cooked by Chris").count()) === 0);
   ok("no ingredient byline either", (await page.getByText(/\d\/\d ingredients/).count()) === 0);
 
-  // store view
+  // ---- the store list is what the votes decided ----
+  // Twenty-seven candidates carry ninety-four ingredient lines between them.
+  // Shopping all of them is nobody's Thursday, so the list is the winners.
   await page.getByRole("button", { name: /^Store( ·|$)/ }).click();
   await page.waitForTimeout(300);
-  ok("store has ingredient", await page.getByText("Ground beef 4 lb").isVisible());
+  ok(
+    "store carries the seeded menu, not just hand-adds",
+    await page.getByText("Tortillas ×24").first().isVisible(),
+  );
+  ok(
+    "an unvoted dish keeps its ingredients off the list",
+    (await page.getByText("Stew beef 3 lb").count()) === 0,
+  );
+  ok("store says what it covers", await page.getByText(/meals? on the plan/).isVisible());
+  // Everything is still reachable — it just isn't the default.
+  await page.getByRole("button", { name: "show every candidate" }).click();
+  await page.waitForTimeout(250);
+  ok(
+    "every candidate is one tap away",
+    await page.getByText("Stew beef 3 lb").first().isVisible(),
+  );
+  await page.getByRole("button", { name: "just what we're eating" }).click();
+  await page.waitForTimeout(250);
+  ok(
+    "and the list narrows back",
+    (await page.getByText("Stew beef 3 lb").count()) === 0,
+  );
+
+  // Vote it onto the plan and its ingredients arrive — the loop that makes the
+  // menu worth voting on at all.
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.waitForTimeout(250);
+  await page.getByRole("button", { name: "Vote for Campfire chili" }).click();
+  await page.waitForTimeout(350);
+  await page.getByRole("button", { name: /^Store( ·|$)/ }).click();
+  await page.waitForTimeout(300);
+  ok("a vote puts its ingredients on the list", await page.getByText("Stew beef 3 lb").isVisible());
   // Grouped by where things sit in a shop, not by where the row came from.
   ok("store groups by aisle", await page.locator("main").getByText("Meat + Deli", { exact: true }).isVisible());
   ok("store tags source dish", await page.getByText("Campfire chili · Saturday").first().isVisible());
@@ -426,11 +465,20 @@ const ok = (name, cond, detail = "") => {
   await page.keyboard.press("Escape");
   ok("requester name on the line", await page.locator("main").getByText("Chris", { exact: true }).first().isVisible());
   ok("ice lands in its own aisle", await page.locator("main").getByText("Ice + Frozen", { exact: true }).isVisible());
-  await page.getByText("Ground beef 4 lb").click();
+  const storeLeft = async () =>
+    Number(
+      (await page.getByRole("button", { name: /^Store · \d+ left$/ }).textContent())
+        .match(/(\d+) left/)[1],
+    );
+  const beforeCheck = await storeLeft();
+  await page.getByText("Stew beef 3 lb").click();
   await page.waitForTimeout(250);
   await page.screenshot({ path: `${SHOT_DIR}/9-food-store.png`, fullPage: true });
 
-  ok("store label counts down", await page.getByRole("button", { name: "Store · 2 left" }).isVisible());
+  // The tab counts what's left to buy, so it has to track the plan and not the
+  // pile of everything anyone ever suggested.
+  ok("store label counts down", (await storeLeft()) === beforeCheck - 1);
+  ok("store count is the plan, not all 94 lines", beforeCheck > 10 && beforeCheck < 60);
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.waitForTimeout(250);
   await page.getByRole("button", { name: "Edit Campfire chili" }).click();
