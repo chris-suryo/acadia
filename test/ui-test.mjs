@@ -238,9 +238,10 @@ const ok = (name, cond, detail = "") => {
   ok("claim shows owner name", await page.locator("main").getByText("Chris", { exact: true }).first().isVisible());
   ok("header shows the name", await page.locator("header").getByText("Chris", { exact: true }).isVisible());
   ok("header monogram", await page.locator("header").getByText("C", { exact: true }).isVisible());
-  await page.getByLabel("Edit your photo").click();
+  await page.getByLabel("Your profile").click();
   await page.waitForTimeout(300);
-  ok("header opens avatar editor", await page.getByText("choose a photo").isVisible());
+  ok("header opens your profile", await page.getByText("choose a photo").isVisible());
+  ok("and offers to switch person", await page.getByRole("button", { name: "not you?" }).isVisible());
   await page.keyboard.press("Escape");
   await page.waitForTimeout(300);
   await page.getByText("Tarp or canopy").click();
@@ -448,15 +449,28 @@ const ok = (name, cond, detail = "") => {
   await page.getByRole("button", { name: "Expenses", exact: true }).click();
   await page.waitForTimeout(300);
   ok("expenses empty state", await page.getByText(/Nothing logged yet/).isVisible());
+  // Everyone already knows who's coming, so the roster stopped earning a card
+  // on the page — but a wrong name still has to be fixable.
+  ok("no roster card on the page",
+    (await page.locator("main").getByText("Alana", { exact: true }).count()) === 0);
+  await page.getByRole("button", { name: /^\d+ on the trip$/ }).click();
+  await page.waitForTimeout(350);
+  const roster = page.locator("div.fixed.inset-0.z-50");
+  ok("roster is one tap away", (await roster.getByText("Alana", { exact: true }).count()) === 1);
   // The name typed into the gate sheet earlier was already on the roster, so it
   // resolved to that person instead of minting a second Chris. That is the whole
   // reason the arithmetic below can be trusted.
-  ok("roster renders", (await page.locator("main").getByText("Alana", { exact: true }).count()) === 1);
   ok("typing a roster name doesn't duplicate the person",
-    (await page.locator("main").getByText("Chris", { exact: true }).count()) === 1);
+    (await roster.getByText("Chris", { exact: true }).count()) === 1);
   ok("you are marked on the roster",
-    (await page.locator("main").getByText(/^(you|add a photo)$/).count()) === 1);
-  // A mis-tap should be a two-tap fix, not a text to Chris.
+    (await roster.getByText("you", { exact: true }).count()) === 1);
+  await roster.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(300);
+
+  // A mis-tap should be a two-tap fix, not a text to Chris — and it lives with
+  // your photo now, behind the header avatar.
+  await page.getByLabel("Your profile").click();
+  await page.waitForTimeout(300);
   await page.getByRole("button", { name: "not you?" }).click();
   await page.waitForTimeout(250);
   ok("switching person offers the others",
@@ -470,8 +484,10 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(200);
   await page.getByRole("button", { name: "Never mind" }).click();
   await page.waitForTimeout(250);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
   ok("switching is cancellable",
-    (await page.locator("main").getByText(/^(you|add a photo)$/).count()) === 1);
+    await page.locator("header").getByText("Chris", { exact: true }).isVisible());
 
   // Paid by you, split with everyone — the common case, no extra taps.
   await page.getByRole("button", { name: "Add an expense" }).click();
@@ -533,6 +549,12 @@ const ok = (name, cond, detail = "") => {
     await page.getByText(/split 2 ways · not you/).isVisible());
 
   // The settle-up is the point: these payments must clear the ledger exactly.
+  // One person paying for everything is ten rows, so the card shows three until
+  // asked for the rest.
+  ok("long settle lists are capped",
+    (await page.locator("[data-settle]").count()) === 3, "three of ten");
+  await page.getByRole("button", { name: /^show all \d+ payments$/ }).click();
+  await page.waitForTimeout(250);
   const settleCents = await page
     .locator("[data-settle]")
     .evaluateAll((els) => els.map((e) => Number(e.dataset.settle)));
@@ -578,12 +600,17 @@ const ok = (name, cond, detail = "") => {
   ok("undo puts it back", await page.getByText("Already paid back").isVisible());
 
   // Removing someone mid-ledger would rewrite everyone's balance without saying
-  // so, so it's refused while they're on an expense.
-  await swipeRow(page.locator("main").getByRole("button", { name: /Erin/ }).last());
+  // so, so it's refused while they're on an expense or a payment.
+  await page.getByRole("button", { name: /^\d+ on the trip$/ }).click();
+  await page.waitForTimeout(350);
+  const roster2 = page.locator("div.fixed.inset-0.z-50");
+  await swipeRow(roster2.getByRole("button", { name: /Erin/ }).first());
   ok("can't remove someone who's on an expense",
-    await page.getByText(/Erin is on \d expense/).isVisible());
+    await page.getByText(/Erin is on \d row/).isVisible());
   ok("they're still on the roster",
-    (await page.locator("main").getByText("Erin", { exact: true }).count()) >= 1);
+    (await roster2.getByText("Erin", { exact: true }).count()) >= 1);
+  await roster2.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(300);
 
   // Editing goes through the same form; deleting an expense undoes cleanly.
   await page.getByText("Lobster rolls").click();
@@ -646,6 +673,12 @@ const ok = (name, cond, detail = "") => {
   // old text is worse than a row that says nothing.
   await page.getByText("Bag of ice").click();
   await page.waitForTimeout(300);
+  ok("a row opens its detail, not the editor",
+    (await page.getByPlaceholder("What you bought").count()) === 0);
+  ok("detail shows who it was split with",
+    await page.getByText(/each · \d+ people?$/).isVisible());
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.waitForTimeout(300);
   await page.getByPlaceholder("What you bought").fill("");
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.waitForTimeout(400);
@@ -657,8 +690,21 @@ const ok = (name, cond, detail = "") => {
   // unlinked would stay unlinked — one person quietly becoming two. The tell is
   // the "you" marker: it only renders on the member this device is linked to,
   // so it comes back if and only if the id survived.
-  const meMarker = async () =>
-    await page.locator("main").getByText(/^(you|add a photo)$/).count();
+  const openRoster = async () => {
+    await page.getByRole("button", { name: /^\d+ on the trip$/ }).click();
+    await page.waitForTimeout(350);
+    return page.locator("div.fixed.inset-0.z-50");
+  };
+  const closeRoster = async (sheet) => {
+    await sheet.getByRole("button", { name: "Done", exact: true }).click();
+    await page.waitForTimeout(300);
+  };
+  const meMarker = async () => {
+    const sheet = await openRoster();
+    const n = await sheet.getByText("you", { exact: true }).count();
+    await closeRoster(sheet);
+    return n;
+  };
   ok("you are marked before any of this", (await meMarker()) === 1);
 
   // Clear the ledger first — removing someone mid-ledger is refused, by design.
@@ -667,7 +713,7 @@ const ok = (name, cond, detail = "") => {
     if (!(await row.count())) continue;
     await row.first().click();
     await page.waitForTimeout(250);
-    await page.getByRole("button", { name: "Delete expense" }).click();
+    await page.getByRole("button", { name: "Delete expense" }).first().click();
     await page.waitForTimeout(350);
   }
   ok("the ledger is empty again", await page.getByText(/Nothing logged yet/).isVisible());
@@ -678,14 +724,18 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(300);
   ok("no payments left either", (await page.getByText("Already paid back").count()) === 0);
 
-  await swipeRow(page.locator("main").getByRole("button", { name: /Chris/ }).last());
+  const rosterSheet = await openRoster();
+  await swipeRow(rosterSheet.getByRole("button", { name: /Chris/ }).first());
   ok("someone on no expense can be removed",
-    (await page.locator("main").getByText("Chris", { exact: true }).count()) === 0);
+    (await rosterSheet.getByText("Chris", { exact: true }).count()) === 0);
+  await closeRoster(rosterSheet);
   ok("and the you marker goes with them", (await meMarker()) === 0);
   await page.getByRole("button", { name: "Undo" }).click();
   await page.waitForTimeout(600);
+  const rosterBack = await openRoster();
   ok("undo puts them back exactly once",
-    (await page.locator("main").getByText("Chris", { exact: true }).count()) === 1);
+    (await rosterBack.getByText("Chris", { exact: true }).count()) === 1);
+  await closeRoster(rosterBack);
   ok("undo restores the same person, not a namesake", (await meMarker()) === 1);
 
   // ---- the page must never pan sideways ----

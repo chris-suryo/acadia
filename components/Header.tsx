@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { AvatarEditor } from "./AvatarEditor";
+import { BottomSheet } from "./ui/BottomSheet";
+import { AvatarCrop } from "./ui/AvatarCrop";
+import { SwitchPerson } from "./ui/RosterPick";
 import { useData } from "@/lib/data/context";
 
 const TOPO_YS = [10, 30, 50, 72, 96, 122, 148];
@@ -53,7 +55,7 @@ export function Header() {
         {name.trim() && (
           <button
             onClick={() => setEditing(true)}
-            aria-label="Edit your photo"
+            aria-label="Your profile"
             className="flex flex-col items-center gap-1 shrink-0 -mt-0.5 bg-transparent border-none p-0 cursor-pointer"
           >
             <span className="w-10 h-10 rounded-full overflow-hidden border border-granite bg-pinelift flex items-center justify-center">
@@ -72,7 +74,16 @@ export function Header() {
           </button>
         )}
       </div>
-      <AvatarEditor open={editing} onClose={() => setEditing(false)} />
+      {/* Your photo and "not you?" both belong to the same question — who this
+          phone is — so they share one sheet behind the avatar. */}
+      <BottomSheet open={editing} onClose={() => setEditing(false)}>
+        <div className="grid gap-4">
+          <AvatarCrop onSaved={() => setEditing(false)} />
+          <div className="flex justify-center border-t border-rule pt-3">
+            <SwitchPerson />
+          </div>
+        </div>
+      </BottomSheet>
     </header>
   );
 }

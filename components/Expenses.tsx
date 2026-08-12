@@ -3,18 +3,17 @@
 import { useRef, useState } from "react";
 import { ArrowRight, Camera, Plus, Trash2, X } from "lucide-react";
 import { Btn, Card, SubH } from "./primitives";
-import { AddRow } from "./ui/AddRow";
 import { AvatarEditor } from "./AvatarEditor";
 import { Avatar } from "./ui/Avatar";
 import { focusCenter } from "./ui/focusCenter";
 import { PeoplePicker, splitLabel } from "./ui/PeoplePicker";
-import { SwitchPerson } from "./ui/RosterPick";
+import { RosterSheet } from "./ui/RosterSheet";
+import { VenmoButton } from "./ui/VenmoButton";
 import { SwipeRow } from "./ui/SwipeRow";
 import { useOutside } from "./ui/useOutside";
 import { useUi } from "./ui/UiProvider";
 import { useData } from "@/lib/data/context";
-import { PARTY_SIZE } from "@/lib/config";
-import { balances, money, settle, venmoLink } from "@/lib/settle";
+import { balances, money, settle, shares, venmoLink } from "@/lib/settle";
 import type { Member, Receipt } from "@/lib/types";
 
 // No `w-full` here: these sit side by side in a flex row, where a 100% width
@@ -257,22 +256,21 @@ export function Expenses() {
     setExpenseShares,
     deleteExpense,
     restoreExpense,
-    addMember,
-    renameMember,
-    setMemberVenmo,
-    deleteMember,
     settlements,
     addSettlement,
     deleteSettlement,
     restoreSettlement,
-    restoreMember,
     receipts,
     addReceipt,
     deleteReceipt,
+    setMemberVenmo,
   } = useData();
   const { showUndo, showNotice } = useUi();
   const [viewing, setViewing] = useState<string | null>(null);
   const [openTransfer, setOpenTransfer] = useState<string | null>(null);
+  const [allTransfers, setAllTransfers] = useState(false);
+  const [detail, setDetail] = useState<string | null>(null);
+  const [rosterOpen, setRosterOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   // An expense being added has no id yet, so its photos wait here and go up the
   // moment it's saved — you shouldn't have to save first and reopen to attach
@@ -292,15 +290,15 @@ export function Expenses() {
     payer: "",
     among: [],
   });
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [nameDraft, setNameDraft] = useState("");
-  const [venmoDraft, setVenmoDraft] = useState("");
-  const rosterRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
 
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name || "Someone";
   const receiptsOf = (expenseId: string) =>
     receipts.filter((r) => r.expense_id === expenseId);
+
+  /** What one person owes on one expense, odd cents and all. */
+  const shareOf = (e: { id: string; amount_cents: number }, memberId: string) =>
+    shares(e.amount_cents, sharesOf(e.id)).get(memberId) ?? 0;
 
   /** Shares in roster order, so the odd cents always land the same way. */
   const sharesOf = (expenseId: string) => {
@@ -377,18 +375,6 @@ export function Expenses() {
 
   useOutside(editing !== null, editorRef, commit);
 
-  const closeRoster = () => {
-    const id = renaming;
-    setRenaming(null);
-    if (!id) return;
-    const m = members.find((x) => x.id === id);
-    if (!m) return;
-    if (nameDraft.trim() && nameDraft.trim() !== m.name) renameMember(id, nameDraft);
-    if (venmoDraft.trim().replace(/^@/, "") !== m.venmo) setMemberVenmo(id, venmoDraft);
-  };
-
-  useOutside(renaming !== null, rosterRef, closeRoster);
-
   const open = (id: string) => {
     if (editing) commit();
     const row = expenses.find((e) => e.id === id);
@@ -450,22 +436,6 @@ export function Expenses() {
     b.created_at.localeCompare(a.created_at),
   );
 
-  /**
-   * Rows a member is pinned by — deleting them would silently redo the math,
-   * and the database refuses it outright (`on delete restrict`). Settlements
-   * count for the same reason expenses do: a payment with one end missing is
-   * money that moved from nobody.
-   */
-  const usage = (memberId: string) =>
-    expenses.filter(
-      (e) =>
-        e.payer_id === memberId ||
-        expenseShares.some((s) => s.expense_id === e.id && s.member_id === memberId),
-    ).length +
-    settlements.filter(
-      (x) => x.from_member === memberId || x.to_member === memberId,
-    ).length;
-
   return (
     <div className="px-3.5 pt-4 pb-20">
       <AvatarEditor open={photoOpen} onClose={() => setPhotoOpen(false)} />
@@ -515,7 +485,7 @@ export function Expenses() {
             Settle up
           </SubH>
           <Card className="overflow-hidden">
-            {transfers.map((t) => {
+            {(allTransfers ? transfers : transfers.slice(0, 3)).map((t) => {
               const iOwe = t.from === myMemberId;
               const owedToMe = t.to === myMemberId;
               const mine = iOwe || owedToMe;
@@ -574,16 +544,33 @@ export function Expenses() {
                     </span>
                   </button>
                   {openTransfer === key && (
-                  <div className="flex items-center gap-2 px-3.5 pb-3">
+                  <div className="px-3.5 pb-3 grid gap-2">
+                  {/* Venmo can only prefill a person it has a handle for, and
+                      this is the moment you notice it's missing. */}
+                  {mine && !(members.find((m) => m.id === other)?.venmo) && (
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-[14px] text-mute pointer-events-none">
+                        @
+                      </span>
+                      <input
+                        defaultValue=""
+                        onBlur={(ev) => {
+                          if (ev.target.value.trim()) setMemberVenmo(other, ev.target.value);
+                        }}
+                        onKeyDown={(ev) => {
+                          if (ev.key === "Enter") ev.currentTarget.blur();
+                        }}
+                        placeholder={`${nameOf(other)}'s venmo — optional`}
+                        aria-label={`Venmo handle for ${nameOf(other)}`}
+                        autoCapitalize="none"
+                        enterKeyHint="done"
+                        className="w-full pl-7 pr-3 py-2 rounded-lg border border-rule bg-white text-[16px] text-ink min-h-[42px]"
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
                     {mine && (
-                      <a
-                        href={link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 text-center rounded-full border border-blaze bg-[#FBEFE4] text-blaze no-underline font-mono text-[11px] uppercase tracking-[.07em] py-2 min-h-[38px] leading-[22px]"
-                      >
-                        {iOwe ? "Pay in Venmo" : "Request it"}
-                      </a>
+                      <VenmoButton href={link} label={iOwe ? "Pay" : "Request"} />
                     )}
                     <button
                       onClick={() => {
@@ -596,10 +583,21 @@ export function Expenses() {
                       Mark paid
                     </button>
                   </div>
+                  </div>
                   )}
                 </div>
               );
             })}
+            {transfers.length > 3 && (
+              <button
+                onClick={() => setAllTransfers(!allTransfers)}
+                className="w-full bg-transparent border-none cursor-pointer text-granite font-mono text-[11px] px-3.5 py-3 min-h-[44px]"
+              >
+                {allTransfers
+                  ? "show fewer"
+                  : `show all ${transfers.length} payments`}
+              </button>
+            )}
           </Card>
         </div>
       )}
@@ -671,10 +669,15 @@ export function Expenses() {
             }
             const among = sharesOf(e.id);
             const mineShare = among.includes(myMemberId);
+            const shown = detail === e.id;
             return (
               <SwipeRow key={e.id} className="border-b border-rule" onDelete={() => drop(e.id)}>
+                {/* Tapping opens what it was, not how to change it — the
+                    receipt and who's actually on the hook. Editing is a step
+                    further in, where it can't be reached by accident. */}
                 <button
-                  onClick={() => open(e.id)}
+                  onClick={() => setDetail(shown ? null : e.id)}
+                  aria-expanded={shown}
                   className="w-full text-left bg-transparent border-none cursor-pointer flex items-center gap-2.5 px-3.5 py-3"
                 >
                   {/* A receipt is worth seeing from the list — it's the answer
@@ -704,6 +707,76 @@ export function Expenses() {
                     {money(e.amount_cents)}
                   </span>
                 </button>
+                {shown && (
+                  <div className="px-3.5 pb-3.5 grid gap-3 bg-[#FBF8EE] border-t border-rule pt-3">
+                    {receiptsOf(e.id).length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {receiptsOf(e.id).map((r) => (
+                          <button
+                            key={r.id}
+                            onClick={() => setViewing(r.url)}
+                            aria-label="View receipt"
+                            className="w-[72px] h-[72px] rounded-lg overflow-hidden border border-rule bg-white cursor-pointer p-0"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element -- user upload */}
+                            <img src={r.url} alt="" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="grid gap-1.5">
+                      <span className={LABEL}>
+                        Split between · {perHead(String(e.amount_cents / 100), among.length)}
+                      </span>
+                      <div className="grid gap-1">
+                        {members
+                          .filter((m) => among.includes(m.id))
+                          .map((m) => (
+                            <div key={m.id} className="flex items-center gap-2">
+                              <Avatar
+                                userId={m.id}
+                                url={memberAvatars[m.id]}
+                                name={m.name}
+                                size={20}
+                              />
+                              <span className="flex-1 min-w-0 text-[13.5px] text-ink truncate">
+                                {m.name}
+                                {m.id === e.payer_id && (
+                                  <span className="font-mono text-[10px] text-moss ml-1.5">
+                                    paid
+                                  </span>
+                                )}
+                              </span>
+                              <span className="font-mono text-[12.5px] text-granite shrink-0">
+                                {money(shareOf(e, m.id))}
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => {
+                          setDetail(null);
+                          drop(e.id);
+                        }}
+                        aria-label="Delete expense"
+                        className="bg-transparent border-none cursor-pointer p-2 text-[#8F8676]"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                      <Btn
+                        small
+                        onClick={() => {
+                          setDetail(null);
+                          open(e.id);
+                        }}
+                      >
+                        Edit
+                      </Btn>
+                    </div>
+                  </div>
+                )}
               </SwipeRow>
             );
           })}
@@ -749,135 +822,16 @@ export function Expenses() {
         </Card>
       </div>
 
-      <div>
-        <SubH
-          right={
-            members.length < PARTY_SIZE ? `${members.length} of ${PARTY_SIZE}` : null
-          }
-        >
-          Who&apos;s on the trip
-        </SubH>
-        <Card className="overflow-hidden">
-          {members.map((m) => {
-            if (renaming === m.id) {
-              return (
-                <div
-                  key={m.id}
-                  ref={rosterRef}
-                  className="grid gap-2 px-3.5 py-2.5 border-b border-rule bg-[#FBF8EE]"
-                >
-                  <input
-                    autoFocus
-                    onFocus={focusCenter}
-                    value={nameDraft}
-                    onChange={(ev) => setNameDraft(ev.target.value)}
-                    onKeyDown={(ev) => {
-                      if (ev.key === "Enter") closeRoster();
-                      if (ev.key === "Escape") setRenaming(null);
-                    }}
-                    aria-label="Name"
-                    enterKeyHint="next"
-                    className={`${FIELD} w-full`}
-                  />
-                  {/* Venmo is how this group actually moves money, so the handle
-                      lives next to the name rather than in a settings screen
-                      nobody would find. */}
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-[15px] text-mute pointer-events-none">
-                      @
-                    </span>
-                    <input
-                      onFocus={focusCenter}
-                      value={venmoDraft}
-                      onChange={(ev) => setVenmoDraft(ev.target.value)}
-                      onKeyDown={(ev) => {
-                        if (ev.key === "Enter") closeRoster();
-                        if (ev.key === "Escape") setRenaming(null);
-                      }}
-                      placeholder="venmo handle — optional"
-                      aria-label="Venmo handle"
-                      enterKeyHint="done"
-                      autoCapitalize="none"
-                      className={`${FIELD} w-full pl-7`}
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <Btn small onClick={closeRoster}>
-                      Done
-                    </Btn>
-                  </div>
-                </div>
-              );
-            }
-            const n = usage(m.id);
-            return (
-              <SwipeRow
-                key={m.id}
-                className="border-b border-rule"
-                onDelete={() => {
-                  // Removing someone mid-ledger would rewrite everyone's
-                  // balance without saying so.
-                  if (n > 0) {
-                    showNotice(`${m.name} is on ${n} expense${n > 1 ? "s" : ""}`);
-                    return;
-                  }
-                  const snap = { ...m };
-                  // Restored under the same id: re-adding by name would mint a
-                  // new one, and the devices the FK just unlinked would stay
-                  // unlinked — one person quietly becoming two.
-                  deleteMember(m.id);
-                  showUndo("Removed", () => restoreMember(snap));
-                }}
-              >
-                <button
-                  onClick={() => {
-                    if (m.id === myMemberId && !memberAvatars[m.id]) {
-                      setPhotoOpen(true);
-                      return;
-                    }
-                    setNameDraft(m.name);
-                    setVenmoDraft(m.venmo);
-                    setRenaming(m.id);
-                  }}
-                  className="w-full text-left bg-transparent border-none cursor-pointer flex items-center gap-2.5 px-3.5 py-3"
-                >
-                  <Avatar userId={m.id} url={memberAvatars[m.id]} name={m.name} size={26} />
-                  <span className="flex-1 min-w-0 text-[14.5px] text-ink truncate">
-                    {m.name}
-                  </span>
-                  {m.id === myMemberId && (
-                    <span
-                      className={`font-mono text-[10px] uppercase tracking-[.08em] shrink-0 ${
-                        memberAvatars[m.id] ? "text-moss" : "text-blaze"
-                      }`}
-                    >
-                      {/* Nobody has to have a picture, but a list of grey
-                          initials is harder to read than a list of faces. */}
-                      {memberAvatars[m.id] ? "you" : "add a photo"}
-                    </span>
-                  )}
-                </button>
-              </SwipeRow>
-            );
-          })}
-          <AddRow
-            label="Add someone"
-            placeholder="Their name"
-            onAdd={(t) => addMember(t)}
-          />
-        </Card>
-        {myMemberId && (
-          <div className="px-1 pt-2">
-            <SwitchPerson />
-          </div>
-        )}
-        {members.length < PARTY_SIZE && (
-          <div className="px-1 pt-2 text-[11.5px] text-mute leading-[1.45]">
-            Add the rest of the {PARTY_SIZE} so splits land on the right people.
-            They don&apos;t need the app open to owe you money.
-          </div>
-        )}
-      </div>
+      {/* The roster is fixed and correct, so it stopped earning a card of its
+          own — but a wrong name or a person added by mistake still has to be
+          fixable, so it lives one tap away. */}
+      <button
+        onClick={() => setRosterOpen(true)}
+        className="block mx-auto mt-1 bg-transparent border-none cursor-pointer font-mono text-[10.5px] text-granite underline underline-offset-2"
+      >
+        {members.length} on the trip
+      </button>
+      <RosterSheet open={rosterOpen} onClose={() => setRosterOpen(false)} />
     </div>
   );
 }
