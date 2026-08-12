@@ -15,6 +15,12 @@ const eslintConfig = defineConfig([
     // Deno runtime, not part of the Next.js app:
     "supabase/functions/**",
   ]),
+  {
+    // A standalone CommonJS runner driven by `node test/ui-test.js`, not part
+    // of the bundled app — Next's import rules don't apply to it.
+    files: ["test/**/*.js"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 ]);
 
 export default eslintConfig;

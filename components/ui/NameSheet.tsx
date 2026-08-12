@@ -63,6 +63,8 @@ export function NameSheet({
   onPick?: (memberId: string) => void;
 }) {
   const [txt, setTxt] = useState("");
+  const [typing, setTyping] = useState(false);
+  const picking = !!onPick && roster.length > 0;
 
   const go = () => {
     if (txt.trim()) onSubmit(txt.trim());
@@ -71,25 +73,46 @@ export function NameSheet({
   return (
     <BottomSheet open={open} onClose={onCancel}>
       <div className="grid gap-3">
-        {onPick && roster.length > 0 && (
-          <RosterPick roster={roster} onPick={onPick} />
+        {picking && !typing && (
+          <>
+            <RosterPick roster={roster} onPick={onPick} />
+            {/* The list is the whole party, so typing a name is the exception,
+                not the default — left as the default it's how a twelfth
+                phantom person gets invented. */}
+            <button
+              onClick={() => setTyping(true)}
+              className="bg-transparent border-none cursor-pointer p-0 text-left font-mono text-[10.5px] text-blaze underline underline-offset-2"
+            >
+              not on the list?
+            </button>
+          </>
         )}
-        <Input
-          // Autofocus only when there's nothing to tap — otherwise the keyboard
-          // covers the names we just went to the trouble of offering.
-          autoFocus={!roster.length}
-          value={txt}
-          onChange={(e) => setTxt(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") go();
-          }}
-          placeholder="Your name"
-          aria-label="Your name"
-          enterKeyHint="done"
-        />
-        <Btn onClick={go} full>
-          Continue
-        </Btn>
+        {(!picking || typing) && (
+          <>
+            <Input
+              autoFocus
+              value={txt}
+              onChange={(e) => setTxt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") go();
+              }}
+              placeholder="Your name"
+              aria-label="Your name"
+              enterKeyHint="done"
+            />
+            <Btn onClick={go} full>
+              Continue
+            </Btn>
+            {picking && (
+              <button
+                onClick={() => setTyping(false)}
+                className="bg-transparent border-none cursor-pointer p-0 font-mono text-[10.5px] text-granite underline underline-offset-2"
+              >
+                back to the list
+              </button>
+            )}
+          </>
+        )}
       </div>
     </BottomSheet>
   );

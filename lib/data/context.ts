@@ -61,6 +61,8 @@ export type DataCtx = {
   isMe: (userId: string | null) => boolean;
   /** Avatar URL by member id, borrowed from any device they've signed in on. */
   memberAvatars: Record<string, string>;
+  /** Members somebody has already claimed on a phone — the rest are free. */
+  claimedMembers: string[];
   addMember: (name: string) => void;
   renameMember: (id: string, name: string) => void;
   deleteMember: (id: string) => void;

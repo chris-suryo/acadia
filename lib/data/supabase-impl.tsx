@@ -470,6 +470,13 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     [refetch, showNotice],
   );
 
+  // Which names are spoken for. Drives the picker: a name already on a phone
+  // reads as taken instead of looking exactly like a free one.
+  const claimedMembers = useMemo(
+    () => [...new Set(profileRows.map((p) => p.member_id).filter((x): x is string => !!x))],
+    [profileRows],
+  );
+
   const addMember = useCallback(
     (name: string) => {
       const row: Member = {
@@ -588,6 +595,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     memberOf,
     isMe,
     memberAvatars,
+    claimedMembers,
     addMember,
     renameMember,
     deleteMember,

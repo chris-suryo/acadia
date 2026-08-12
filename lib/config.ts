@@ -6,7 +6,7 @@ export const SUPABASE_ANON_KEY = "sb_publishable_LHh0xpyJLnzqk3cCUdnIOA_Y9zOlG--
 export const DATA_MODE: "supabase" | "mock" =
   process.env.NEXT_PUBLIC_DATA_MODE === "mock" ? "mock" : "supabase";
 
-export const PARTY_SIZE = 12;
+export const PARTY_SIZE = 11;
 
 // date_key (America/New_York) -> itinerary day id
 export const TRIP_DATES: Record<string, string> = {

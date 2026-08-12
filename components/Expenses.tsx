@@ -8,6 +8,7 @@ import { AvatarEditor } from "./AvatarEditor";
 import { Avatar } from "./ui/Avatar";
 import { focusCenter } from "./ui/focusCenter";
 import { PeoplePicker, splitLabel } from "./ui/PeoplePicker";
+import { SwitchPerson } from "./ui/RosterPick";
 import { SwipeRow } from "./ui/SwipeRow";
 import { useOutside } from "./ui/useOutside";
 import { useUi } from "./ui/UiProvider";
@@ -701,6 +702,11 @@ export function Expenses() {
             onAdd={(t) => addMember(t)}
           />
         </Card>
+        {myMemberId && (
+          <div className="px-1 pt-2">
+            <SwitchPerson />
+          </div>
+        )}
         {members.length < PARTY_SIZE && (
           <div className="px-1 pt-2 text-[11.5px] text-mute leading-[1.45]">
             Add the rest of the {PARTY_SIZE} so splits land on the right people.

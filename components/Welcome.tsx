@@ -12,6 +12,7 @@ import { RosterPick } from "./ui/RosterPick";
 import { Topo } from "./Header";
 import { AvatarEditor } from "./AvatarEditor";
 import { useData } from "@/lib/data/context";
+import { PARTY_SIZE } from "@/lib/config";
 
 // The vibe check, in plain language a first-timer can answer. Survey columns
 // predate this shape: wants = vibes joined, hikes = the anything-else line,
@@ -80,6 +81,9 @@ export function Welcome({ onDone }: { onDone: () => void }) {
   const myAvatar = avatars[userId];
   const [photoOpen, setPhotoOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
+  // A replay is for editing your answers, not re-claiming a name: someone who
+  // already has one opens on it, with the list a tap away if they mis-picked.
+  const [typing, setTyping] = useState(!!name.trim());
   const [nm, setNm] = useState(name);
   const [vibes, setVibes] = useState<string[]>(splitVibes(mine?.wants ?? ""));
   const [pace, setPace] = useState(mine?.activity ?? "");
@@ -124,7 +128,7 @@ export function Welcome({ onDone }: { onDone: () => void }) {
             Acadia Base Camp
           </h1>
           <p className="text-[14px] text-sky mt-3 mb-7 leading-[1.55]">
-            12 of us · 2 sites · 3 days on the island
+            {PARTY_SIZE} of us · 2 sites · 3 days on the island
           </p>
           <AvatarEditor open={photoOpen} onClose={() => setPhotoOpen(false)} />
           <div className="flex items-center gap-3 mb-5">
@@ -145,10 +149,10 @@ export function Welcome({ onDone }: { onDone: () => void }) {
             </span>
           </div>
           <label className="block text-[15px] font-medium text-parchment mb-2">
-            What&apos;s your name?
+            Which one are you?
           </label>
-          {members.length > 0 && (
-            <div className="mb-3">
+          {members.length > 0 && !typing ? (
+            <>
               <RosterPick
                 roster={members}
                 tone="dark"
@@ -157,23 +161,43 @@ export function Welcome({ onDone }: { onDone: () => void }) {
                   setStep(2);
                 }}
               />
-            </div>
+              {/* Everyone coming is already on that list, so typing a name is
+                  the exception. Left as the default it's how a phantom twelfth
+                  person gets invented. */}
+              <button
+                onClick={() => setTyping(true)}
+                className="block mt-3 bg-transparent border-none cursor-pointer p-0 font-mono text-[10.5px] text-sky underline underline-offset-2"
+              >
+                not on the list?
+              </button>
+            </>
+          ) : (
+            <>
+              <Input
+                value={nm}
+                onChange={(e) => setNm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") continueToSurvey();
+                }}
+                placeholder="Your name"
+                aria-label="Your name"
+                enterKeyHint="next"
+                autoComplete="given-name"
+                className="mb-3"
+              />
+              <Btn onClick={continueToSurvey} full>
+                Continue
+              </Btn>
+              {members.length > 0 && (
+                <button
+                  onClick={() => setTyping(false)}
+                  className="block mx-auto mt-3 bg-transparent border-none cursor-pointer p-0 font-mono text-[10.5px] text-sky underline underline-offset-2"
+                >
+                  back to the list
+                </button>
+              )}
+            </>
           )}
-          <Input
-            value={nm}
-            onChange={(e) => setNm(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") continueToSurvey();
-            }}
-            placeholder="Your name"
-            aria-label="Your name"
-            enterKeyHint="next"
-            autoComplete="given-name"
-            className="mb-3"
-          />
-          <Btn onClick={continueToSurvey} full>
-            Continue
-          </Btn>
           <button
             onClick={onDone}
             className="block mx-auto mt-6 bg-transparent border-none cursor-pointer font-mono text-[11px] text-sky underline underline-offset-2"

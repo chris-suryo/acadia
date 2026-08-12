@@ -156,6 +156,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
           .filter(([uid, mid]) => mid && avatars[uid])
           .map(([uid, mid]) => [mid, avatars[uid]]),
       ),
+      claimedMembers: [myMemberId, alanaMember].filter(Boolean),
       addMember: (n) =>
         setMembers((prev) => [
           ...prev,

@@ -209,10 +209,14 @@ const ok = (name, cond, detail = "") => {
   // whole-row tap with no name -> bottom sheet, action completes after Continue
   await page.getByText("Tarp or canopy").click();
   await page.waitForTimeout(300);
-  ok("name sheet opens", (await page.getByPlaceholder("Your name").count()) === 1, "sheet only — header is a greeting now");
+  ok("name sheet opens", (await page.getByRole("button", { name: /^I'm / }).count()) === 11, "the roster leads");
+  // Everyone coming is on that list, so typing a name is the exception — left
+  // as the default it's how a phantom twelfth person gets invented.
+  ok("typing is behind a link", (await page.getByPlaceholder("Your name").count()) === 0);
+  ok("unclaimed names read as free",
+    (await page.getByRole("button", { name: /already claimed/ }).count()) === 1, "only Alana is taken");
   ok("claim blocked until name", (await claimed()) === 0);
-  await page.getByPlaceholder("Your name").last().fill("Chris");
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "I'm Chris" }).click();
   await page.waitForTimeout(400);
   ok("gated action completed", (await claimed()) === 1);
   ok("claim shows owner name", await page.locator("main").getByText("Chris", { exact: true }).first().isVisible());
@@ -239,7 +243,6 @@ const ok = (name, cond, detail = "") => {
 
   // ghost add per category (pre-filled category, no select)
   ok("no category selects", (await page.locator("select").count()) === 0);
-  const shelter = page.locator("div").filter({ has: page.getByText("Shelter", { exact: true }) }).last();
   await page.getByRole("button", { name: "Add", exact: true }).first().click();
   await page.keyboard.type("Bug net canopy");
   await page.keyboard.press("Enter");
@@ -262,8 +265,8 @@ const ok = (name, cond, detail = "") => {
     await page.waitForTimeout(450);
   };
 
-  const shelterCard = page.locator("div.mb-5").filter({ has: page.getByText("Shelter", { exact: true }) });
   await drag("Tarp or canopy", "Tents — spares for first-timers (Alana)", true);
+  const shelterCard = page.locator("div.mb-5").filter({ has: page.getByText("Shelter", { exact: true }) });
   const shelterTexts = await shelterCard.locator("span.text-\\[14\\.5px\\]").allTextContents();
   ok("dnd reorder within category", shelterTexts[0] === "Tarp or canopy", shelterTexts.join(" | ").slice(0, 90));
   ok("drop click swallowed — nothing claimed", (await claimed()) === 0);
@@ -431,6 +434,22 @@ const ok = (name, cond, detail = "") => {
     (await page.locator("main").getByText("Chris", { exact: true }).count()) === 1);
   ok("you are marked on the roster",
     (await page.locator("main").getByText(/^(you|add a photo)$/).count()) === 1);
+  // A mis-tap should be a two-tap fix, not a text to Chris.
+  await page.getByRole("button", { name: "not you?" }).click();
+  await page.waitForTimeout(250);
+  ok("switching person offers the others",
+    (await page.getByRole("button", { name: /^I'm / }).count()) === 10, "everyone but you");
+  // Taking a name that's already on a phone asks instead of stealing it.
+  await page.getByRole("button", { name: "I'm Alana (already claimed)" }).click();
+  await page.waitForTimeout(250);
+  ok("claimed name asks before taking it",
+    await page.getByText(/already set up on a phone/).isVisible());
+  await page.getByRole("button", { name: "Pick again" }).click();
+  await page.waitForTimeout(200);
+  await page.getByRole("button", { name: "Never mind" }).click();
+  await page.waitForTimeout(250);
+  ok("switching is cancellable",
+    (await page.locator("main").getByText(/^(you|add a photo)$/).count()) === 1);
 
   // Paid by you, split with everyone — the common case, no extra taps.
   await page.getByRole("button", { name: "Add an expense" }).click();
@@ -577,13 +596,13 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(250);
   await page.getByText("replay the intro").click();
   await page.waitForTimeout(300);
-  ok("replay shows intro", await page.getByText("What's your name?").isVisible());
+  ok("replay shows intro", await page.getByText("Which one are you?").isVisible());
   await page.getByText("skip for now").click();
   await page.waitForTimeout(300);
   ok("replay exits to app", await page.getByRole("heading", { name: "Acadia Base Camp" }).isVisible());
   await page.goto(BASE + "/?welcome=1", { waitUntil: "networkidle" });
   await page.waitForTimeout(700);
-  ok("welcome=1 forces intro", await page.getByText("What's your name?").isVisible());
+  ok("welcome=1 forces intro", await page.getByText("Which one are you?").isVisible());
   const man = await page.request.get(BASE + "/manifest.webmanifest");
   ok("manifest served", man.status() === 200 && (await man.json()).name === "Acadia Base Camp");
   const ai = await page.request.get(BASE + "/apple-icon.png");
@@ -594,11 +613,14 @@ const ok = (name, cond, detail = "") => {
   const p2 = await ctx2.newPage();
   await p2.goto(BASE, { waitUntil: "networkidle" });
   await p2.waitForTimeout(1200);
-  ok("welcome shows on first visit", await p2.getByText("What's your name?").isVisible());
+  ok("welcome shows on first visit", await p2.getByText("Which one are you?").isVisible());
   await p2.screenshot({ path: `${SHOT_DIR}/11-welcome.png` });
+  ok("intro leads with the roster", (await p2.getByRole("button", { name: /^I'm / }).count()) === 11);
+  await p2.getByRole("button", { name: "not on the list?" }).click();
+  await p2.waitForTimeout(250);
   await p2.getByRole("button", { name: "Continue" }).click();
   await p2.waitForTimeout(200);
-  ok("continue blocked without name", await p2.getByText("What's your name?").isVisible());
+  ok("continue blocked without name", await p2.getByText("Which one are you?").isVisible());
   await p2.getByLabel("Add a photo").click();
   await p2.waitForTimeout(300);
   ok("avatar editor opens", await p2.getByText("choose a photo").isVisible());
@@ -645,7 +667,7 @@ const ok = (name, cond, detail = "") => {
 
   await p2.reload({ waitUntil: "networkidle" });
   await p2.waitForTimeout(700);
-  ok("welcome not shown again", (await p2.getByText("What's your name?").count()) === 0);
+  ok("welcome not shown again", (await p2.getByText("Which one are you?").count()) === 0);
   await ctx2.close();
 
   // skip path
