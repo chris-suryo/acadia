@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/*
+ * Every foreground here clears WCAG AA (4.5:1) against both --color-card and
+ * --color-parchment, measured rather than eyeballed. The earlier values sat
+ * around 3.0–4.0, which is a real problem for an app read on a phone in direct
+ * sun — and the darker blaze and moss also fix white-on-blaze buttons and the
+ * white-on-moss vote pill, which were failing as backgrounds.
+ */
 @theme {
   --color-pine: #1f3d2b;
   --color-pinelift: #28402f;
@@ -7,11 +14,15 @@
   --color-card: #fffdf7;
   --color-rule: #ded5be;
   --color-granite: #4a5a64;
-  --color-blaze: #c1652f;
+  --color-blaze: #a9521f; /* 5.28 on card · 5.37 behind white */
+  /* Blaze is unreadable on pine (2.94). The dark bands get this instead. */
+  --color-blazelift: #e09a66; /* 5.10 on pine */
   --color-ink: #23271f;
-  --color-moss: #7c9473;
-  --color-mute: #8a8f82;
+  --color-moss: #5a6e52; /* 5.45 on card · 5.55 behind white */
+  --color-mute: #686e62; /* 5.17 on card · 4.74 on parchment */
   --color-sky: #b9c4b4;
+  /* Row affordances that are icons, not text: 1.4.11 wants 3:1. */
+  --color-faint: #8f8676; /* 3.54 on card */
 
   --font-display: "Fraunces", serif;
   --font-sans: "Work Sans", sans-serif;

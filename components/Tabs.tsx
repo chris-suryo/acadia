@@ -39,6 +39,7 @@ export function Tabs({
           <button
             key={id}
             onClick={() => onChange(id)}
+            aria-current={on ? "page" : undefined}
             className={`flex-1 flex flex-col items-center justify-center gap-1 px-1 pt-2.5 pb-2 bg-transparent border-none cursor-pointer min-h-[56px] ${
               on ? "text-blaze" : "text-mute"
             }`}

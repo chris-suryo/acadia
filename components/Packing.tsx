@@ -277,6 +277,16 @@ export function Packing({
         }}
       >
         <button
+          // The box is decorative (aria-hidden), so the row itself has to say
+          // what it is and whether it's on — otherwise a screen reader reads a
+          // list of labels with no state at all.
+          role="checkbox"
+          aria-checked={!!i.owner_id}
+          aria-label={
+            i.owner_id
+              ? `${i.label} — claimed by ${isMe(i.owner_id) ? "you" : ownerName}`
+              : `${i.label} — unclaimed`
+          }
           onClick={() => {
             if (justDropped.current) return;
             claim(i.id);
@@ -335,6 +345,9 @@ export function Packing({
       }}
     >
       <button
+        role="checkbox"
+        aria-checked={i.checked}
+        aria-label={i.note ? `${i.label} — ${i.note}` : i.label}
         onClick={() => {
           if (justDropped.current) return;
           togglePersonal(i.id);

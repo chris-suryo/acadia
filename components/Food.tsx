@@ -228,7 +228,7 @@ export function Food({
           <button
             aria-label={`Edit ${f.dish}`}
             onClick={() => expand(f)}
-            className="shrink-0 bg-transparent border-none cursor-pointer p-2 text-[#C3BCA8]"
+            className="shrink-0 bg-transparent border-none cursor-pointer p-2 text-faint"
           >
             <Pencil size={14} />
           </button>
@@ -275,7 +275,11 @@ export function Food({
           <div>
             {ings.map((s) => (
               <div key={s.id} className="flex items-center gap-2.5 py-[5px]">
-                <Box on={s.checked} onClick={() => toggleShopping(s.id)} />
+                <Box
+                  on={s.checked}
+                  onClick={() => toggleShopping(s.id)}
+                  label={s.label}
+                />
                 <div
                   className={`flex-1 text-[13.5px] text-ink ${
                     s.checked ? "line-through opacity-50" : ""
@@ -318,7 +322,7 @@ export function Food({
                 showUndo("Deleted", () => restoreDish(snapshot, snapIngs));
               }}
               aria-label="Delete dish"
-              className="bg-transparent border-none cursor-pointer p-2 text-[#C3BCA8]"
+              className="bg-transparent border-none cursor-pointer p-2 text-faint"
             >
               <Trash2 size={16} />
             </button>
@@ -436,6 +440,9 @@ export function Food({
           {rows.map((g) => {
             const row = (
               <button
+                role="checkbox"
+                aria-checked={g.checked}
+                aria-label={`${g.label} — ${g.tag}`}
                 onClick={() => {
                   toggleShopping(g.id);
                   poke(g.id);

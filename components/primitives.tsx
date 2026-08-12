@@ -120,10 +120,14 @@ export function Box({
   on,
   onClick,
   size = 26,
+  label,
 }: {
   on: boolean;
   onClick?: () => void;
   size?: number;
+  /** What this box is for. Only needed when the box is the tap target — when
+   *  the row is, the row carries the name and the state. */
+  label?: string;
 }) {
   const box = { width: size, height: size };
   const check = size >= 24 ? 16 : 14;
@@ -137,7 +141,11 @@ export function Box({
   return (
     <button
       onClick={onClick}
-      aria-pressed={on}
+      // A checkbox, not a toggle button: aria-pressed reads as "on/off" where
+      // this means "packed / not packed".
+      role="checkbox"
+      aria-checked={on}
+      aria-label={label}
       style={box}
       className={`${BOX_CLS(on)} cursor-pointer`}
     >
@@ -151,7 +159,7 @@ export function Kill({ onClick }: { onClick: () => void }) {
     <button
       onClick={onClick}
       aria-label="Delete"
-      className="bg-transparent border-none cursor-pointer p-1.5 text-[#C3BCA8] flex items-center shrink-0"
+      className="bg-transparent border-none cursor-pointer p-1.5 text-faint flex items-center shrink-0"
     >
       <Trash2 size={15} />
     </button>

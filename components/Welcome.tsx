@@ -121,7 +121,7 @@ export function Welcome({ onDone }: { onDone: () => void }) {
       <div className="min-h-[100dvh] bg-pine relative overflow-hidden flex flex-col justify-center px-6 py-10">
         <Topo />
         <div className="relative w-full max-w-[400px] mx-auto">
-          <div className="font-mono text-[11px] tracking-[.12em] text-blaze uppercase mb-2">
+          <div className="font-mono text-[11px] tracking-[.12em] text-blazelift uppercase mb-2">
             Aug 14–16, 2026 · Blackwoods Campground
           </div>
           <h1 className="font-display font-bold text-[clamp(32px,9vw,44px)] text-parchment m-0 leading-[1.05]">
@@ -214,7 +214,7 @@ export function Welcome({ onDone }: { onDone: () => void }) {
       <div className="bg-pine relative overflow-hidden px-[18px] pt-4 pb-3.5">
         <Topo />
         <div className="relative">
-          <div className="font-mono text-[10.5px] tracking-[.12em] text-blaze uppercase mb-1">
+          <div className="font-mono text-[10.5px] tracking-[.12em] text-blazelift uppercase mb-1">
             Hey {name.trim() || "there"}
           </div>
           <h1 className="font-display font-bold text-[22px] text-parchment m-0 leading-[1.1]">

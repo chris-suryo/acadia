@@ -219,7 +219,7 @@ function ExpenseEditor({
           <button
             onClick={onDelete}
             aria-label="Delete expense"
-            className="mr-auto bg-transparent border-none cursor-pointer p-2 text-[#C3BCA8]"
+            className="mr-auto bg-transparent border-none cursor-pointer p-2 text-faint"
           >
             <Trash2 size={16} />
           </button>
@@ -260,6 +260,7 @@ export function Expenses() {
     addMember,
     renameMember,
     deleteMember,
+    restoreMember,
     receipts,
     addReceipt,
     deleteReceipt,
@@ -318,11 +319,21 @@ export function Expenses() {
 
   const commit = () => {
     const id = editing;
-    setEditing(null);
     if (!id) return;
     const cents = parseAmount(draft.amount);
     const desc = draft.description.trim();
     const payer = payerOf(draft);
+
+    // An expense split with nobody never reaches the settle-up: `balances`
+    // skips it, so the payer is silently never paid back while the amount
+    // still counts toward what the group spent. Refuse to write it, and hold
+    // the editor open until someone is picked — the trash can is the way out.
+    if (draft.among.length === 0 && (id !== NEW || desc || cents)) {
+      showNotice("Pick who this was for");
+      return;
+    }
+
+    setEditing(null);
 
     if (id === NEW) {
       // Nothing typed — the add was opened and abandoned, so nothing is written.
@@ -343,7 +354,9 @@ export function Expenses() {
     const row = expenses.find((e) => e.id === id);
     if (!row) return;
     const patch: Parameters<typeof updateExpense>[1] = {};
-    if (desc && desc !== row.description) patch.description = desc;
+    // Compared without a truthiness guard: emptying the field is an edit like
+    // any other, and silently keeping the old text is worse than a blank row.
+    if (desc !== row.description) patch.description = desc;
     if (cents !== null && cents !== row.amount_cents) patch.amount_cents = cents;
     if (payer && payer !== row.payer_id) patch.payer_id = payer;
     if (Object.keys(patch).length) updateExpense(id, patch);
@@ -662,8 +675,11 @@ export function Expenses() {
                     return;
                   }
                   const snap = { ...m };
+                  // Restored under the same id: re-adding by name would mint a
+                  // new one, and the devices the FK just unlinked would stay
+                  // unlinked — one person quietly becoming two.
                   deleteMember(m.id);
-                  showUndo("Removed", () => addMember(snap.name));
+                  showUndo("Removed", () => restoreMember(snap));
                 }}
               >
                 <button

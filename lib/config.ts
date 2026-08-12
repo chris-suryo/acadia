@@ -16,3 +16,13 @@ export const TRIP_DATES: Record<string, string> = {
 };
 
 export const FORECAST_STALE_MS = 2 * 60 * 60 * 1000;
+
+/** How long realtime changes are collected before the tables they touched are
+ *  re-read. Long enough to fold a batched write into one read, short enough
+ *  that another phone's edit still feels live. */
+export const REALTIME_COALESCE_MS = 250;
+
+/** Receipt links are signed rather than public. Long enough to cover the trip
+ *  from any sensible moment before it, so a phone that loaded the tab at home
+ *  still shows its thumbnails at camp. */
+export const RECEIPT_URL_TTL_S = 7 * 24 * 60 * 60;

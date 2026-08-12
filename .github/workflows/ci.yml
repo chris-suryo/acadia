@@ -1,0 +1,48 @@
+# Lint, typecheck, build, and run both test suites on every push.
+#
+# The end-to-end suite runs against a production build in mock mode, so it needs
+# no Supabase credentials and nothing in CI can touch the trip's real data.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm test:unit
+
+      # Browsers aren't in the lockfile, only the driver is.
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - run: NEXT_PUBLIC_DATA_MODE=mock pnpm build
+
+      - name: Start the app and run the UI suite
+        run: |
+          NEXT_PUBLIC_DATA_MODE=mock PORT=3107 pnpm start &
+          npx wait-on http://localhost:3107 --timeout 60000
+          pnpm test:ui
+
+      # The suite screenshots every screen it drives; on a failure those are
+      # usually faster to read than the assertion log.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-screenshots
+          path: /tmp/abc-shots
+          if-no-files-found: ignore
