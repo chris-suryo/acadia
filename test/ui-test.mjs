@@ -220,6 +220,27 @@ const ok = (name, cond, detail = "") => {
   };
   ok("claim progress bar", (await claimed()) === 0, `${await claimed()} claimed at rest`);
   ok("no at-rest trash", (await page.getByLabel("Delete", { exact: true }).count()) === 0);
+
+  // ---- the lens: thirty-nine identical rows answered nobody's question ----
+  // The bar leads with the fourteen that decide whether Friday works, not with
+  // a total nobody has to reach.
+  ok("must-haves lead the bar", await page.locator("main").getByText(/^\d+ of 14 must-haves covered$/).isVisible());
+  ok("marked in the list too", (await page.locator("main").getByText("must-have", { exact: true }).count()) > 0);
+  ok("opens on the work", await page.getByRole("button", { name: /^Unclaimed 39$/ }).getAttribute("aria-pressed") === "true");
+  ok("all four lenses fit without clipping",
+    await page.locator("main div.overflow-x-auto").first()
+      .evaluate((el) => el.scrollWidth <= el.clientWidth));
+  await page.getByRole("button", { name: /^Must-haves/ }).click();
+  await page.waitForTimeout(250);
+  const mustRows = await page.locator("main").getByRole("checkbox").count();
+  ok("must-haves narrows to fourteen", mustRows === 14, `${mustRows} rows`);
+  ok("no marker where every row has it", (await page.locator("main").getByText("must-have", { exact: true }).count()) === 0);
+  ok("empty categories drop their heading", (await page.locator("main").getByText("Dogs", { exact: true }).count()) === 0);
+  await page.getByRole("button", { name: /^Yours/ }).click();
+  await page.waitForTimeout(250);
+  ok("an empty lens says so", await page.getByText(/Nothing claimed yet/).isVisible());
+  await page.getByRole("button", { name: /^Unclaimed/ }).click();
+  await page.waitForTimeout(250);
   await page.screenshot({ path: `${SHOT_DIR}/4-packing-group.png`, fullPage: true });
 
   // whole-row tap with no name -> bottom sheet, action completes after Continue
@@ -235,6 +256,10 @@ const ok = (name, cond, detail = "") => {
   await page.getByRole("button", { name: "I'm Chris" }).click();
   await page.waitForTimeout(400);
   ok("gated action completed", (await claimed()) === 1);
+  ok(
+    "a claimed row holds its place instead of vanishing",
+    await page.getByText("Tarp or canopy").isVisible(),
+  );
   ok("claim shows owner name", await page.locator("main").getByText("Chris", { exact: true }).first().isVisible());
   ok("header shows the name", await page.locator("header").getByText("Chris", { exact: true }).isVisible());
   ok("header monogram", await page.locator("header").getByText("C", { exact: true }).isVisible());
@@ -259,6 +284,12 @@ const ok = (name, cond, detail = "") => {
   ok("parent unclaim cascades", (await claimed()) === 0);
 
   // ghost add per category (pre-filled category, no select)
+  // Both of these rewrite the whole list, so they live in the unfiltered view —
+  // a drop inside a filter would renumber the rows you can see and scramble
+  // the ones you can't.
+  ok("no ghost add under a filter", (await page.getByRole("button", { name: "Add", exact: true }).count()) === 0);
+  await page.getByRole("button", { name: /^All / }).click();
+  await page.waitForTimeout(250);
   ok("no category selects", (await page.locator("select").count()) === 0);
   await page.getByRole("button", { name: "Add", exact: true }).first().click();
   await page.keyboard.type("Bug net canopy");
@@ -297,6 +328,11 @@ const ok = (name, cond, detail = "") => {
   await page.getByRole("button", { name: "My list" }).click();
   await page.waitForTimeout(300);
   ok("privacy line", await page.getByText("only visible to you").isVisible());
+  // Same treatment on the personal side: nine of the thirty-six are the ones
+  // you'd actually regret, and the list opens on what's left to do.
+  ok("personal must-haves counted", await page.getByRole("button", { name: /^Must-haves 9$/ }).isVisible());
+  ok("personal list opens on the work",
+    await page.getByRole("button", { name: /^To pack / }).getAttribute("aria-pressed") === "true");
   const packedLine = async () =>
     await page.locator("main").getByText(/^\d+ of \d+ packed$/).first().innerText();
   const listSize = parseInt((await packedLine()).split(" of ")[1], 10);
@@ -304,9 +340,15 @@ const ok = (name, cond, detail = "") => {
   await page.getByText("Sleeping bag", { exact: true }).click();
   await page.waitForTimeout(250);
   ok("row tap checks item", (await packedLine()) === `1 of ${listSize} packed`, await packedLine());
+  ok(
+    "a ticked row holds its place instead of vanishing",
+    await page.getByText("Sleeping bag", { exact: true }).isVisible(),
+  );
   await page.screenshot({ path: `${SHOT_DIR}/6-packing-mine.png`, fullPage: true });
 
   // checked item sinks to the bottom of its section after ~1s
+  await page.getByRole("button", { name: /^All / }).click();
+  await page.waitForTimeout(250);
   const sleepCard = page.locator("div.mb-5").filter({ has: page.getByText("Sleep", { exact: true }) });
   await page.waitForTimeout(1400);
   const sleepTexts = await sleepCard.locator("button").allTextContents();

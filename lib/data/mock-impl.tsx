@@ -98,6 +98,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       label: g.label,
       owner_id: null,
       sort: g.sort,
+      essential: !!g.essential,
     }));
   });
   const [personal, setPersonal] = useState<PersonalItem[]>(() =>
@@ -107,6 +108,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       parent_id: null,
       checked: false,
       ...p,
+      essential: !!p.essential,
     })),
   );
   const [menuVotes, setMenuVotes] = useState<MenuVote[]>([]);
@@ -276,6 +278,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
             label,
             owner_id: null,
             sort: nextSort(prev.filter((g) => g.category === category)),
+            essential: false,
           },
         ]),
       deleteGear: (id) => setGear((prev) => prev.filter((g) => g.id !== id && g.parent_id !== id)),
@@ -319,6 +322,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
             note: "",
             checked: false,
             sort: nextSort(prev.filter((p) => p.category === category)),
+            essential: false,
           },
         ]),
       deletePersonal: (id) =>

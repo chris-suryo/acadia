@@ -832,6 +832,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         label,
         owner_id: null,
         sort: nextSort(gear.filter((g) => g.category === category)),
+        // Matches the column default — the fourteen are set in migration 0024,
+        // and anything typed in afterwards is the group's own addition.
+        essential: false,
       };
       setGear((prev) => [...prev, row]);
       persist(supabase.from("gear_items").insert(row), "gear_items");
@@ -895,6 +898,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         note: "",
         checked: false,
         sort: nextSort(personal.filter((p) => p.category === category)),
+        essential: false,
       };
       setPersonal((prev) => [...prev, row]);
       persist(supabase.from("personal_items").insert(row), "personal_items");

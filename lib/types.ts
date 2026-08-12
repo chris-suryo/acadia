@@ -58,6 +58,8 @@ export type GearItem = {
   label: string;
   owner_id: string | null;
   sort: number;
+  /** Would you drive back to Ellsworth for it? Fourteen of thirty-nine. */
+  essential: boolean;
 };
 
 export type PersonalItem = {
@@ -69,6 +71,8 @@ export type PersonalItem = {
   note: string;
   checked: boolean;
   sort: number;
+  /** Not "important" — "you will regret this on Saturday morning". */
+  essential: boolean;
 };
 
 export type MenuItem = {
