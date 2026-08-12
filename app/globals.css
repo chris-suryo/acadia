@@ -83,6 +83,13 @@ select {
   }
 }
 
+/* The intro cross-fades between its two steps on a shared background, so the
+   only thing that appears to move is the content. */
+@keyframes fadein {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;

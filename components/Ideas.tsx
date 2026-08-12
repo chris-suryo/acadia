@@ -16,7 +16,7 @@ import {
   SURVEY_PLACEHOLDERS,
   VIBE_CHIPS,
   splitVibes,
-} from "./Welcome";
+} from "@/lib/survey";
 import { useData } from "@/lib/data/context";
 import type { SurveyRow } from "@/lib/types";
 

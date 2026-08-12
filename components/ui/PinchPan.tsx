@@ -136,12 +136,16 @@ export function PinchSurface({
   surface,
   handlers,
   className = "",
+  style,
   children,
 }: {
   t: Transform;
   surface: React.RefObject<HTMLDivElement | null>;
   handlers: React.ComponentProps<"div">;
   className?: string;
+  /** Sizing the parent can't express in a class — the crop frame is measured
+   *  in px so `save()` can divide by it. */
+  style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
   return (
@@ -149,7 +153,7 @@ export function PinchSurface({
       ref={surface}
       {...handlers}
       className={`relative overflow-hidden ${className}`}
-      style={{ touchAction: "none" }}
+      style={{ touchAction: "none", ...style }}
     >
       <div
         className="w-full h-full"

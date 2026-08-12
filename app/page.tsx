@@ -12,7 +12,7 @@ import { Packing } from "@/components/Packing";
 import { Food } from "@/components/Food";
 import { Expenses } from "@/components/Expenses";
 import { Explore } from "@/components/Explore";
-import { Welcome } from "@/components/Welcome";
+import { IntroField, IntroMasthead, Welcome } from "@/components/Welcome";
 import { ServiceWorker } from "@/components/ServiceWorker";
 
 function Shell() {
@@ -114,7 +114,19 @@ function Shell() {
     setTab("explore");
   };
 
-  if (showWelcome && ready && !error) {
+  // Until the data layer answers we can't know whether this is a first open, so
+  // the shell would otherwise paint first — header, spinner, and a tab bar
+  // nobody can use — and then hard-swap to the full-bleed intro. Hold the same
+  // pine field the intro opens on instead, and the hand-off is silent.
+  if (!ready && !error) {
+    return (
+      <IntroField>
+        <IntroMasthead />
+      </IntroField>
+    );
+  }
+
+  if (showWelcome && !error) {
     return (
       <Welcome
         onDone={() => {

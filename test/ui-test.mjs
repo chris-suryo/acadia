@@ -311,6 +311,11 @@ const ok = (name, cond, detail = "") => {
   await page.getByRole("button", { name: "Swimming" }).click();
   await page.waitForTimeout(150);
   await page.getByRole("button", { name: "Wander, no plan" }).click();
+  await page.waitForTimeout(200);
+  // `bar_harbor` — camping experience — was only ever exercised through the
+  // intro questionnaire, so removing that left the column with no coverage at
+  // all. The Ideas editor is its only home now.
+  await page.getByRole("button", { name: "First timer" }).click();
   await page.waitForTimeout(150);
   await page.getByPlaceholder("s'mores night, a dish, allergies…").fill("Breakfast burritos");
   await page.getByPlaceholder("anything you're hoping to do or see…").fill("Great Head sunrise");
@@ -320,6 +325,7 @@ const ok = (name, cond, detail = "") => {
   ok("vibes saved to card", await page.getByText("A big hike · Swimming", { exact: true }).isVisible());
   ok("idea card saved on tap-away", await page.getByText("Great Head sunrise").isVisible());
   ok("pace chips on cards", (await page.getByText("Wander, no plan").count()) === 1 && (await page.getByText("One good hike").count()) === 1, "mine + Alana");
+  ok("camped-before saves from ideas", await page.getByText("First timer").isVisible());
   ok("vibe tally", await page.getByText(/a big hike \u00d72/).isVisible());
   ok("ideas editor closed", (await page.locator('input[placeholder*="allergies"]').count()) === 0);
 
@@ -684,13 +690,13 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(250);
   await page.getByText("replay the intro").click();
   await page.waitForTimeout(300);
-  ok("replay shows intro", await page.getByText("Which one are you?").isVisible());
+  ok("replay shows intro", await page.getByText("TAP YOUR NAME").isVisible());
   await page.getByText("skip for now").click();
   await page.waitForTimeout(300);
   ok("replay exits to app", await page.getByRole("heading", { name: "Acadia Base Camp" }).isVisible());
   await page.goto(BASE + "/?welcome=1", { waitUntil: "networkidle" });
   await page.waitForTimeout(700);
-  ok("welcome=1 forces intro", await page.getByText("Which one are you?").isVisible());
+  ok("welcome=1 forces intro", await page.getByText("TAP YOUR NAME").isVisible());
   const man = await page.request.get(BASE + "/manifest.webmanifest");
   ok("manifest served", man.status() === 200 && (await man.json()).name === "Acadia Base Camp");
   const ai = await page.request.get(BASE + "/apple-icon.png");
@@ -701,61 +707,60 @@ const ok = (name, cond, detail = "") => {
   const p2 = await ctx2.newPage();
   await p2.goto(BASE, { waitUntil: "networkidle" });
   await p2.waitForTimeout(1200);
-  ok("welcome shows on first visit", await p2.getByText("Which one are you?").isVisible());
+  ok("welcome shows on first visit", await p2.getByText("TAP YOUR NAME").isVisible());
   await p2.screenshot({ path: `${SHOT_DIR}/11-welcome.png` });
+  // Chris: the first screen is the trip's name, when and where, and which of us
+  // you are. Everything that used to sit around that is gone.
   ok("intro leads with the roster", (await p2.getByRole("button", { name: /^I'm / }).count()) === 11);
+  ok("no party count line", (await p2.getByText(/of us · 2 sites/).count()) === 0);
+  ok("no photo circle on screen one", (await p2.getByLabel("Add a photo").count()) === 0);
+  ok("no questionnaire behind it", (await p2.getByText("What kind of weekend?").count()) === 0);
+  // The list is the whole party, so typing is the exception behind a link.
+  ok("typing is behind a link", (await p2.getByPlaceholder("Your name").count()) === 0);
   await p2.getByRole("button", { name: "not on the list?" }).click();
   await p2.waitForTimeout(250);
   await p2.getByRole("button", { name: "Continue" }).click();
   await p2.waitForTimeout(200);
-  ok("continue blocked without name", await p2.getByText("Which one are you?").isVisible());
-  await p2.getByLabel("Add a photo").click();
-  await p2.waitForTimeout(300);
-  ok("avatar editor opens", await p2.getByText("choose a photo").isVisible());
+  ok("continue blocked without name", await p2.getByText("TAP YOUR NAME").count() === 0 &&
+    (await p2.getByPlaceholder("Your name").count()) === 1, "still on the text field");
+  await p2.getByPlaceholder("Your name").fill("Robin");
+  await p2.getByRole("button", { name: "Continue" }).click();
+  await p2.waitForTimeout(400);
+
+  // Step two is the photo, and nothing else.
+  ok("name lands on the photo step", await p2.getByRole("heading", { name: "Add a photo" }).isVisible());
+  ok("greets by name", await p2.getByText("Hey Robin").isVisible());
+  await p2.screenshot({ path: `${SHOT_DIR}/12-photo.png` });
   await p2.setInputFiles('input[type="file"]', { name: "me.jpg", mimeType: "image/jpeg", buffer: TINY_JPEG });
   await p2.waitForTimeout(400);
   ok("crop frame appears", await p2.getByText("pinch and drag to frame it").isVisible());
   await p2.getByRole("button", { name: "Save" }).click();
-  await p2.waitForTimeout(500);
-  ok("avatar saved to intro circle", (await p2.locator('button[aria-label="Add a photo"] img').count()) === 1);
-  await p2.getByPlaceholder("Your name").fill("Robin");
-  await p2.getByRole("button", { name: "Continue" }).click();
-  await p2.waitForTimeout(300);
-  ok("questionnaire step", await p2.getByText("What kind of weekend?").isVisible());
-  ok("greets by name", await p2.getByText("Hey Robin").isVisible());
-  await p2.getByRole("button", { name: "A big hike" }).click();
-  await p2.getByRole("button", { name: "Up early, do it all" }).click();
-  await p2.getByPlaceholder("anything you're hoping to do or see…").fill("Precipice at dawn");
-  await p2.screenshot({ path: `${SHOT_DIR}/12-questionnaire.png`, fullPage: true });
-  await p2.getByRole("button", { name: "Done", exact: true }).click();
-  await p2.waitForTimeout(500);
-  ok("done lands in app", await p2.getByRole("heading", { name: "Acadia Base Camp" }).isVisible());
+  await p2.waitForTimeout(700);
+  ok("save lands in app", await p2.getByRole("heading", { name: "Acadia Base Camp" }).isVisible());
   ok("name saved — header shows it", await p2.locator("header").getByText("Robin", { exact: true }).isVisible());
   ok("header shows avatar", (await p2.locator("header img").count()) === 1);
-  ok("questionnaire landed on ideas", await p2.getByText("Precipice at dawn").isVisible());
-  ok("idea card avatar", (await p2.locator('img[src^="blob:"]').count()) >= 2, "header + card");
 
-  // replay is non-destructive: prefilled name + survey, Done keeps answers
+  // The questions moved to the Ideas board, which already edits all five.
+  ok("ideas board invites the answers", await p2.getByRole("button", { name: "Add yours" }).isVisible());
+
+  // A replay is for changing your mind, not introducing yourself.
   await p2.getByRole("button", { name: "Explore" }).click();
   await p2.waitForTimeout(300);
   await p2.getByRole("button", { name: "Info", exact: true }).click();
   await p2.waitForTimeout(250);
   await p2.getByText("replay the intro").click();
-  await p2.waitForTimeout(300);
+  await p2.waitForTimeout(400);
   ok("replay prefills name", (await p2.getByPlaceholder("Your name").inputValue()) === "Robin");
+  ok("replay offers the list too", await p2.getByRole("button", { name: "back to the list" }).isVisible());
   await p2.getByRole("button", { name: "Continue" }).click();
-  await p2.waitForTimeout(300);
-  ok("replay prefills survey", (await p2.getByPlaceholder("anything you're hoping to do or see…").inputValue()) === "Precipice at dawn");
-  ok("replay keeps vibe chips", (await p2.getByRole("button", { name: "A big hike" }).getAttribute("aria-pressed")) === "true");
-  await p2.getByRole("button", { name: "Done", exact: true }).click();
-  await p2.waitForTimeout(300);
-  await p2.getByRole("button", { name: "Itinerary" }).click();
-  await p2.waitForTimeout(300);
-  ok("replay done keeps answers", await p2.getByText("Precipice at dawn").isVisible());
+  await p2.waitForTimeout(400);
+  await p2.getByText("skip", { exact: true }).click();
+  await p2.waitForTimeout(400);
+  ok("replay exits without touching the photo", (await p2.locator("header img").count()) === 1);
 
   await p2.reload({ waitUntil: "networkidle" });
-  await p2.waitForTimeout(700);
-  ok("welcome not shown again", (await p2.getByText("Which one are you?").count()) === 0);
+  await p2.waitForTimeout(900);
+  ok("welcome not shown again", (await p2.getByText("TAP YOUR NAME").count()) === 0);
   await ctx2.close();
 
   // skip path

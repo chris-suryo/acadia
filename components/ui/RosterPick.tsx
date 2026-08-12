@@ -85,7 +85,7 @@ export function RosterPick({
               onClick={() => (taken ? setConfirming(m) : onPick(m.id))}
               // Taken names have to read as taken at a glance, or the
               // difference looks like a rendering glitch rather than a fact.
-              className={`flex items-center gap-1.5 pl-1 pr-2.5 py-1 min-h-[38px] rounded-full border cursor-pointer text-[13px] ${
+              className={`flex items-center gap-2 pl-1 pr-3 py-1 min-h-[44px] rounded-full border cursor-pointer text-[14px] transition-opacity ${
                 taken ? "opacity-45 " : ""
               }${
                 dark
@@ -95,8 +95,8 @@ export function RosterPick({
                     : "border-moss bg-[#E9EEE4] text-ink"
               }`}
             >
-              <Avatar userId={m.id} url={memberAvatars[m.id]} name={m.name} size={22} />
-              <span className="truncate max-w-[104px]">{m.name}</span>
+              <Avatar userId={m.id} url={memberAvatars[m.id]} name={m.name} size={30} />
+              <span className="truncate max-w-[110px]">{m.name}</span>
             </button>
           );
         })}

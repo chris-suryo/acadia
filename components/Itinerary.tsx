@@ -33,7 +33,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Btn, Card, SubH } from "./primitives";
 import { Ideas } from "./Ideas";
 import { MapOverlay, useMapPrefetch } from "./MapLightbox";
-import { splitVibes } from "./Welcome";
+import { splitVibes } from "@/lib/survey";
 import { Difficulty } from "./ui/Difficulty";
 import { TRIP_DATES } from "@/lib/config";
 import { CAMP_NOTES, EATS, SPOTS } from "@/lib/content";
