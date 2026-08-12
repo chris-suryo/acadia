@@ -22,7 +22,7 @@ export type BlockPatch = Partial<
 >;
 
 export type DishPatch = Partial<
-  Pick<MenuItem, "dish" | "meal" | "notes" | "night" | "picked">
+  Pick<MenuItem, "dish" | "meal" | "notes" | "night" | "veg">
 >;
 
 export type SurveyPatch = Partial<

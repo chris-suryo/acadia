@@ -68,7 +68,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   );
   const [menuVotes, setMenuVotes] = useState<MenuVote[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>(() =>
-    SEED_MENU.map((m, i) => ({ id: `menu-${i}`, added_by: null, picked: m.dish === "Tacos", ...m })),
+    SEED_MENU.map((m, i) => ({ id: `menu-${i}`, added_by: null, ...m })),
   );
   const [shopping, setShopping] = useState<ShoppingItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -212,10 +212,12 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
         const id = newId();
         setMenu((prev) => [
           ...prev,
-          { id, night, meal, dish, notes, added_by: ME, picked: false, sort: nextSort(prev) },
+          { id, night, meal, dish, notes, added_by: ME, veg: false, sort: nextSort(prev) },
         ]);
         return id;
       },
+      // Mirrors the supabase impl: the decision comes from the freshest state
+      // inside the updater, so a double tap can't add the same vote twice.
       toggleVote: (menuItemId) =>
         setMenuVotes((prev) =>
           prev.some((v) => v.menu_item_id === menuItemId && v.user_id === ME)

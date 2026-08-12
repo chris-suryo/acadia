@@ -10,6 +10,7 @@ import { Tabs, type TabId } from "@/components/Tabs";
 import { Itinerary } from "@/components/Itinerary";
 import { Packing } from "@/components/Packing";
 import { Food } from "@/components/Food";
+import { Expenses } from "@/components/Expenses";
 import { Explore } from "@/components/Explore";
 import { Welcome } from "@/components/Welcome";
 import { ServiceWorker } from "@/components/ServiceWorker";
@@ -49,8 +50,9 @@ function Shell() {
     const timer = setTimeout(() => {
       const pv = sessionStorage.getItem("abc.packView");
       if (pv) setPackViewState(pv);
+      // "money" was a Food segment before Expenses became its own tab.
       const fv = sessionStorage.getItem("abc.foodView");
-      if (fv) setFoodViewState(fv);
+      if (fv && fv !== "money") setFoodViewState(fv);
       const ev = sessionStorage.getItem("abc.exploreView");
       if (ev) setExploreViewState(ev);
     }, 0);
@@ -140,6 +142,7 @@ function Shell() {
             {tab === "itinerary" && <Itinerary jump={jump} />}
             {tab === "packing" && <Packing view={packView} setView={setPackView} />}
             {tab === "food" && <Food view={foodView} setView={setFoodView} />}
+            {tab === "expenses" && <Expenses />}
             {tab === "explore" && (
               <Explore
                 highlight={highlight}

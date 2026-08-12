@@ -4,16 +4,21 @@ import {
   Backpack,
   Compass,
   Map as MapIcon,
+  Receipt,
   UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
 
-export type TabId = "itinerary" | "packing" | "food" | "explore";
+export type TabId = "itinerary" | "packing" | "food" | "expenses" | "explore";
 
 const TABS: { id: TabId; label: string; Icon: LucideIcon }[] = [
   { id: "itinerary", label: "Itinerary", Icon: Compass },
   { id: "packing", label: "Packing", Icon: Backpack },
   { id: "food", label: "Food", Icon: UtensilsCrossed },
+  // Settling up is a different job from planning meals, so it stopped being
+  // a segment inside Food. Five tabs get 78px each at 390px; the longest
+  // label measures about 50px, so nothing truncates.
+  { id: "expenses", label: "Expenses", Icon: Receipt },
   { id: "explore", label: "Explore", Icon: MapIcon },
 ];
 

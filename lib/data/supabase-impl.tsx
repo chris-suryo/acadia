@@ -79,6 +79,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [personal, setPersonal] = useState<PersonalItem[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [menuVotes, setMenuVotes] = useState<MenuVote[]>([]);
+  const votesRef = useRef<MenuVote[]>([]);
   const [shopping, setShopping] = useState<ShoppingItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [surveys, setSurveys] = useState<SurveyRow[]>([]);
@@ -146,6 +147,12 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   // Fire a write; on failure, notify, log, and re-sync the table so the
   // optimistic change reverts.
   const { showNotice } = useUi();
+  // toggleVote reads this instead of its render closure, so two quick taps
+  // can't both decide "not voted yet" and both insert.
+  useEffect(() => {
+    votesRef.current = menuVotes;
+  }, [menuVotes]);
+
   const persist = useCallback(
     (write: PromiseLike<{ error: unknown }>, table: Table) => {
       const fail = (err: unknown) => {
@@ -559,14 +566,21 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     toggleVote: (menuItemId) => {
       const uid = userIdRef.current;
       if (!uid) return;
-      const has = menuVotes.some(
+      // Read the ref, not the render closure. Two quick taps — or one queued
+      // behind the name sheet — used to both read "not voted yet" and both
+      // INSERT, and the second collided with the composite primary key. That
+      // surfaced as "Couldn't save — retry" and the recovery refetch threw the
+      // vote away.
+      const has = votesRef.current.some(
         (v) => v.menu_item_id === menuItemId && v.user_id === uid,
       );
       // Optimistic: a vote should land under your thumb, not after a round trip.
       setMenuVotes((prev) =>
         has
           ? prev.filter((v) => !(v.menu_item_id === menuItemId && v.user_id === uid))
-          : [...prev, { menu_item_id: menuItemId, user_id: uid }],
+          : prev.some((v) => v.menu_item_id === menuItemId && v.user_id === uid)
+            ? prev
+            : [...prev, { menu_item_id: menuItemId, user_id: uid }],
       );
       persist(
         has
@@ -575,9 +589,12 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
               .delete()
               .eq("menu_item_id", menuItemId)
               .eq("user_id", uid)
-          : supabase
-              .from("menu_votes")
-              .insert({ menu_item_id: menuItemId, user_id: uid }),
+          : // Idempotent by design: if the row is somehow already there, this
+            // is a no-op instead of a red banner.
+            supabase.from("menu_votes").upsert(
+              { menu_item_id: menuItemId, user_id: uid },
+              { onConflict: "menu_item_id,user_id", ignoreDuplicates: true },
+            ),
         "menu_votes",
       );
     },
@@ -590,7 +607,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         dish,
         notes,
         added_by: userIdRef.current,
-        picked: false,
+        veg: false,
         sort: nextSort(menu),
       };
       setMenu((prev) => [...prev, row]);

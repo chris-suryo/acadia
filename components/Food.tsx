@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ChevronDown, Plus, ThumbsUp, Trash2 } from "lucide-react";
-import { Box, Btn, Card, Input, Kill, Segmented, SubH } from "./primitives";
+import { Pencil, ThumbsUp, Trash2 } from "lucide-react";
+import { Box, Btn, Card, Kill, Segmented, SubH } from "./primitives";
 import { Avatar } from "./ui/Avatar";
 import { AddRow } from "./ui/AddRow";
 import { Chips } from "./ui/Chips";
@@ -13,73 +13,10 @@ import { useSink, vtName } from "./ui/useSink";
 import { useUi } from "./ui/UiProvider";
 import { useData } from "@/lib/data/context";
 import { MEALS, NIGHTS } from "@/lib/seeds";
-import { PARTY_SIZE } from "@/lib/config";
 import type { MenuItem, ShoppingItem } from "@/lib/types";
 import { AISLES, aisleOf } from "@/lib/aisle";
 
 const MEAL_CHIPS = MEALS.map((m) => ({ value: m, label: m }));
-
-function ExpenseAdd({ onCommit }: { onCommit: (desc: string, cents: number) => void }) {
-  const [open, setOpen] = useState(false);
-  const [desc, setDesc] = useState("");
-  const [amt, setAmt] = useState("");
-
-  const commit = () => {
-    const a = parseFloat(amt);
-    if (!desc.trim() || isNaN(a) || a < 0) return;
-    onCommit(desc.trim(), Math.round(a * 100));
-    setDesc("");
-    setAmt("");
-    setOpen(false);
-  };
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 w-full text-left bg-transparent border-none cursor-pointer text-granite text-[13px] px-3.5 py-[11px] min-h-[44px]"
-      >
-        <Plus size={14} /> Add
-      </button>
-    );
-  }
-
-  return (
-    <div
-      className="flex gap-2 px-3.5 py-2"
-      onBlur={(e) => {
-        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-        if (!desc.trim() && !amt.trim()) setOpen(false);
-        else commit();
-      }}
-    >
-      <Input
-        autoFocus
-        value={desc}
-        onChange={(e) => setDesc(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") commit();
-          if (e.key === "Escape") setOpen(false);
-        }}
-        placeholder="What you bought"
-        enterKeyHint="next"
-        className="min-h-[42px] p-2.5"
-      />
-      <Input
-        value={amt}
-        onChange={(e) => setAmt(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") commit();
-          if (e.key === "Escape") setOpen(false);
-        }}
-        placeholder="0.00"
-        inputMode="decimal"
-        enterKeyHint="done"
-        className="w-24 min-h-[42px] p-2.5"
-      />
-    </div>
-  );
-}
 
 export function Food({
   view,
@@ -93,7 +30,6 @@ export function Food({
     menuVotes,
     toggleVote,
     shopping,
-    expenses,
     surveys,
     profiles,
     userId,
@@ -107,9 +43,6 @@ export function Food({
     toggleShopping,
     deleteShopping,
     restoreShopping,
-    addExpense,
-    deleteExpense,
-    restoreExpense,
   } = useData();
   const { showUndo } = useUi();
   const { poke, sink } = useSink();
@@ -149,6 +82,21 @@ export function Food({
     menuVotes.filter((v) => v.menu_item_id === menuItemId).map((v) => v.user_id);
   const voteCount = (menuItemId: string) =>
     menuVotes.reduce((n, v) => (v.menu_item_id === menuItemId ? n + 1 : n), 0);
+
+  // Nobody locks the menu in by hand: whichever dish leads its meal is the
+  // plan, and a tie marks both. Silent until at least one vote exists, so an
+  // untouched list doesn't crown an arbitrary row.
+  const leading = new Set<string>();
+  for (const night of new Set(menu.map((m) => m.night))) {
+    for (const meal of new Set(
+      menu.filter((m) => m.night === night).map((m) => m.meal),
+    )) {
+      const inSlot = menu.filter((m) => m.night === night && m.meal === meal);
+      const top = Math.max(...inSlot.map((m) => voteCount(m.id)));
+      if (top > 0)
+        for (const m of inSlot) if (voteCount(m.id) === top) leading.add(m.id);
+    }
+  }
 
   const menuByNight = (n: string) =>
     menu.filter((m) => m.night === n).sort((a, b) => a.sort - b.sort);
@@ -197,15 +145,6 @@ export function Food({
     rows: sunkStoreRows.filter((r) => aisleOf(r.label) === aisle),
   })).filter((g) => g.rows.length > 0);
   const storeLeft = shopping.filter((s) => !s.checked).length;
-  const myPaid = expenses
-    .filter((e) => e.user_id === userId)
-    .reduce((s, e) => s + e.amount_cents, 0);
-
-  const total = expenses.reduce((s, e) => s + e.amount_cents, 0);
-  const sortedExpenses = [...expenses].sort((a, b) =>
-    a.created_at.localeCompare(b.created_at),
-  );
-
   // Questionnaire food answers surface here — the menu is where they get acted on.
   const requests = surveys
     .filter((s) => s.food.trim())
@@ -218,25 +157,20 @@ export function Food({
 
   const dishRow = (f: MenuItem) => {
     const ings = ingredientsOf(f.id);
-    const who = f.added_by ? profiles[f.added_by]?.trim() : "";
-    // The meal is a section heading now, so it's dropped from the metadata.
-    const metadata = [
-      who ? `suggested by ${who}` : "",
-      ings.length > 0
-        ? `${ings.filter((i) => i.checked).length}/${ings.length} ingredients`
-        : "",
-    ].filter(Boolean);
-
     if (expandedId !== f.id) {
       const voters = votersOf(f.id);
       const mine = voters.includes(userId);
       return (
         <div
           key={f.id}
-          className="flex items-center gap-2 pr-3 border-b border-rule"
+          className="flex items-center gap-1 pr-1.5 border-b border-rule"
         >
+          {/* The whole row votes. Voting is what this list is for, so it gets
+              the big target; editing moved behind the pencil. */}
           <button
-            onClick={() => expand(f)}
+            aria-label={mine ? `Remove your vote for ${f.dish}` : `Vote for ${f.dish}`}
+            aria-pressed={mine}
+            onClick={() => ensureName(() => toggleVote(f.id))}
             className="flex-1 min-w-0 text-left bg-transparent border-none cursor-pointer flex items-center gap-2.5 pl-3.5 py-3"
           >
             <span className="flex-1 min-w-0">
@@ -244,20 +178,20 @@ export function Food({
                 <span className="text-[14.5px] text-ink font-medium truncate">
                   {f.dish}
                 </span>
-                {f.picked && (
+                {f.veg && (
+                  <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[.08em] text-moss border border-moss rounded-full px-1.5 py-[1px]">
+                    veg
+                  </span>
+                )}
+                {leading.has(f.id) && (
                   <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[.08em] text-white bg-moss rounded-full px-1.5 py-[1px]">
-                    on the menu
+                    leading
                   </span>
                 )}
               </span>
-              {f.notes.trim() && (
-                <span className="block text-[11.5px] text-mute mt-0.5 leading-[1.4]">
-                  {f.notes}
-                </span>
-              )}
-              {(metadata.length > 0 || voters.length > 0) && (
+              {voters.length > 0 && (
                 <span className="flex items-center gap-1.5 mt-[3px]">
-                  {voters.slice(0, 5).map((v) => (
+                  {voters.slice(0, 6).map((v) => (
                     <Avatar
                       key={v}
                       userId={v}
@@ -265,34 +199,31 @@ export function Food({
                       size={17}
                     />
                   ))}
-                  {metadata.length > 0 && (
-                    <span className="font-mono text-[10.5px] text-mute truncate">
-                      {metadata.join(" · ")}
-                    </span>
-                  )}
                 </span>
               )}
             </span>
-            <ChevronDown size={15} className="text-mute shrink-0" />
+            <span
+              className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-1 font-mono text-[11px] ${
+                mine
+                  ? "bg-moss border-moss text-white"
+                  : "bg-transparent border-rule text-granite"
+              }`}
+            >
+              <ThumbsUp size={12} />
+              {voters.length}
+            </span>
           </button>
-          {/* Voting is the point of this list, so it gets its own target
-              rather than hiding inside the row's expand-to-edit tap. */}
           <button
-            aria-label={mine ? `Remove your vote for ${f.dish}` : `Vote for ${f.dish}`}
-            aria-pressed={mine}
-            onClick={() => ensureName(() => toggleVote(f.id))}
-            className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-1 cursor-pointer font-mono text-[11px] ${
-              mine
-                ? "bg-moss border-moss text-white"
-                : "bg-transparent border-rule text-granite"
-            }`}
+            aria-label={`Edit ${f.dish}`}
+            onClick={() => expand(f)}
+            className="shrink-0 bg-transparent border-none cursor-pointer p-2 text-[#C3BCA8]"
           >
-            <ThumbsUp size={12} />
-            {voters.length}
+            <Pencil size={14} />
           </button>
         </div>
       );
     }
+
 
     return (
       <div
@@ -352,17 +283,19 @@ export function Food({
             </div>
           </div>
           <div className="flex items-center justify-end gap-1">
-            {/* Votes are the signal; this is the decision the shopping list
-                can be built against. */}
+            {/* Nothing decides the menu by hand any more — the most-voted
+                dish in a meal reads as leading. This just marks a dish
+                someone adds as vegetarian. */}
             <button
-              onClick={() => updateDish(f.id, { picked: !f.picked })}
+              onClick={() => updateDish(f.id, { veg: !f.veg })}
+              aria-pressed={f.veg}
               className={`mr-auto rounded-full border px-2.5 py-1 cursor-pointer font-mono text-[11px] ${
-                f.picked
+                f.veg
                   ? "bg-moss border-moss text-white"
                   : "bg-transparent border-rule text-granite"
               }`}
             >
-              {f.picked ? "on the menu" : "put on the menu"}
+              vegetarian
             </button>
             <button
               onClick={() => {
@@ -394,7 +327,6 @@ export function Food({
         options={[
           { id: "menu", label: "Menu" },
           { id: "shop", label: storeLeft > 0 ? `Store · ${storeLeft} left` : "Store" },
-          { id: "money", label: "Expenses" },
         ]}
       />
       {view === "menu" && (
@@ -446,13 +378,9 @@ export function Food({
                         .filter((r) => r.meal === m)
                         // Most-wanted first — the list should say what we're
                         // having, not what happened to be typed first.
-                        // Locked-in dishes head their meal, then the
-                        // most-wanted candidates.
                         .sort(
                           (a, b) =>
-                            Number(b.picked) - Number(a.picked) ||
-                            voteCount(b.id) - voteCount(a.id) ||
-                            a.sort - b.sort,
+                            voteCount(b.id) - voteCount(a.id) || a.sort - b.sort,
                         )
                         .map((f) => dishRow(f))}
                     </div>
@@ -570,73 +498,6 @@ export function Food({
         </>
       )}
 
-      {view === "money" && (
-        <>
-          <Card className="overflow-hidden">
-            {sortedExpenses.length === 0 && (
-              <div className="p-5 text-[13.5px] text-mute text-center border-b border-rule">
-                No expenses logged.
-              </div>
-            )}
-            {sortedExpenses.map((e) => {
-              const who = profiles[e.user_id]?.trim() || "";
-              const row = (
-                <div className="flex items-center gap-2.5 px-3.5 py-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[14px] text-ink">{e.description}</div>
-                    {who && (
-                      <div className="font-mono text-[10.5px] text-moss mt-0.5">
-                        {who}
-                      </div>
-                    )}
-                  </div>
-                  <div className="font-mono text-[14px] text-ink font-medium">
-                    ${(e.amount_cents / 100).toFixed(2)}
-                  </div>
-                </div>
-              );
-              return e.user_id === userId ? (
-                <SwipeRow
-                  key={e.id}
-                  className="border-b border-rule"
-                  onDelete={() => {
-                    const snap = { ...e };
-                    deleteExpense(e.id);
-                    showUndo("Deleted", () => restoreExpense(snap));
-                  }}
-                >
-                  {row}
-                </SwipeRow>
-              ) : (
-                <div key={e.id} className="border-b border-rule">
-                  {row}
-                </div>
-              );
-            })}
-            <ExpenseAdd
-              onCommit={(desc, cents) => ensureName(() => addExpense(desc, cents))}
-            />
-            {sortedExpenses.length > 0 && (
-              <div className="px-3.5 py-3 bg-[#F2EFE3] border-t border-rule">
-                <div className="flex justify-between items-center">
-                  <span className="text-[13px] text-granite">
-                    ${(total / 100 / PARTY_SIZE).toFixed(2)} each, split {PARTY_SIZE}{" "}
-                    ways
-                  </span>
-                  <span className="font-mono text-[15px] text-ink font-semibold">
-                    ${(total / 100).toFixed(2)}
-                  </span>
-                </div>
-                {myPaid > 0 && (
-                  <div className="text-right font-mono text-[11px] text-granite mt-1">
-                    you&apos;ve paid ${(myPaid / 100).toFixed(2)}
-                  </div>
-                )}
-              </div>
-            )}
-          </Card>
-        </>
-      )}
     </div>
   );
 }

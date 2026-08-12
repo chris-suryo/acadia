@@ -132,32 +132,43 @@ export const SEED_PERSONAL: { category: string; label: string; note: string; sor
 
 export const PERSONAL_CATEGORIES = ["Sleep", "Clothing", "Mess Kit", "Essentials", "Toiletries", "Extras"];
 
-// Candidates, not decisions — the Food tab used to open on four empty "Add"
-// buttons, which asks a first-timer to invent the menu. Mirrors
-// supabase/migrations/0014.
-export const SEED_MENU = [
-  { night: "Friday", meal: "Dinner", dish: "Tacos", notes: "", sort: 1 },
-  { night: "Friday", meal: "Dinner", dish: "Chili + cornbread", notes: "one pot, feeds twelve, reheats Sunday", sort: 2 },
-  { night: "Friday", meal: "Dinner", dish: "Burgers + dogs", notes: "fastest after a 1 pm check-in", sort: 3 },
-  { night: "Friday", meal: "Dinner", dish: "Sausage + peppers", notes: "one pan, no sides needed", sort: 4 },
-  { night: "Friday", meal: "Snacks", dish: "Chips + salsa", notes: "something to open on arrival", sort: 5 },
-  { night: "Saturday", meal: "Breakfast", dish: "Eggs, bacon, toast", notes: "the classic, but twelve people is a lot of pan time", sort: 1 },
-  { night: "Saturday", meal: "Breakfast", dish: "Pancakes", notes: "needs the griddle", sort: 2 },
-  { night: "Saturday", meal: "Breakfast", dish: "Breakfast burritos", notes: "wrap them at home, warm them on the fire", sort: 3 },
-  { night: "Saturday", meal: "Breakfast", dish: "Oatmeal + fruit", notes: "fastest if we want an early trailhead", sort: 4 },
-  { night: "Saturday", meal: "Lunch", dish: "Sandwiches packed for the trail", notes: "no cooler on the mountain", sort: 5 },
-  { night: "Saturday", meal: "Lunch", dish: "Wraps + trail mix", notes: "lighter in a daypack", sort: 6 },
-  { night: "Saturday", meal: "Dinner", dish: "Out in Bar Harbor", notes: "the itinerary has ten places, call ahead for twelve", sort: 7 },
-  { night: "Saturday", meal: "Snacks", dish: "S'mores", notes: "Alana asked. Non-negotiable.", sort: 8 },
-  { night: "Sunday", meal: "Breakfast", dish: "Bagels + cream cheese", notes: "no cooking on pack-out day", sort: 1 },
-  { night: "Sunday", meal: "Breakfast", dish: "Leftovers scramble", notes: "clears the cooler before checkout", sort: 2 },
-  { night: "Sunday", meal: "Breakfast", dish: "Instant oatmeal + coffee", notes: "fastest, checkout is 11", sort: 3 },
-  { night: "Anytime", meal: "Snacks", dish: "Trail mix", notes: "", sort: 1 },
-  { night: "Anytime", meal: "Snacks", dish: "Clif bars or similar", notes: "one each per hiking day", sort: 2 },
-  { night: "Anytime", meal: "Snacks", dish: "Fruit — apples, oranges", notes: "survives a cooler-less car", sort: 3 },
-  { night: "Anytime", meal: "Snacks", dish: "Jerky", notes: "", sort: 4 },
-  { night: "Anytime", meal: "Drinks", dish: "Beer + seltzer", notes: "glass is a pain to pack out", sort: 5 },
-  { night: "Anytime", meal: "Drinks", dish: "Cider", notes: "", sort: 6 },
+// Candidates for the group to vote on, not decisions. Every cooked meal has a
+// vegetarian option; `veg` drives the badge on the row. Mirrors
+// supabase/migrations/0014 and 0016.
+export const SEED_MENU: {
+  night: string;
+  meal: string;
+  dish: string;
+  notes: string;
+  sort: number;
+  veg: boolean;
+}[] = [
+  { night: "Friday", meal: "Dinner", dish: "Tacos", notes: "", sort: 1, veg: false },
+  { night: "Friday", meal: "Dinner", dish: "Chili + cornbread", notes: "", sort: 2, veg: false },
+  { night: "Friday", meal: "Dinner", dish: "Burgers + dogs", notes: "", sort: 3, veg: false },
+  { night: "Friday", meal: "Dinner", dish: "Sausage + peppers", notes: "", sort: 4, veg: false },
+  { night: "Friday", meal: "Dinner", dish: "Black bean tacos", notes: "", sort: 6, veg: true },
+  { night: "Friday", meal: "Dinner", dish: "Veggie chili + cornbread", notes: "", sort: 7, veg: true },
+  { night: "Friday", meal: "Snacks", dish: "Chips + salsa", notes: "", sort: 5, veg: true },
+  { night: "Saturday", meal: "Breakfast", dish: "Eggs, bacon, toast", notes: "", sort: 1, veg: false },
+  { night: "Saturday", meal: "Breakfast", dish: "Pancakes", notes: "", sort: 2, veg: true },
+  { night: "Saturday", meal: "Breakfast", dish: "Breakfast burritos", notes: "", sort: 3, veg: false },
+  { night: "Saturday", meal: "Breakfast", dish: "Oatmeal + fruit", notes: "", sort: 4, veg: true },
+  { night: "Saturday", meal: "Breakfast", dish: "Veggie scramble", notes: "", sort: 9, veg: true },
+  { night: "Saturday", meal: "Lunch", dish: "Sandwiches packed for the trail", notes: "", sort: 5, veg: false },
+  { night: "Saturday", meal: "Lunch", dish: "Wraps + trail mix", notes: "", sort: 6, veg: false },
+  { night: "Saturday", meal: "Lunch", dish: "Hummus + veg wraps", notes: "", sort: 10, veg: true },
+  { night: "Saturday", meal: "Dinner", dish: "Out in Bar Harbor", notes: "", sort: 7, veg: false },
+  { night: "Saturday", meal: "Snacks", dish: "S'mores", notes: "", sort: 8, veg: true },
+  { night: "Sunday", meal: "Breakfast", dish: "Bagels + cream cheese", notes: "", sort: 1, veg: true },
+  { night: "Sunday", meal: "Breakfast", dish: "Leftovers scramble", notes: "", sort: 2, veg: false },
+  { night: "Sunday", meal: "Breakfast", dish: "Instant oatmeal + coffee", notes: "", sort: 3, veg: true },
+  { night: "Anytime", meal: "Snacks", dish: "Trail mix", notes: "", sort: 1, veg: true },
+  { night: "Anytime", meal: "Snacks", dish: "Clif bars or similar", notes: "", sort: 2, veg: true },
+  { night: "Anytime", meal: "Snacks", dish: "Fruit — apples, oranges", notes: "", sort: 3, veg: true },
+  { night: "Anytime", meal: "Snacks", dish: "Jerky", notes: "", sort: 4, veg: false },
+  { night: "Anytime", meal: "Drinks", dish: "Beer + seltzer", notes: "", sort: 5, veg: true },
+  { night: "Anytime", meal: "Drinks", dish: "Cider", notes: "", sort: 6, veg: true },
 ];
 
 export const NIGHTS = ["Friday", "Saturday", "Sunday", "Anytime"];
