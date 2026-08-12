@@ -57,6 +57,21 @@ test("the same thing asked for by two dishes becomes one line", () => {
   );
 });
 
+test("one jar and five jars are the same shelf", () => {
+  // Two dishes wanted salsa and two wanted lettuce; the plural was the only
+  // thing keeping them on separate lines, and you'd have walked past one.
+  assert.deepEqual(labels(mergeLines(rows("Salsa ×5 jars", "Salsa ×1 jar"))), [
+    "Salsa ×6 jars",
+  ]);
+  assert.deepEqual(labels(mergeLines(rows("Lettuce ×1 head", "Lettuce ×2 heads"))), [
+    "Lettuce ×3 heads",
+  ]);
+  // Weight abbreviations too — 2 lbs and 1 lb.
+  assert.deepEqual(labels(mergeLines(rows("Ground beef 2 lbs", "Ground beef 1 lb"))), [
+    "Ground beef 3 lb",
+  ]);
+});
+
 test("what can't be added up stays apart", () => {
   // Sliced cheese by weight and by the slice are two different buys.
   assert.deepEqual(

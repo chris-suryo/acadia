@@ -89,8 +89,10 @@ export function mergeLines<T extends Mergeable>(rows: T[]): MergedLine<T>[] {
 
   for (const row of rows) {
     const { name, qty } = parseLine(row.label);
-    // Unit is part of the key: jars don't add to pounds.
-    const key = `${productKey(name)}|${qty ? `${qty.style}:${qty.unit}` : "none"}`;
+    // Unit is part of the key: jars don't add to pounds. But "1 jar" and
+    // "5 jars" are the same shelf, so the unit is de-pluralised for matching
+    // the same way the name is.
+    const key = `${productKey(name)}|${qty ? `${qty.style}:${productKey(qty.unit)}` : "none"}`;
     const seen = at.get(key);
 
     if (seen === undefined) {
@@ -106,8 +108,11 @@ export function mergeLines<T extends Mergeable>(rows: T[]): MergedLine<T>[] {
       const first = parseLine(line.label);
       // The plural spelling wins the display — "Onions ×5", not "Onion ×5".
       const shown = name.length > first.name.length ? name : first.name;
+      const unit =
+        (qty.unit.length > (first.qty?.unit.length ?? 0) ? qty.unit : first.qty?.unit) ?? "";
       line.label = formatLine(shown, {
         ...qty,
+        unit,
         n: (first.qty?.n ?? 0) + qty.n,
       });
     }
