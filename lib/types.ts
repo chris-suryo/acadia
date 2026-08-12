@@ -84,6 +84,9 @@ export type MenuItem = {
   added_by: string | null;
   /** Vegetarian — drives the badge on the row. */
   veg: boolean;
+  /** Put to a vote. False means it's simply being bought — the trail lunch,
+   *  Sunday breakfast, snacks and drinks aren't questions. */
+  votable: boolean;
   sort: number;
 };
 

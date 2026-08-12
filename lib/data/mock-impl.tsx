@@ -15,6 +15,7 @@ import {
   SEED_MEMBERS,
   SEED_MENU,
   SEED_PERSONAL,
+  votableSlot,
 } from "@/lib/seeds";
 import type {
   Expense,
@@ -331,7 +332,17 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
         const id = newId();
         setMenu((prev) => [
           ...prev,
-          { id, night, meal, dish, notes, added_by: ME, veg: false, sort: nextSort(prev) },
+          {
+            id,
+            night,
+            meal,
+            dish,
+            notes,
+            added_by: ME,
+            veg: false,
+            votable: votableSlot(night, meal),
+            sort: nextSort(prev),
+          },
         ]);
         return id;
       },

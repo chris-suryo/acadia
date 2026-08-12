@@ -12,7 +12,7 @@ import { useOutside } from "./ui/useOutside";
 import { useSink, vtName } from "./ui/useSink";
 import { useUi } from "./ui/UiProvider";
 import { useData } from "@/lib/data/context";
-import { MEALS, NIGHTS } from "@/lib/seeds";
+import { MEALS, VOTED_SLOTS } from "@/lib/seeds";
 import type { MenuItem, ShoppingItem } from "@/lib/types";
 import { AISLES, aisleOf } from "@/lib/aisle";
 import { mergeLines } from "@/lib/store";
@@ -36,7 +36,6 @@ export function Food({
     isMe,
     memberOf,
     ensureName,
-    addDish,
     updateDish,
     deleteDish,
     restoreDish,
@@ -50,7 +49,6 @@ export function Food({
   const { poke, sink } = useSink();
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [showAllDishes, setShowAllDishes] = useState(false);
   const [draft, setDraft] = useState({ dish: "", notes: "" });
   const expandedRef = useRef<HTMLDivElement | null>(null);
 
@@ -112,34 +110,31 @@ export function Food({
     }
   }
 
-  const menuByNight = (n: string) =>
-    menu.filter((m) => m.night === n).sort((a, b) => a.sort - b.sort);
-
   /**
-   * What we're actually eating — the shopping list is this, not every candidate.
+   * What we're actually eating.
    *
-   * Ninety-four ingredient lines for twenty-seven dishes is not a list anyone
-   * can shop; six meals' worth is. The winner of each meal is on the plan, and
-   * where nobody has voted the first candidate stands in so the list is
-   * shoppable from day one and gets more right as people vote.
+   * Two meals are put to a vote and take their winner — a tie takes both. The
+   * rest of the menu isn't a question: the trail lunch, Sunday breakfast,
+   * snacks and drinks are just bought, so they're always on the list.
    */
-  const planned = new Map<string, "voted" | "default">();
-  for (const night of new Set(menu.map((m) => m.night))) {
-    for (const meal of new Set(
-      menu.filter((m) => m.night === night).map((m) => m.meal),
-    )) {
-      const inSlot = menu
-        .filter((m) => m.night === night && m.meal === meal)
-        .sort((a, b) => a.sort - b.sort);
-      const top = Math.max(...inSlot.map((m) => voteCount(m.id)));
-      if (top > 0) {
-        for (const m of inSlot) if (voteCount(m.id) === top) planned.set(m.id, "voted");
-      } else if (inSlot[0]) {
-        planned.set(inSlot[0].id, "default");
-      }
+  const planned = new Map<string, "voted" | "default" | "fixed">();
+  for (const m of menu) if (!m.votable) planned.set(m.id, "fixed");
+  for (const [night, meal] of VOTED_SLOTS) {
+    const inSlot = menu
+      .filter((m) => m.votable && m.night === night && m.meal === meal)
+      .sort((a, b) => a.sort - b.sort);
+    const top = Math.max(0, ...inSlot.map((m) => voteCount(m.id)));
+    if (top > 0) {
+      for (const m of inSlot) if (voteCount(m.id) === top) planned.set(m.id, "voted");
+    } else if (inSlot[0]) {
+      // Nobody's voted yet, so the first option stands in and the list stays
+      // shoppable. It changes the moment one person taps.
+      planned.set(inSlot[0].id, "default");
     }
   }
   const undecided = [...planned.values()].filter((v) => v === "default").length;
+  const votedSlots = [...planned.values()].filter((v) => v === "voted").length;
+  const fixed = menu.filter((m) => !m.votable).map((m) => m.dish);
 
   // Store: dish ingredients in menu order, then standalone adds.
   const menuOrder = new Map(menu.map((m, i) => [m.id, i] as const));
@@ -149,10 +144,7 @@ export function Food({
     standalone: boolean;
   })[] = [
     ...shopping
-      .filter(
-        (s) =>
-          s.menu_item_id !== null && (showAllDishes || planned.has(s.menu_item_id)),
-      )
+      .filter((s) => s.menu_item_id !== null && planned.has(s.menu_item_id))
       .sort((a, b) => {
         const d =
           (menuOrder.get(a.menu_item_id!) ?? 0) -
@@ -413,8 +405,8 @@ export function Food({
         value={view}
         onChange={setView}
         options={[
-          { id: "menu", label: "Menu" },
-          { id: "shop", label: storeLeft > 0 ? `Store · ${storeLeft} left` : "Store" },
+          { id: "menu", label: "Vote" },
+          { id: "shop", label: storeLeft > 0 ? `List · ${storeLeft} left` : "List" },
         ]}
       />
       {view === "menu" && (
@@ -442,7 +434,7 @@ export function Food({
                         onClick={() => ensureName(() => addShopping(r.text))}
                         className="shrink-0 rounded-full border border-rule px-2 py-0.5 bg-transparent cursor-pointer font-mono text-[10.5px] text-blaze"
                       >
-                        add to store
+                        add to list
                       </button>
                     </div>
                   </div>
@@ -450,42 +442,52 @@ export function Food({
               </Card>
             </div>
           )}
-          {NIGHTS.map((n) => {
-            const rows = menuByNight(n);
-            const meals = MEALS.filter((m) => rows.some((r) => r.meal === m));
+          {/* Two questions, not nine. Everything else on the menu is being
+              bought rather than decided, and says so below. */}
+          {VOTED_SLOTS.map(([night, meal]) => {
+            const rows = menu
+              .filter((m) => m.votable && m.night === night && m.meal === meal)
+              // Most-wanted first — the list should say what we're having,
+              // not what happened to be typed first.
+              .sort((a, b) => voteCount(b.id) - voteCount(a.id) || a.sort - b.sort);
+            if (rows.length === 0) return null;
             return (
-              <div key={n} className="mb-5">
-                <SubH right={rows.length > 1 ? "tap to vote" : null}>{n}</SubH>
-                <Card className="overflow-hidden">
-                  {meals.map((m) => (
-                    <div key={m}>
-                      <div className="px-3.5 pt-2.5 pb-1 font-mono text-[10px] tracking-[.1em] uppercase text-mute">
-                        {m}
-                      </div>
-                      {rows
-                        .filter((r) => r.meal === m)
-                        // Most-wanted first — the list should say what we're
-                        // having, not what happened to be typed first.
-                        .sort(
-                          (a, b) =>
-                            voteCount(b.id) - voteCount(a.id) || a.sort - b.sort,
-                        )
-                        .map((f) => dishRow(f))}
-                    </div>
-                  ))}
-                  <AddRow
-                    label={rows.length ? "Suggest another" : "Suggest something"}
-                    placeholder="Dish"
-                    onAdd={(t) =>
-                      ensureName(() =>
-                        addDish({ night: n, meal: "Dinner", dish: t, notes: "" }),
-                      )
-                    }
-                  />
-                </Card>
+              <div key={`${night}-${meal}`} className="mb-5">
+                <SubH right="tap to vote">
+                  {night} {meal.toLowerCase()}
+                </SubH>
+                <Card className="overflow-hidden">{rows.map((f) => dishRow(f))}</Card>
               </div>
             );
           })}
+
+          {/* The other half of what this tab is for: someone wants Cheez-Its,
+              and it should take one tap to get onto the shopping list with
+              their name on it — not a trip through the menu. */}
+          <div className="mb-5">
+            <SubH>Want something specific?</SubH>
+            <Card className="overflow-hidden">
+              <div className="px-3.5 pt-3 pb-1 text-[11.5px] text-mute leading-[1.45]">
+                Straight onto the shopping list, with your name next to it.
+              </div>
+              <AddRow
+                label="Add to the list"
+                placeholder="Cheez-Its, oat milk, hot sauce…"
+                onAdd={(t) => ensureName(() => addShopping(t))}
+              />
+            </Card>
+          </div>
+
+          {fixed.length > 0 && (
+            <div className="mb-5">
+              <SubH>Already on the list</SubH>
+              <Card className="px-3.5 py-3">
+                <div className="text-[11.5px] text-mute leading-[1.5]">
+                  {fixed.join(" · ")} — nobody has to vote on these.
+                </div>
+              </Card>
+            </div>
+          )}
         </>
       )}
 
@@ -495,28 +497,15 @@ export function Food({
             is one you second-guess in the aisle. */}
         <Card className="overflow-hidden mb-5">
           <div className="px-3.5 pt-3 pb-1 text-[13.5px] text-ink">
-            {showAllDishes
-              ? "Everything anyone has suggested."
-              : `Food for the ${planned.size} meal${planned.size === 1 ? "" : "s"} on the plan.`}
+            Everything for the weekend, added up.
           </div>
           <div className="px-3.5 pb-2 text-[11.5px] text-mute leading-[1.45]">
-            {showAllDishes ? (
-              "Including the dishes that lost their vote."
-            ) : undecided > 0 ? (
-              <>
-                {undecided} of them nobody&apos;s voted on yet, so the first
-                option stands in — vote on the menu and this list follows.
-              </>
-            ) : (
-              "Every one of them won its vote."
-            )}
+            {undecided > 0
+              ? `${undecided === 1 ? "One meal has" : `${undecided} meals have`} no votes yet, so the first option stands in — vote and this list follows.`
+              : votedSlots > 0
+                ? "Both meals went to a vote. This is what won."
+                : "Everything here is being bought, not decided."}
           </div>
-          <button
-            onClick={() => setShowAllDishes(!showAllDishes)}
-            className="w-full text-left bg-transparent border-none cursor-pointer text-blaze font-mono text-[11px] px-3.5 pb-2.5 pt-0.5"
-          >
-            {showAllDishes ? "just what we're eating" : "show every candidate"}
-          </button>
           <AddRow
             label="Ask for something"
             placeholder="Clif bars, oat milk, hot sauce…"

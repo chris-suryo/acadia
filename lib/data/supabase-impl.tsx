@@ -14,6 +14,7 @@ import {
   TRIP_DATES,
 } from "@/lib/config";
 import { downscalePhoto } from "@/lib/avatar";
+import { votableSlot } from "@/lib/seeds";
 import type {
   Expense,
   ExpenseShare,
@@ -954,6 +955,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         notes,
         added_by: userIdRef.current,
         veg: false,
+        votable: votableSlot(night, meal),
         sort: nextSort(menu),
       };
       setMenu((prev) => [...prev, row]);

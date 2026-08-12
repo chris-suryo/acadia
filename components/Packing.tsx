@@ -36,74 +36,6 @@ function orderedCats(canonical: string[], present: string[]): string[] {
   return [...canonical.filter((c) => present.includes(c)), ...extras];
 }
 
-/**
- * Which slice of the list you're looking at.
- *
- * Thirty-nine gear rows with identical "claim" chips answered no question
- * anyone was asking. Two days out there are only three: what still has nobody,
- * what can't we do without, and what did I say I'd bring. "all" stays because
- * it's the only view you can reorder — see NO_DRAG below.
- */
-const LENSES = ["open", "essential", "done", "all"] as const;
-type Lens = (typeof LENSES)[number];
-
-/**
- * Handed to DndContext under any lens but "all".
- *
- * `planReorder` renumbers every row it is given, so dragging inside a filtered
- * list would rewrite the sort of the visible rows and quietly scramble the ones
- * hidden behind the filter. Reordering a list you can only half see isn't
- * meaningful anyway. Module-level so the identity is stable across renders.
- */
-const NO_DRAG: never[] = [];
-
-const GEAR_LENS: Record<Lens, string> = {
-  open: "Unclaimed",
-  essential: "Must-haves",
-  done: "Yours",
-  all: "All",
-};
-const MINE_LENS: Record<Lens, string> = {
-  open: "To pack",
-  essential: "Must-haves",
-  done: "Packed",
-  all: "All",
-};
-
-/** A row of counted lenses. Zero-count lenses stay visible — "Unclaimed 0" is
- *  the good news, not a reason to hide the chip. */
-function LensBar({
-  value,
-  onChange,
-  labels,
-  counts,
-}: {
-  value: Lens;
-  onChange: (l: Lens) => void;
-  labels: Record<Lens, string>;
-  counts: Record<Lens, number>;
-}) {
-  return (
-    <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-3.5 px-3.5 mb-3.5">
-      {LENSES.map((l) => (
-        <button
-          key={l}
-          onClick={() => onChange(l)}
-          aria-pressed={value === l}
-          className={`shrink-0 rounded-full border px-2.5 py-1.5 cursor-pointer font-mono text-[11px] whitespace-nowrap ${
-            value === l
-              ? "bg-pine border-pine text-parchment"
-              : "bg-transparent border-rule text-granite"
-          }`}
-        >
-          {labels[l]}
-          <span className={value === l ? "opacity-70" : "opacity-55"}> {counts[l]}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // One level deep: parents in sort order, each followed by its children.
 function tree<T extends { id: string; parent_id: string | null; sort: number }>(
   rows: T[],
@@ -242,26 +174,6 @@ export function Packing({
   const justDropped = useRef(false);
   // Opens on the work, not the inventory. Once there's nothing outstanding the
   // lens has nothing to show, so the effect below hands the tab back to "all".
-  const [gearLensPick, setGearLensPick] = useState<Lens | null>(null);
-  const [mineLensPick, setMineLensPick] = useState<Lens | null>(null);
-  /**
-   * Rows you've acted on since choosing this lens, kept visible regardless.
-   *
-   * Otherwise claiming something inside "Unclaimed" yanks the row out from
-   * under your finger the instant you tap it: no confirmation that it worked,
-   * and no way to undo a misfire without changing lens. They stay until you
-   * pick a different lens, which is also when you'd expect the list to redraw.
-   */
-  const [touched, setTouched] = useState<Set<string>>(new Set());
-  const keep = (id: string) => setTouched((prev) => new Set(prev).add(id));
-  const setGearLens = (l: Lens) => {
-    setGearLensPick(l);
-    setTouched(new Set());
-  };
-  const setMineLens = (l: Lens) => {
-    setMineLensPick(l);
-    setTouched(new Set());
-  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: { y: 8 } } }),
@@ -271,85 +183,26 @@ export function Packing({
   const claimed = gear.filter((i) => i.owner_id).length;
   const mine = gear.filter((i) => isMe(i.owner_id)).length;
   const done = personal.filter((i) => i.checked).length;
-  const gearMust = gear.filter((i) => i.essential);
-  const mineMust = personal.filter((i) => i.essential);
 
-  const gearCounts: Record<Lens, number> = {
-    open: gear.length - claimed,
-    essential: gearMust.length,
-    done: mine,
-    all: gear.length,
-  };
-  const mineCounts: Record<Lens, number> = {
-    open: personal.length - done,
-    essential: mineMust.length,
-    done,
-    all: personal.length,
-  };
-  // Until someone taps a chip the tab picks its own opening view: the work if
-  // there is any, the whole list once there isn't. A tap is remembered even
-  // when it lands on an empty lens — that answer is worth seeing.
-  const gearLens: Lens = gearLensPick ?? (gearCounts.open > 0 ? "open" : "all");
-  const mineLens: Lens = mineLensPick ?? (mineCounts.open > 0 ? "open" : "all");
-
-  const gearShows = (i: GearItem) =>
-    gearLens === "all" ||
-    touched.has(i.id) ||
-    (gearLens === "open" && !i.owner_id) ||
-    (gearLens === "essential" && i.essential) ||
-    (gearLens === "done" && isMe(i.owner_id));
-  const mineShows = (i: PersonalItem) =>
-    mineLens === "all" ||
-    touched.has(i.id) ||
-    (mineLens === "open" && !i.checked) ||
-    (mineLens === "essential" && i.essential) ||
-    (mineLens === "done" && i.checked);
-
-  /**
-   * A parent survives if it matches or any of its children do — propane you
-   * still need shouldn't disappear because someone claimed the stove, and a
-   * lone "Propane canisters ×2" with nothing above it says nothing.
-   */
-  const lensed = <T extends { id: string; parent_id: string | null }>(
-    rows: { item: T; child: boolean }[],
-    shows: (i: T) => boolean,
-  ) => {
-    const keptChild = new Set(
-      rows.filter((r) => r.child && shows(r.item)).map((r) => r.item.parent_id!),
-    );
-    return rows.filter(({ item, child }) =>
-      child ? shows(item) : shows(item) || keptChild.has(item.id),
-    );
-  };
-
-  const groupTree = (cat: string) =>
-    lensed(tree(gear.filter((i) => i.category === cat)), gearShows);
+  const groupTree = (cat: string) => tree(gear.filter((i) => i.category === cat));
   const mineTree = (cat: string) => {
     const rows = personal.filter((i) => i.category === cat);
     const parents = sink(
       rows.filter((r) => !r.parent_id).sort((a, b) => a.sort - b.sort),
     );
-    return lensed(
-      parents.flatMap((p) => [
-        { item: p, child: false },
-        ...rows
-          .filter((r) => r.parent_id === p.id)
-          .sort((a, b) => a.sort - b.sort)
-          .map((c) => ({ item: c, child: true })),
-      ]),
-      mineShows,
-    );
+    return parents.flatMap((p) => [
+      { item: p, child: false },
+      ...rows
+        .filter((r) => r.parent_id === p.id)
+        .sort((a, b) => a.sort - b.sort)
+        .map((c) => ({ item: c, child: true })),
+    ]);
   };
 
-  // Empty categories stop drawing a heading over nothing.
-  const gCats = orderedCats(
-    GEAR_CATEGORIES,
-    [...new Set(gear.map((i) => i.category))],
-  ).filter((c) => gearLens === "all" || groupTree(c).length > 0);
-  const mCats = orderedCats(
-    PERSONAL_CATEGORIES,
-    [...new Set(personal.map((i) => i.category))],
-  ).filter((c) => mineLens === "all" || mineTree(c).length > 0);
+  const gCats = orderedCats(GEAR_CATEGORIES, [...new Set(gear.map((i) => i.category))]);
+  const mCats = orderedCats(PERSONAL_CATEGORIES, [
+    ...new Set(personal.map((i) => i.category)),
+  ]);
 
   const groupFlat: FlatRef[] = gCats.flatMap((cat) =>
     groupTree(cat).map(({ item, child }) => ({
@@ -407,8 +260,6 @@ export function Packing({
   const claim = (id: string) => {
     const it = gear.find((i) => i.id === id);
     if (!it) return;
-    // Children go with the parent, so the whole bundle has to stay visible.
-    for (const g of gear) if (g.id === id || g.parent_id === id) keep(g.id);
     if (!it.owner_id) ensureName(() => toggleClaimGear(id));
     else if (isMe(it.owner_id)) toggleClaimGear(id);
     // someone else's claim is inert — long-press shows who has it
@@ -462,12 +313,6 @@ export function Packing({
           <Box on={!!i.owner_id} size={22} />
           <span className="flex-1 min-w-0">
             <span className="block text-[14.5px] text-ink leading-[1.35]">{i.label}</span>
-            {/* Redundant inside the must-haves lens, where every row has it. */}
-            {i.essential && gearLens !== "essential" && (
-              <span className="block font-mono text-[10px] uppercase tracking-[.08em] text-blaze mt-0.5">
-                must-have
-              </span>
-            )}
           </span>
           {/* An unclaimed row says nothing about being unclaimed — the bar up
               top counts those. It offers the action instead, which is the one
@@ -509,7 +354,6 @@ export function Packing({
         aria-label={i.note ? `${i.label} — ${i.note}` : i.label}
         onClick={() => {
           if (justDropped.current) return;
-          for (const p of personal) if (p.id === i.id || p.parent_id === i.id) keep(p.id);
           togglePersonal(i.id);
           if (!child) poke(i.id);
         }}
@@ -527,13 +371,6 @@ export function Packing({
           >
             {i.label}
           </span>
-          {/* Drops away once it's packed — a marker on a done row is just noise,
-              and inside the must-haves lens every row carries it. */}
-          {i.essential && !i.checked && mineLens !== "essential" && (
-            <span className="block font-mono text-[10px] uppercase tracking-[.08em] text-blaze mt-0.5">
-              must-have
-            </span>
-          )}
           {i.note && (
             <span className="block text-[11.5px] text-mute mt-0.5 leading-[1.4]">
               {i.note}
@@ -557,36 +394,18 @@ export function Packing({
 
       {view === "group" ? (
         <DndContext
-          sensors={gearLens === "all" ? sensors : NO_DRAG}
+          sensors={sensors}
           collisionDetection={closestCenter}
           onDragStart={onDragStart}
           onDragEnd={onDragEndGroup}
           onDragCancel={endDrag}
         >
-          {/* "0 of 39 claimed" read as no progress at all, and nobody needs
-              all thirty-nine. The must-haves are the number that decides
-              whether Friday works. */}
           <Progress
-            done={gearMust.filter((i) => i.owner_id).length}
-            total={gearMust.length}
-            label="must-haves covered"
-            right={`${claimed} of ${gear.length} claimed`}
+            done={claimed}
+            total={gear.length}
+            label="claimed"
+            right={mine > 0 ? `${mine} yours` : null}
           />
-          <LensBar
-            value={gearLens}
-            onChange={setGearLens}
-            labels={GEAR_LENS}
-            counts={gearCounts}
-          />
-          {gCats.length === 0 && (
-            <Card className="px-3.5 py-4 text-[13.5px] text-mute">
-              {gearLens === "open"
-                ? "Every item has someone. That's the whole list."
-                : gearLens === "done"
-                  ? "Nothing claimed yet — tap any row to put your name on it."
-                  : "Nothing here."}
-            </Card>
-          )}
           <SortableContext
             items={groupFlat.map((r) => r.id)}
             strategy={verticalListSortingStrategy}
@@ -596,11 +415,7 @@ export function Packing({
                 <SubH icon={sectionIcon(cat)}>{cat}</SubH>
                 <Card className="overflow-hidden">
                   {groupTree(cat).map(({ item, child }) => gearRow(item, child))}
-                  {/* Adding under a filter drops the new row somewhere you
-                      can't see it, so the ghost row belongs to the full list. */}
-                  {gearLens === "all" && (
-                    <AddRow label="Add" placeholder="Item" onAdd={(t) => addGear(cat, t)} />
-                  )}
+                  <AddRow label="Add" placeholder="Item" onAdd={(t) => addGear(cat, t)} />
                 </Card>
               </div>
             ))}
@@ -618,24 +433,9 @@ export function Packing({
               </>
             }
           />
-          <LensBar
-            value={mineLens}
-            onChange={setMineLens}
-            labels={MINE_LENS}
-            counts={mineCounts}
-          />
-          {mCats.length === 0 && (
-            <Card className="px-3.5 py-4 text-[13.5px] text-mute">
-              {mineLens === "open"
-                ? "All packed. Go and enjoy it."
-                : mineLens === "done"
-                  ? "Nothing ticked off yet."
-                  : "Nothing here."}
-            </Card>
-          )}
 
           <DndContext
-            sensors={mineLens === "all" ? sensors : NO_DRAG}
+            sensors={sensors}
             collisionDetection={closestCenter}
             onDragStart={onDragStart}
             onDragEnd={onDragEndMine}
@@ -650,13 +450,11 @@ export function Packing({
                   <SubH icon={sectionIcon(cat)}>{cat}</SubH>
                   <Card className="overflow-hidden">
                     {mineTree(cat).map(({ item, child }) => personalRow(item, child))}
-                    {mineLens === "all" && (
-                      <AddRow
-                        label="Add"
-                        placeholder="Item"
-                        onAdd={(t) => addPersonal(cat, t)}
-                      />
-                    )}
+                    <AddRow
+                      label="Add"
+                      placeholder="Item"
+                      onAdd={(t) => addPersonal(cat, t)}
+                    />
                   </Card>
                 </div>
               ))}

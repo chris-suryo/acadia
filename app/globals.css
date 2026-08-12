@@ -83,16 +83,6 @@ select {
   }
 }
 
-/* A short chip strip that occasionally runs a few pixels past the edge. iOS
-   overlays its scrollbar anyway; this stops desktop from drawing a permanent
-   one under four buttons. */
-.no-scrollbar {
-  scrollbar-width: none;
-}
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
 /* The intro cross-fades between its two steps on a shared background, so the
    only thing that appears to move is the content. */
 @keyframes fadein {

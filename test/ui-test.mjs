@@ -54,12 +54,8 @@ const ok = (name, cond, detail = "") => {
   ok("header title", await page.getByRole("heading", { name: "Acadia Base Camp" }).isVisible());
   ok("bottom nav fixed", (await page.locator("nav.fixed.bottom-0").count()) === 1);
   ok("no segments on itinerary", (await page.getByRole("button", { name: "Schedule" }).count()) === 0);
-  // ---- the asks: a trip page that only informs gets read once ----
-  ok("asks card leads the page", await page.getByText("Before Friday").isVisible());
-  ok("three asks at rest", (await page.locator("main").getByText(/^(Vote on what we eat|Claim something to bring|Say what you're hoping for)$/).count()) === 3);
-  ok("the deadline is stated", await page.getByText(/Costco run is Friday morning/).isVisible());
-  ok("open must-haves are the reason to claim", await page.getByText(/must-haves? still have nobody/).isVisible());
-  ok("who's actually here", await page.getByText(/\d+ of \d+ have joined/).isVisible());
+  // The itinerary is the trip and nothing else — no card of asks above it.
+  ok("nothing above the schedule", (await page.getByText("Before Friday").count()) === 0);
   ok("what people want section", await page.getByText("What people want").isVisible());
   ok("alana idea card below schedule", await page.getByText("Beehive if the ladders aren't crowded").isVisible());
   ok("add yours ghost", await page.getByRole("button", { name: "Add yours" }).isVisible());
@@ -227,26 +223,13 @@ const ok = (name, cond, detail = "") => {
   ok("claim progress bar", (await claimed()) === 0, `${await claimed()} claimed at rest`);
   ok("no at-rest trash", (await page.getByLabel("Delete", { exact: true }).count()) === 0);
 
-  // ---- the lens: thirty-nine identical rows answered nobody's question ----
-  // The bar leads with the fourteen that decide whether Friday works, not with
-  // a total nobody has to reach.
-  ok("must-haves lead the bar", await page.locator("main").getByText(/^\d+ of 14 must-haves covered$/).isVisible());
-  ok("marked in the list too", (await page.locator("main").getByText("must-have", { exact: true }).count()) > 0);
-  ok("opens on the work", await page.getByRole("button", { name: /^Unclaimed 39$/ }).getAttribute("aria-pressed") === "true");
-  ok("all four lenses fit without clipping",
-    await page.locator("main div.overflow-x-auto").first()
-      .evaluate((el) => el.scrollWidth <= el.clientWidth));
-  await page.getByRole("button", { name: /^Must-haves/ }).click();
-  await page.waitForTimeout(250);
-  const mustRows = await page.locator("main").getByRole("checkbox").count();
-  ok("must-haves narrows to fourteen", mustRows === 14, `${mustRows} rows`);
-  ok("no marker where every row has it", (await page.locator("main").getByText("must-have", { exact: true }).count()) === 0);
-  ok("empty categories drop their heading", (await page.locator("main").getByText("Dogs", { exact: true }).count()) === 0);
-  await page.getByRole("button", { name: /^Yours/ }).click();
-  await page.waitForTimeout(250);
-  ok("an empty lens says so", await page.getByText(/Nothing claimed yet/).isVisible());
-  await page.getByRole("button", { name: /^Unclaimed/ }).click();
-  await page.waitForTimeout(250);
+  // Every row is one short phrase now — no must-have tags, no filter pills,
+  // and one number on the bar rather than two.
+  ok("no must-have tags", (await page.locator("main").getByText("must-have", { exact: true }).count()) === 0);
+  ok("no filter pills", (await page.getByRole("button", { name: /^(Unclaimed|Must-haves|Yours|To pack) \d+$/ }).count()) === 0);
+  ok("labels say the thing and stop",
+    await page.getByText("Firewood — buy on the island").isVisible() &&
+    (await page.getByText(/buy local, don't transport/).count()) === 0);
   await page.screenshot({ path: `${SHOT_DIR}/4-packing-group.png`, fullPage: true });
 
   // whole-row tap with no name -> bottom sheet, action completes after Continue
@@ -262,10 +245,6 @@ const ok = (name, cond, detail = "") => {
   await page.getByRole("button", { name: "I'm Chris" }).click();
   await page.waitForTimeout(400);
   ok("gated action completed", (await claimed()) === 1);
-  ok(
-    "a claimed row holds its place instead of vanishing",
-    await page.getByText("Tarp or canopy").isVisible(),
-  );
   ok("claim shows owner name", await page.locator("main").getByText("Chris", { exact: true }).first().isVisible());
   ok("header shows the name", await page.locator("header").getByText("Chris", { exact: true }).isVisible());
   ok("header monogram", await page.locator("header").getByText("C", { exact: true }).isVisible());
@@ -280,7 +259,7 @@ const ok = (name, cond, detail = "") => {
   ok("row tap unclaims", (await claimed()) === 0);
 
   // hierarchy: child renders, claiming the parent claims the bundle
-  ok("hierarchy child renders", await page.getByText("Propane canisters \u00d72").isVisible());
+  ok("hierarchy child renders", await page.getByText("Propane \u00d72").isVisible());
   await page.getByText("Camp stove + fuel").click();
   await page.waitForTimeout(300);
   ok("parent claim cascades", (await claimed()) === 2, "the bundle goes with its parent");
@@ -290,12 +269,6 @@ const ok = (name, cond, detail = "") => {
   ok("parent unclaim cascades", (await claimed()) === 0);
 
   // ghost add per category (pre-filled category, no select)
-  // Both of these rewrite the whole list, so they live in the unfiltered view —
-  // a drop inside a filter would renumber the rows you can see and scramble
-  // the ones you can't.
-  ok("no ghost add under a filter", (await page.getByRole("button", { name: "Add", exact: true }).count()) === 0);
-  await page.getByRole("button", { name: /^All / }).click();
-  await page.waitForTimeout(250);
   ok("no category selects", (await page.locator("select").count()) === 0);
   await page.getByRole("button", { name: "Add", exact: true }).first().click();
   await page.keyboard.type("Bug net canopy");
@@ -319,26 +292,24 @@ const ok = (name, cond, detail = "") => {
     await page.waitForTimeout(450);
   };
 
-  await drag("Tarp or canopy", "Tents — spares for first-timers (Alana)", true);
+  await drag("Tarp or canopy", "Tents — spares", true);
   const shelterCard = page.locator("div.mb-5").filter({ has: page.getByText("Shelter", { exact: true }) });
   const shelterTexts = await shelterCard.locator("span.text-\\[14\\.5px\\]").allTextContents();
   ok("dnd reorder within category", shelterTexts[0] === "Tarp or canopy", shelterTexts.join(" | ").slice(0, 90));
   ok("drop click swallowed — nothing claimed", (await claimed()) === 0);
 
   const fireCard = page.locator("div.mb-5").filter({ has: page.getByText("Fire & Light", { exact: true }) });
-  await drag("Bottle opener + corkscrew", "Firewood — buy local, don't transport", true);
-  ok("dnd cross-category move", await fireCard.getByText("Bottle opener + corkscrew").isVisible());
+  await drag("Bottle opener", "Firewood — buy on the island", true);
+  ok("dnd cross-category move", await fireCard.getByText("Bottle opener").isVisible());
   await page.screenshot({ path: `${SHOT_DIR}/5-packing-dnd.png`, fullPage: true });
 
   // My list
   await page.getByRole("button", { name: "My list" }).click();
   await page.waitForTimeout(300);
   ok("privacy line", await page.getByText("only visible to you").isVisible());
-  // Same treatment on the personal side: nine of the thirty-six are the ones
-  // you'd actually regret, and the list opens on what's left to do.
-  ok("personal must-haves counted", await page.getByRole("button", { name: /^Must-haves 9$/ }).isVisible());
-  ok("personal list opens on the work",
-    await page.getByRole("button", { name: /^To pack / }).getAttribute("aria-pressed") === "true");
+  // The notes that stopped a real mistake survived; the narration didn't.
+  ok("the useful notes stayed", await page.getByText("no showers at Blackwoods").isVisible());
+  ok("the narration went", (await page.getByText(/the thing first-timers forget/).count()) === 0);
   const packedLine = async () =>
     await page.locator("main").getByText(/^\d+ of \d+ packed$/).first().innerText();
   const listSize = parseInt((await packedLine()).split(" of ")[1], 10);
@@ -346,15 +317,9 @@ const ok = (name, cond, detail = "") => {
   await page.getByText("Sleeping bag", { exact: true }).click();
   await page.waitForTimeout(250);
   ok("row tap checks item", (await packedLine()) === `1 of ${listSize} packed`, await packedLine());
-  ok(
-    "a ticked row holds its place instead of vanishing",
-    await page.getByText("Sleeping bag", { exact: true }).isVisible(),
-  );
   await page.screenshot({ path: `${SHOT_DIR}/6-packing-mine.png`, fullPage: true });
 
   // checked item sinks to the bottom of its section after ~1s
-  await page.getByRole("button", { name: /^All / }).click();
-  await page.waitForTimeout(250);
   const sleepCard = page.locator("div.mb-5").filter({ has: page.getByText("Sleep", { exact: true }) });
   await page.waitForTimeout(1400);
   const sleepTexts = await sleepCard.locator("button").allTextContents();
@@ -383,12 +348,6 @@ const ok = (name, cond, detail = "") => {
   await page.screenshot({ path: `${SHOT_DIR}/7-ideas-edit.png`, fullPage: true });
   await page.getByRole("heading", { name: "Acadia Base Camp" }).click();
   await page.waitForTimeout(300);
-  // Answered now; not voted, and nothing claimed — the packing block put
-  // everything it claimed back. So one ask drops and two remain.
-  ok("a done ask drops off the card", (await page.locator("main").getByText("Say what you're hoping for").count()) === 0);
-  ok("the undone ones remain", await page.getByText("Claim something to bring").isVisible()
-    && await page.getByText("Vote on what we eat").isVisible());
-  ok("and the card counts down", await page.getByText("Two things, about a minute.").isVisible());
   ok("vibes saved to card", await page.getByText("A big hike · Swimming", { exact: true }).isVisible());
   ok("idea card saved on tap-away", await page.getByText("Great Head sunrise").isVisible());
   ok("pace chips on cards", (await page.getByText("Wander, no plan").count()) === 1 && (await page.getByText("One good hike").count()) === 1, "mine + Alana");
@@ -409,16 +368,31 @@ const ok = (name, cond, detail = "") => {
   await page.getByRole("button", { name: "Food", exact: true }).click();
   await page.waitForTimeout(300);
   ok("requests card from questionnaire", await page.getByText("S'mores. Non-negotiable.").isVisible());
-  ok("requests promote to the store", (await page.getByRole("button", { name: "add to store" }).count()) >= 1);
+  ok("requests promote to the list", (await page.getByRole("button", { name: "add to list" }).count()) >= 1);
   ok("own request shows", await page.getByText("Breakfast burritos + hot sauce").isVisible());
-  ok("menu candidates seeded", (await page.locator("main").getByRole("button", { name: /^Vote for / }).count()) >= 18);
-  ok("meal sub-headings", await page.locator("main").getByText("Breakfast", { exact: true }).first().isVisible());
-  ok("menu seed taco", await page.getByText("Tacos", { exact: true }).isVisible());
-  ok("all nights render", await page.getByText("Anytime", { exact: true }).isVisible());
-  // Some of the group don't eat meat, so every cooked meal carries an option
-  // and the row says so without anyone being asked about their diet.
-  ok("veg badges seeded", (await page.locator("main").getByText("veg", { exact: true }).count()) === 15);
+
+  // ---- two questions, not nine ----
+  // Nine meal slots and twenty-seven dishes asked eleven people to hold an
+  // opinion about Sunday's oatmeal. One vote came back in three days.
+  const ballot = await page.locator("main").getByRole("button", { name: /^Vote for / }).count();
+  ok("the ballot is short", ballot === 6, `${ballot} options`);
+  ok("friday dinner is a question", await page.getByText("Friday dinner").isVisible());
+  ok("saturday breakfast is a question", await page.getByText("Saturday breakfast").isVisible());
+  ok("nothing else is", (await page.locator("main").getByText(/^(Sunday|Anytime) /).count()) === 0);
+  // Not voting on something doesn't mean not buying it.
+  ok("the rest is bought, not decided", await page.getByText("Already on the list").isVisible());
+  ok("and it says which", await page.getByText(/Sandwiches packed for the trail/).isVisible());
+  ok("veg options survive the cut", (await page.locator("main").getByText("veg", { exact: true }).count()) === 2);
   ok("no leader before a vote", (await page.locator("main").getByText("leading", { exact: true }).count()) === 0);
+
+  // Anyone can put a specific thing on the shopping list without going near
+  // the menu — the other half of what this tab is for.
+  ok("asking for something is right here", await page.getByRole("button", { name: /Add to the list/ }).isVisible());
+  await page.getByRole("button", { name: /Add to the list/ }).click();
+  await page.keyboard.type("Cheez-Its");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(250);
+  await page.keyboard.press("Escape");
 
   // Tapping a dish used to open the editor, which made voting fiddly. The whole
   // row votes now; editing moved behind the pencil.
@@ -435,119 +409,69 @@ const ok = (name, cond, detail = "") => {
   ok("fast re-vote raises no error", (await page.getByText("Couldn't save").count()) === 0);
   ok("fast re-vote leaves one vote", (await page.getByRole("button", { name: "Remove your vote for Tacos" }).count()) === 1);
 
-  // ghost add dish under Saturday (name already set; meal defaults Dinner)
-  const satCard = page.locator("div.mb-5").filter({ has: page.getByText("Saturday", { exact: true }) });
-  await satCard.getByRole("button", { name: /Suggest an/ }).click();
-  await page.keyboard.type("Campfire chili");
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(250);
-  await page.keyboard.press("Escape");
-  ok("dish ghost add commits", await page.getByText("Campfire chili").isVisible());
-
-  await page.getByRole("button", { name: "Edit Campfire chili" }).click();
+  await page.getByRole("button", { name: "Edit Pancakes" }).click();
   await page.waitForTimeout(300);
-  ok("pencil opens the editor", (await page.locator('input[value="Campfire chili"]').count()) === 1);
-  // Notes stay editable — they just never render under the dish again.
-  await page.getByPlaceholder(/Notes/).fill("cooked by Chris");
-  await page.getByRole("button", { name: "Lunch", exact: true }).click();
-  await page.waitForTimeout(250);
+  ok("pencil opens the editor", (await page.locator('input[value="Pancakes"]').count()) === 1);
   await page.getByRole("button", { name: "Add ingredient" }).click();
-  await page.keyboard.type("Stew beef 3 lb");
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(200);
-  await page.keyboard.type("Chipotle peppers ×2");
+  await page.keyboard.type("Blueberries ×2 pints");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(200);
   await page.keyboard.press("Escape");
-  // A dish nobody has voted for isn't being cooked, so its ingredients stay off
-  // the list — said here, where they're typed, not discovered in the aisle.
+  // Pancakes is losing to nothing yet, so its ingredients aren't being bought.
   ok(
-    "unplanned dish warns its ingredients won't ship",
+    "an unplanned dish warns its ingredients won't ship",
     await page.getByText(/stays? off the store list|stay off the store list/).isVisible(),
   );
   await page.screenshot({ path: `${SHOT_DIR}/8-food-dish-ingredients.png`, fullPage: true });
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.waitForTimeout(300);
-  ok("meal chip moves the dish", await satCard.getByText("Campfire chili").isVisible());
-  ok("no description under the dish", (await page.getByText("cooked by Chris").count()) === 0);
-  ok("no ingredient byline either", (await page.getByText(/\d\/\d ingredients/).count()) === 0);
+  ok("no ingredient byline under the dish", (await page.getByText(/\d\/\d ingredients/).count()) === 0);
 
-  // ---- the store list is what the votes decided ----
-  // Twenty-seven candidates carry ninety-four ingredient lines between them.
-  // Shopping all of them is nobody's Thursday, so the list is the winners.
-  await page.getByRole("button", { name: /^Store( ·|$)/ }).click();
+  // ---- the list is what the votes decided, plus what people asked for ----
+  await page.getByRole("button", { name: /^List( ·|$)/ }).click();
   await page.waitForTimeout(300);
+  ok("the winner's ingredients are on it", await page.getByText("Taco seasoning ×3").first().isVisible());
   ok(
-    "store carries the seeded menu, not just hand-adds",
-    await page.getByText("Tortillas ×24").first().isVisible(),
+    "the loser's are not",
+    (await page.getByText("Blueberries ×2 pints").count()) === 0,
   );
-  ok(
-    "an unvoted dish keeps its ingredients off the list",
-    (await page.getByText("Stew beef 3 lb").count()) === 0,
-  );
-  ok("store says what it covers", await page.getByText(/meals? on the plan/).isVisible());
-  // Everything is still reachable — it just isn't the default.
-  await page.getByRole("button", { name: "show every candidate" }).click();
-  await page.waitForTimeout(250);
-  ok(
-    "every candidate is one tap away",
-    await page.getByText("Stew beef 3 lb").first().isVisible(),
-  );
-  // Five dishes want tortillas. You buy tortillas once, and the line says so.
+  // The trail lunch nobody voted on is bought all the same.
+  ok("what isn't voted on is still bought", await page.getByText("Deli turkey 2 lb").first().isVisible());
+  ok("and a hand-added ask lands here", await page.getByText("Cheez-Its").first().isVisible());
+  ok("requester name on the line", await page.locator("main").getByText("Chris", { exact: true }).first().isVisible());
+  // Grouped by where things sit in a shop, not by where the row came from.
+  ok("list groups by aisle", await page.locator("main").getByText("Meat + Deli", { exact: true }).isVisible());
+  ok("rows are tagged with their dish", await page.getByText(/Tacos · Friday/).first().isVisible());
+
+  // Tortillas belong to two dishes on the plan. You buy tortillas once.
   const tortillaRows = await page.locator("main").getByText(/^Tortillas ×\d+$/).allTextContents();
   ok("one line per thing in the cart", tortillaRows.length === 1, tortillaRows.join(" | "));
-  ok("and the quantities are added up", parseInt(tortillaRows[0].split("×")[1], 10) > 24, tortillaRows[0]);
-  ok("the line says how many dishes want it", await page.locator("main").getByText(/\+\d+ more$/).first().isVisible());
-  // Sliced cheese by weight and by the slice are two different buys.
-  ok("what can't be added up stays apart",
-    (await page.locator("main").getByText("Cheese slices 1 lb", { exact: true }).count()) === 1 &&
-    (await page.locator("main").getByText("Cheese slices ×16", { exact: true }).count()) === 1);
-  await page.getByRole("button", { name: "just what we're eating" }).click();
-  await page.waitForTimeout(250);
-  ok(
-    "and the list narrows back",
-    (await page.getByText("Stew beef 3 lb").count()) === 0,
-  );
+  ok("and the quantities are added up", parseInt(tortillaRows[0].split("×")[1], 10) >= 24, tortillaRows[0]);
 
-  // Vote it onto the plan and its ingredients arrive — the loop that makes the
-  // menu worth voting on at all.
-  await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await page.waitForTimeout(250);
-  await page.getByRole("button", { name: "Vote for Campfire chili" }).click();
-  await page.waitForTimeout(350);
-  await page.getByRole("button", { name: /^Store( ·|$)/ }).click();
-  await page.waitForTimeout(300);
-  ok("a vote puts its ingredients on the list", await page.getByText("Stew beef 3 lb").isVisible());
-  // Grouped by where things sit in a shop, not by where the row came from.
-  ok("store groups by aisle", await page.locator("main").getByText("Meat + Deli", { exact: true }).isVisible());
-  ok("store tags source dish", await page.getByText("Campfire chili · Saturday").first().isVisible());
   await page.getByRole("button", { name: /Ask for something/ }).click();
   await page.keyboard.type("Ice ×4");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(250);
   await page.keyboard.press("Escape");
-  ok("requester name on the line", await page.locator("main").getByText("Chris", { exact: true }).first().isVisible());
   ok("ice lands in its own aisle", await page.locator("main").getByText("Ice + Frozen", { exact: true }).isVisible());
   const storeLeft = async () =>
     Number(
-      (await page.getByRole("button", { name: /^Store · \d+ left$/ }).textContent())
+      (await page.getByRole("button", { name: /^List · \d+ left$/ }).textContent())
         .match(/(\d+) left/)[1],
     );
   const beforeCheck = await storeLeft();
-  await page.getByText("Stew beef 3 lb").click();
+  await page.getByText("Taco seasoning ×3").first().click();
   await page.waitForTimeout(250);
   await page.screenshot({ path: `${SHOT_DIR}/9-food-store.png`, fullPage: true });
 
-  // The tab counts what's left to buy, so it has to track the plan and not the
-  // pile of everything anyone ever suggested.
-  ok("store label counts down", (await storeLeft()) === beforeCheck - 1);
-  ok("store count is the plan, not all 94 lines", beforeCheck > 10 && beforeCheck < 60);
-  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  // The tab counts what's left to buy.
+  ok("list label counts down", (await storeLeft()) === beforeCheck - 1);
+  await page.getByRole("button", { name: "Vote", exact: true }).click();
   await page.waitForTimeout(250);
-  await page.getByRole("button", { name: "Edit Campfire chili" }).click();
+  await page.getByRole("button", { name: "Edit Tacos" }).click();
   await page.waitForTimeout(300);
   ok(
-    "store check syncs into the dish editor",
+    "a tick in the aisle syncs into the dish",
     (await page.locator("div.bg-\\[\\#FBF8EE\\] .line-through").count()) === 1,
   );
   await page.getByRole("button", { name: "Done", exact: true }).click();
@@ -870,7 +794,7 @@ const ok = (name, cond, detail = "") => {
   // ---- persistence: reload lands on the schedule; segments restore per tab ----
   await page.getByRole("button", { name: "Food", exact: true }).click();
   await page.waitForTimeout(250);
-  await page.getByRole("button", { name: /^Store( ·|$)/ }).click();
+  await page.getByRole("button", { name: /^List( ·|$)/ }).click();
   await page.waitForTimeout(250);
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(800);
