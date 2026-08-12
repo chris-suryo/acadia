@@ -32,6 +32,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Btn, Card, SubH } from "./primitives";
 import { Ideas } from "./Ideas";
+import { Asks } from "./ui/Asks";
 import { MapOverlay, useMapPrefetch } from "./MapLightbox";
 import { splitVibes } from "@/lib/survey";
 import { Difficulty } from "./ui/Difficulty";
@@ -266,7 +267,13 @@ function Entry({
   );
 }
 
-export function Itinerary({ jump }: { jump: (slug: string) => void }) {
+export function Itinerary({
+  jump,
+  goto,
+}: {
+  jump: (slug: string) => void;
+  goto: (tab: string, view?: string) => void;
+}) {
   const { days, blocks, weather, surveys, addBlock, updateBlock, reorderDay } =
     useData();
   const [mapOpen, setMapOpen] = useState(false);
@@ -498,6 +505,10 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
 
   return (
     <div className="px-3.5 pt-4 pb-5">
+      {/* Above the schedule on purpose. A trip page that only informs gets
+          read once; the three things the weekend needs have to be the first
+          thing on it, not two taps away behind a tab. */}
+      <Asks goto={goto} />
       {sortedDays.map((d) => {
         const w = weather[d.id];
         const WIcon = w ? weatherIcon(w.condition) : null;
@@ -608,7 +619,7 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
         );
       })}
 
-      <div className="mt-8">
+      <div className="mt-8" id="ideas">
         <SubH right={vibeTally || null}>What people want</SubH>
         <Ideas />
       </div>

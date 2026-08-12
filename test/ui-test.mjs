@@ -54,6 +54,12 @@ const ok = (name, cond, detail = "") => {
   ok("header title", await page.getByRole("heading", { name: "Acadia Base Camp" }).isVisible());
   ok("bottom nav fixed", (await page.locator("nav.fixed.bottom-0").count()) === 1);
   ok("no segments on itinerary", (await page.getByRole("button", { name: "Schedule" }).count()) === 0);
+  // ---- the asks: a trip page that only informs gets read once ----
+  ok("asks card leads the page", await page.getByText("Before Friday").isVisible());
+  ok("three asks at rest", (await page.locator("main").getByText(/^(Vote on what we eat|Claim something to bring|Say what you're hoping for)$/).count()) === 3);
+  ok("the deadline is stated", await page.getByText(/Costco run is Friday morning/).isVisible());
+  ok("open must-haves are the reason to claim", await page.getByText(/must-haves? still have nobody/).isVisible());
+  ok("who's actually here", await page.getByText(/\d+ of \d+ have joined/).isVisible());
   ok("what people want section", await page.getByText("What people want").isVisible());
   ok("alana idea card below schedule", await page.getByText("Beehive if the ladders aren't crowded").isVisible());
   ok("add yours ghost", await page.getByRole("button", { name: "Add yours" }).isVisible());
@@ -377,6 +383,12 @@ const ok = (name, cond, detail = "") => {
   await page.screenshot({ path: `${SHOT_DIR}/7-ideas-edit.png`, fullPage: true });
   await page.getByRole("heading", { name: "Acadia Base Camp" }).click();
   await page.waitForTimeout(300);
+  // Answered now; not voted, and nothing claimed — the packing block put
+  // everything it claimed back. So one ask drops and two remain.
+  ok("a done ask drops off the card", (await page.locator("main").getByText("Say what you're hoping for").count()) === 0);
+  ok("the undone ones remain", await page.getByText("Claim something to bring").isVisible()
+    && await page.getByText("Vote on what we eat").isVisible());
+  ok("and the card counts down", await page.getByText("Two things, about a minute.").isVisible());
   ok("vibes saved to card", await page.getByText("A big hike · Swimming", { exact: true }).isVisible());
   ok("idea card saved on tap-away", await page.getByText("Great Head sunrise").isVisible());
   ok("pace chips on cards", (await page.getByText("Wander, no plan").count()) === 1 && (await page.getByText("One good hike").count()) === 1, "mine + Alana");
@@ -481,6 +493,15 @@ const ok = (name, cond, detail = "") => {
     "every candidate is one tap away",
     await page.getByText("Stew beef 3 lb").first().isVisible(),
   );
+  // Five dishes want tortillas. You buy tortillas once, and the line says so.
+  const tortillaRows = await page.locator("main").getByText(/^Tortillas ×\d+$/).allTextContents();
+  ok("one line per thing in the cart", tortillaRows.length === 1, tortillaRows.join(" | "));
+  ok("and the quantities are added up", parseInt(tortillaRows[0].split("×")[1], 10) > 24, tortillaRows[0]);
+  ok("the line says how many dishes want it", await page.locator("main").getByText(/\+\d+ more$/).first().isVisible());
+  // Sliced cheese by weight and by the slice are two different buys.
+  ok("what can't be added up stays apart",
+    (await page.locator("main").getByText("Cheese slices 1 lb", { exact: true }).count()) === 1 &&
+    (await page.locator("main").getByText("Cheese slices ×16", { exact: true }).count()) === 1);
   await page.getByRole("button", { name: "just what we're eating" }).click();
   await page.waitForTimeout(250);
   ok(

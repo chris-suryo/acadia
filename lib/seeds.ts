@@ -24,7 +24,7 @@ export const SEED_BLOCKS: {
   { day_id: "sat", title: "Pick the hikes", detail: "who's going where", day_part: "morning", link_slug: null, sort: 2 },
   { day_id: "sat", title: "Shuttle or cars", detail: "", day_part: "morning", link_slug: "shuttle", sort: 3 },
   { day_id: "sat", title: "Out in the park", detail: "", day_part: "afternoon", link_slug: "beehive", sort: 4 },
-  { day_id: "sat", title: "Dinner in Bar Harbor", detail: "call ahead for 12", day_part: "evening", link_slug: "bar-harbor", sort: 5 },
+  { day_id: "sat", title: "Dinner in Bar Harbor", detail: "call ahead for 11", day_part: "evening", link_slug: "bar-harbor", sort: 5 },
   { day_id: "sun", title: "Breakfast, break camp", detail: "trash packs out", day_part: "morning", link_slug: null, sort: 1 },
   { day_id: "sun", title: "Permit in the check-out box", detail: "sweep both sites", day_part: "morning", link_slug: null, sort: 2 },
   { day_id: "sun", title: "Roll out", detail: "checkout is 11 am", day_part: "morning", link_slug: null, sort: 3 },

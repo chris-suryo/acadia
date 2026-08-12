@@ -114,6 +114,13 @@ function Shell() {
     setTab("explore");
   };
 
+  /** Tab plus segment, for the asks card sending people where the work is. */
+  const goto = (t: string, view?: string) => {
+    if (t === "food" && view) setFoodView(view);
+    if (t === "packing" && view) setPackView(view);
+    setTab(t as TabId);
+  };
+
   // Until the data layer answers we can't know whether this is a first open, so
   // the shell would otherwise paint first — header, spinner, and a tab bar
   // nobody can use — and then hard-swap to the full-bleed intro. Hold the same
@@ -155,7 +162,7 @@ function Shell() {
           </div>
         ) : (
           <>
-            {tab === "itinerary" && <Itinerary jump={jump} />}
+            {tab === "itinerary" && <Itinerary jump={jump} goto={goto} />}
             {tab === "packing" && <Packing view={packView} setView={setPackView} />}
             {tab === "food" && <Food view={foodView} setView={setFoodView} />}
             {tab === "expenses" && <Expenses />}

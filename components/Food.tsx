@@ -15,6 +15,7 @@ import { useData } from "@/lib/data/context";
 import { MEALS, NIGHTS } from "@/lib/seeds";
 import type { MenuItem, ShoppingItem } from "@/lib/types";
 import { AISLES, aisleOf } from "@/lib/aisle";
+import { mergeLines } from "@/lib/store";
 
 const MEAL_CHIPS = MEALS.map((m) => ({ value: m, label: m }));
 
@@ -180,13 +181,46 @@ export function Food({
       }),
   ];
 
-  const sunkStoreRows = sink(storeRows);
+  /**
+   * One line per thing in the cart, not one per dish that wants it.
+   *
+   * Five dishes ask for tortillas and four for shredded cheese; unmerged
+   * that's the same product met three times in one aisle with a different
+   * number beside it each time. `mergeLines` adds up what shares units and
+   * leaves alone what doesn't.
+   */
+  const merged = mergeLines(storeRows).map((line) => {
+    const first = line.rows[0];
+    const extra = line.rows.length - 1;
+    return {
+      ...first,
+      id: first.id,
+      label: line.label,
+      checked: line.checked,
+      rows: line.rows,
+      tag: extra > 0 ? `${first.tag} +${extra} more` : first.tag,
+      // A line folded from several rows has no single thing to delete, and no
+      // single person to credit.
+      standalone: extra === 0 && first.standalone,
+      added_by: extra === 0 ? first.added_by : null,
+    };
+  });
+
+  const sunkStoreRows = sink(merged);
   // Grouped by where things sit in a shop, not by where the row came from.
   const byAisle = AISLES.map((aisle) => ({
     aisle,
     rows: sunkStoreRows.filter((r) => aisleOf(r.label) === aisle),
   })).filter((g) => g.rows.length > 0);
-  const storeLeft = storeRows.filter((r) => !r.checked).length;
+  const storeLeft = merged.filter((r) => !r.checked).length;
+
+  /** Ticking a merged line ticks every row behind it — you bought the
+   *  tortillas, so all five dishes have their tortillas. Rows already in the
+   *  target state are left alone, or a half-ticked line would flip apart. */
+  const toggleLine = (line: (typeof merged)[number]) => {
+    const target = !line.checked;
+    for (const r of line.rows) if (r.checked !== target) toggleShopping(r.id);
+  };
   // Questionnaire food answers surface here — the menu is where they get acted on.
   const requests = surveys
     .filter((s) => s.food.trim())
@@ -500,7 +534,7 @@ export function Food({
                 aria-checked={g.checked}
                 aria-label={`${g.label} — ${g.tag}`}
                 onClick={() => {
-                  toggleShopping(g.id);
+                  toggleLine(g);
                   poke(g.id);
                 }}
                 style={vtName(g.id)}
