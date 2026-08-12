@@ -132,6 +132,10 @@ function Shell() {
         onDone={() => {
           localStorage.setItem("abc.welcomed", "1");
           setShowWelcome(false);
+          // Finishing the intro means starting the trip, wherever it was
+          // replayed from — a replay launched off Explore used to drop you
+          // back on Explore.
+          setTab("itinerary");
         }}
       />
     );

@@ -13,7 +13,7 @@ import {
   SUPABASE_URL,
   TRIP_DATES,
 } from "@/lib/config";
-import { downscaleAvatar, downscalePhoto } from "@/lib/avatar";
+import { downscalePhoto } from "@/lib/avatar";
 import type {
   Expense,
   ExpenseShare,
@@ -592,7 +592,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       const uid = userIdRef.current;
       if (!uid) return;
       (async () => {
-        const blob = await downscaleAvatar(file);
+        // Already a square JPEG at the display size — re-encoding it here only
+        // spent a second lossy pass on the same pixels.
+        const blob = file;
         const path = `${uid}.jpg`;
         const { error: err } = await supabase.storage
           .from("avatars")

@@ -14,7 +14,9 @@ import { PinchSurface, usePinchPan } from "./PinchPan";
 import { useUi } from "./UiProvider";
 import { useData } from "@/lib/data/context";
 
-const OUT = 256;
+// Big enough for the largest place an avatar renders: the 210px crop frame on
+// a 3x screen is a 630px slot, and anything smaller arrives visibly soft.
+const OUT = 640;
 
 export function AvatarCrop({
   size = 220,
@@ -76,7 +78,7 @@ export function AvatarCrop({
       ctx.fillRect(0, 0, OUT, OUT);
       ctx.drawImage(el, left * k, top * k, w * k, h * k);
       const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/jpeg", 0.85),
+        canvas.toBlob(resolve, "image/jpeg", 0.88),
       );
       if (blob) setAvatar(new File([blob], "avatar.jpg", { type: "image/jpeg" }));
       else showNotice("Couldn't save photo — retry");
