@@ -240,6 +240,10 @@ const ok = (name, cond, detail = "") => {
   ok("and the backup headlamp", await page.getByText("Backup headlamp").isVisible());
   // Camp Kitchen had grown to a scroll; the cold half is its own section.
   ok("coolers are their own section", await page.locator("main").getByText("Coolers & Water", { exact: true }).isVisible());
+  // A second sweep, against the categories a full car-camping list covers.
+  ok("something to scramble three dozen eggs in", await page.getByText("Big mixing bowl").isVisible());
+  ok("chairs for whoever hasn't got one", await page.getByText("Camp chairs — spares").isVisible());
+  ok("kindling", await page.getByText("Hatchet for kindling").isVisible());
 
   ok("labels say the thing and stop",
     await page.getByText("Firewood — buy on the island").isVisible() &&
@@ -326,6 +330,8 @@ const ok = (name, cond, detail = "") => {
   // The notes that stopped a real mistake survived; the narration didn't.
   ok("the useful notes stayed", await page.getByText("no showers at Blackwoods").isVisible());
   ok("the cable people forget", await page.getByText("Charging cable").isVisible());
+  ok("hand sanitizer came back", await page.getByText("Hand sanitizer").isVisible());
+  ok("and actual clothes are listed", await page.getByText("Shirts + shorts for three days").isVisible());
   ok("the narration went", (await page.getByText(/the thing first-timers forget/).count()) === 0);
   const packedLine = async () =>
     await page.locator("main").getByText(/^\d+ of \d+ packed$/).first().innerText();

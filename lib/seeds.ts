@@ -64,6 +64,8 @@ export const SEED_GEAR: {
   { category: "Shelter", label: "Stakes + guylines", sort: 5 },
   // Blackwoods pitches are hard-packed; stakes don't go in by hand.
   { category: "Shelter", label: "Mallet for the stakes", sort: 6 },
+  // Eleven people, and not everyone owns a chair.
+  { category: "Shelter", label: "Camp chairs — spares", sort: 7 },
   { category: "Camp Kitchen", label: "Coffee + filters", sort: 9 , essential: true },
   { category: "Coolers & Water", label: "Second cooler — drinks", sort: 2 },
   { category: "Coolers & Water", label: "Ice", sort: 3 },
@@ -76,6 +78,9 @@ export const SEED_GEAR: {
   { category: "Camp Kitchen", label: "Can opener", sort: 18, essential: true },
   { category: "Camp Kitchen", label: "Tongs + spatula", sort: 19, essential: true },
   { category: "Camp Kitchen", label: "Paper towels", sort: 20 },
+  // Three dozen eggs don't scramble in a saucepan.
+  { category: "Camp Kitchen", label: "Big mixing bowl", sort: 21 },
+  { category: "Camp Kitchen", label: "Tablecloth + clips", sort: 22 },
   // One burner for eleven is the bottleneck of the weekend; pancakes on it is
   // about eight rounds, and a griddle over the fire makes that two.
   { category: "Camp Kitchen", label: "Flat griddle for the fire", sort: 16, essential: true },
@@ -86,6 +91,8 @@ export const SEED_GEAR: {
   // Fires out before you sleep. This is the thing that does it.
   { category: "Fire & Light", label: "Water bucket for the fire", sort: 7, essential: true },
   { category: "Fire & Light", label: "Backup headlamp", sort: 8 },
+  // The wood you buy on the island comes split, but not to kindling.
+  { category: "Fire & Light", label: "Hatchet for kindling", sort: 9 },
   { category: "Site & Safety", label: "Tick remover", sort: 4 },
   { category: "Site & Safety", label: "Food bins for the cars", sort: 5 },
   { category: "Site & Safety", label: "Clothesline", sort: 6 },
@@ -142,9 +149,11 @@ export const SEED_PERSONAL: {
   { category: "Extras", label: "Cards, book, speaker", note: "", sort: 3 },
   // Round 11 additions.
   { category: "Sleep", label: "Earplugs + eye mask", note: "", sort: 5 },
+  { category: "Sleep", label: "Extra blanket", note: "", sort: 6 },
   { category: "Clothing", label: "Long pants", note: "", sort: 7 },
   { category: "Clothing", label: "Beanie", note: "", sort: 8 },
   { category: "Clothing", label: "Underwear", note: "", sort: 9 },
+  { category: "Clothing", label: "Shirts + shorts for three days", note: "", sort: 10 },
   { category: "Mess Kit", label: "Mug for coffee", note: "", sort: 3 },
   { category: "Mess Kit", label: "Dish towel", note: "", sort: 4 },
   { category: "Essentials", label: "Daypack", note: "", sort: 6 },
@@ -153,6 +162,9 @@ export const SEED_PERSONAL: {
   { category: "Essentials", label: "Charging cable", note: "", sort: 8 },
   { category: "Toiletries", label: "Shower flip-flops", note: "", sort: 6 },
   { category: "Toiletries", label: "Lip balm", note: "", sort: 7 },
+  // Fourth casualty of the label trim in 0026: "Wet wipes / hand sanitizer"
+  // lost the half that matters with no showers and eleven people cooking.
+  { category: "Toiletries", label: "Hand sanitizer", note: "no showers, and everyone handles the food", sort: 8, essential: true },
   { category: "Extras", label: "Dry bag for your phone", note: "", sort: 4 },
   { category: "Extras", label: "Trekking poles", note: "", sort: 5 },
 ];
