@@ -24,6 +24,7 @@ import type {
   MenuItem,
   MenuVote,
   PersonalItem,
+  Receipt,
   ShoppingItem,
   SurveyRow,
 } from "@/lib/types";
@@ -113,6 +114,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   const [shopping, setShopping] = useState<ShoppingItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseShares, setShareRows] = useState<ExpenseShare[]>([]);
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [surveys, setSurveys] = useState<SurveyRow[]>([
     // One neighbor's answers so the Ideas board renders populated in mock runs.
@@ -166,6 +168,13 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       deleteMember: (id) => setMembers((prev) => prev.filter((m) => m.id !== id)),
       claimMember,
       expenseShares,
+      receipts,
+      addReceipt: (expenseId, file) =>
+        setReceipts((prev) => [
+          ...prev,
+          { id: newId(), expense_id: expenseId, url: URL.createObjectURL(file), sort: 0 },
+        ]),
+      deleteReceipt: (id) => setReceipts((prev) => prev.filter((r) => r.id !== id)),
       setAvatar: (file) =>
         setAvatars((prev) => ({ ...prev, [ME]: URL.createObjectURL(file) })),
       days: SEED_DAYS,
@@ -392,7 +401,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
         ]);
       },
     };
-  }, [name, ensureName, linkName, claimMember, blocks, gear, personal, menu, menuVotes, shopping, expenses, expenseShares, members, myMemberId, surveys, avatars]);
+  }, [name, ensureName, linkName, claimMember, blocks, gear, personal, menu, menuVotes, shopping, expenses, expenseShares, receipts, members, myMemberId, surveys, avatars]);
 
   return (
     <Ctx.Provider value={value}>

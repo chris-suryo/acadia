@@ -13,6 +13,7 @@ import type {
   MenuItem,
   MenuVote,
   PersonalItem,
+  Receipt,
   ShoppingItem,
   SurveyRow,
 } from "@/lib/types";
@@ -119,6 +120,10 @@ export type DataCtx = {
     among: string[],
   ) => string;
   updateExpense: (id: string, patch: ExpensePatch) => void;
+  receipts: Receipt[];
+  /** Downscales client-side, uploads, and attaches the photo to the expense. */
+  addReceipt: (expenseId: string, file: File) => void;
+  deleteReceipt: (id: string) => void;
   setExpenseShares: (expenseId: string, memberIds: string[]) => void;
   deleteExpense: (id: string) => void;
   restoreGear: (row: GearItem, children?: GearItem[]) => void;

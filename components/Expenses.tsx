@@ -1,18 +1,20 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowRight, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, Camera, Plus, Trash2, X } from "lucide-react";
 import { Btn, Card, SubH } from "./primitives";
 import { AddRow } from "./ui/AddRow";
+import { AvatarEditor } from "./AvatarEditor";
 import { Avatar } from "./ui/Avatar";
 import { focusCenter } from "./ui/focusCenter";
+import { PeoplePicker, splitLabel } from "./ui/PeoplePicker";
 import { SwipeRow } from "./ui/SwipeRow";
 import { useOutside } from "./ui/useOutside";
 import { useUi } from "./ui/UiProvider";
 import { useData } from "@/lib/data/context";
 import { PARTY_SIZE } from "@/lib/config";
 import { balances, money, settle } from "@/lib/settle";
-import type { Member } from "@/lib/types";
+import type { Member, Receipt } from "@/lib/types";
 
 // No `w-full` here: these sit side by side in a flex row, where a 100% width
 // plus the amount field overflows the card and drags the labels off-screen.
@@ -30,6 +32,21 @@ type Draft = {
   among: string[];
 };
 
+let localSeq = 0;
+const newLocalId = () => `pending-${++localSeq}`;
+
+const parseAmount = (s: string) => {
+  const n = parseFloat(s);
+  return isNaN(n) || n < 0 ? null : Math.round(n * 100);
+};
+
+/** "$60.88 each" under the split line, so the division is visible as you type. */
+function perHead(amount: string, n: number): string {
+  const cents = parseAmount(amount);
+  if (!cents || n < 1) return `${n} ${n === 1 ? "person" : "people"}`;
+  return `${money(Math.round(cents / n))} each · ${n} ${n === 1 ? "person" : "people"}`;
+}
+
 /** Description, amount, who paid, who it was for. Same form for a new expense
  *  and an existing one — nothing is written until Done or a tap away. */
 function ExpenseEditor({
@@ -37,6 +54,11 @@ function ExpenseEditor({
   setDraft,
   members,
   memberAvatars,
+  solo,
+  receipts,
+  onAddReceipt,
+  onDeleteReceipt,
+  onViewReceipt,
   onDone,
   onDelete,
 }: {
@@ -44,34 +66,38 @@ function ExpenseEditor({
   setDraft: (d: Draft) => void;
   members: Member[];
   memberAvatars: Record<string, string>;
+  solo: { id: string; label: string };
+  receipts: Receipt[];
+  onAddReceipt: (f: File) => void;
+  onDeleteReceipt: (id: string) => void;
+  onViewReceipt: (url: string) => void;
   onDone: () => void;
   onDelete?: () => void;
 }) {
-  const toggle = (id: string) =>
-    setDraft({
-      ...draft,
-      among: draft.among.includes(id)
-        ? draft.among.filter((x) => x !== id)
-        : [...draft.among, id],
-    });
-
-  const everyone = draft.among.length === members.length;
+  const [pickOpen, setPickOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   return (
-    <div className="grid gap-2.5 px-3.5 py-3 bg-[#FBF8EE] border-b border-rule">
-      <div className="flex gap-2">
-        <input
-          autoFocus
-          onFocus={focusCenter}
-          value={draft.description}
-          onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onDone();
-          }}
-          placeholder="What you bought"
-          enterKeyHint="next"
-          className={`${FIELD} flex-1 min-w-0`}
-        />
+    <div className="grid gap-3 px-3.5 py-3.5 bg-[#FBF8EE] border-b border-rule">
+      <input
+        autoFocus
+        onFocus={focusCenter}
+        value={draft.description}
+        onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onDone();
+        }}
+        placeholder="What you bought"
+        enterKeyHint="next"
+        className={`${FIELD} w-full text-[17px]`}
+      />
+
+      {/* The amount is the point of the row, so it gets the size and a $ that
+          sits inside the field instead of being something you have to type. */}
+      <div className="relative">
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-[22px] text-granite pointer-events-none">
+          $
+        </span>
         <input
           onFocus={focusCenter}
           value={draft.amount}
@@ -82,7 +108,8 @@ function ExpenseEditor({
           placeholder="0.00"
           inputMode="decimal"
           enterKeyHint="done"
-          className={`${FIELD} w-[92px] shrink-0 font-mono`}
+          aria-label="Amount"
+          className="w-full pl-9 pr-3.5 py-2 rounded-lg border border-rule bg-white font-mono text-[24px] text-ink min-h-[52px]"
         />
       </div>
 
@@ -95,62 +122,94 @@ function ExpenseEditor({
               onClick={() => setDraft({ ...draft, payer: m.id })}
               aria-label={`${m.name} paid`}
               aria-pressed={draft.payer === m.id}
-              className={`px-3 py-1.5 min-h-[36px] rounded-full border cursor-pointer font-mono text-[10.5px] uppercase tracking-[.07em] ${
+              className={`flex items-center gap-1.5 pl-1 pr-2.5 py-1 min-h-[34px] rounded-full border cursor-pointer text-[12.5px] ${
                 draft.payer === m.id
-                  ? "border-blaze text-blaze bg-[#FBEFE4]"
-                  : "border-rule text-granite bg-transparent"
+                  ? "border-blaze bg-[#FBEFE4] text-ink"
+                  : "border-rule bg-transparent text-mute"
               }`}
             >
-              {m.name}
+              <Avatar userId={m.id} url={memberAvatars[m.id]} name={m.name} size={20} />
+              <span className="truncate max-w-[96px]">{m.name}</span>
             </button>
           ))}
         </div>
       </div>
 
+      {/* One line rather than twelve pills — the detail lives in the sheet. */}
       <div className="grid gap-1.5">
-        <div className="flex items-baseline justify-between">
-          <span className={LABEL}>Split between</span>
-          {/* The two answers people actually want, without twelve taps. */}
-          <span className="flex gap-2.5">
-            <button
-              onClick={() =>
-                setDraft({
-                  ...draft,
-                  among: everyone ? [] : members.map((m) => m.id),
-                })
-              }
-              className="bg-transparent border-none cursor-pointer font-mono text-[10.5px] text-blaze p-0"
-            >
-              {everyone ? "none" : "everyone"}
-            </button>
-            <button
-              onClick={() => setDraft({ ...draft, among: [draft.payer] })}
-              className="bg-transparent border-none cursor-pointer font-mono text-[10.5px] text-blaze p-0"
-            >
-              just them
-            </button>
+        <span className={LABEL}>Split between</span>
+        <button
+          onClick={() => setPickOpen(true)}
+          className="w-full text-left bg-white border border-rule rounded-lg cursor-pointer flex items-center gap-2 px-3 py-2.5 min-h-[46px]"
+        >
+          <span className="flex -space-x-1.5 shrink-0">
+            {members
+              .filter((m) => draft.among.includes(m.id))
+              .slice(0, 4)
+              .map((m) => (
+                <Avatar
+                  key={m.id}
+                  userId={m.id}
+                  url={memberAvatars[m.id]}
+                  name={m.name}
+                  size={22}
+                />
+              ))}
           </span>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {members.map((m) => {
-            const on = draft.among.includes(m.id);
-            return (
+          <span className="flex-1 min-w-0 text-[14px] text-ink truncate">
+            {splitLabel(members, draft.among)}
+          </span>
+          <span className="font-mono text-[11px] text-blaze shrink-0">change</span>
+        </button>
+        {draft.among.length > 0 && (
+          <span className="font-mono text-[10.5px] text-mute">
+            {perHead(draft.amount, draft.among.length)}
+          </span>
+        )}
+      </div>
+
+      <div className="grid gap-1.5">
+        <span className={LABEL}>Receipt</span>
+        <div className="flex flex-wrap gap-2">
+          {receipts.map((r) => (
+            <span key={r.id} className="relative">
               <button
-                key={m.id}
-                onClick={() => toggle(m.id)}
-                aria-label={`${on ? "Leave out" : "Include"} ${m.name}`}
-                aria-pressed={on}
-                className={`flex items-center gap-1.5 pl-1 pr-2.5 py-1 min-h-[34px] rounded-full border cursor-pointer text-[12.5px] ${
-                  on
-                    ? "border-moss bg-[#E9EEE4] text-ink"
-                    : "border-rule bg-transparent text-mute"
-                }`}
+                onClick={() => onViewReceipt(r.url)}
+                aria-label="View receipt"
+                className="block w-[54px] h-[54px] rounded-lg overflow-hidden border border-rule bg-white cursor-pointer p-0"
               >
-                <Avatar userId={m.id} url={memberAvatars[m.id]} name={m.name} size={20} />
-                <span className="truncate max-w-[96px]">{m.name}</span>
+                {/* eslint-disable-next-line @next/next/no-img-element -- user upload */}
+                <img src={r.url} alt="" className="w-full h-full object-cover" />
               </button>
-            );
-          })}
+              <button
+                onClick={() => onDeleteReceipt(r.id)}
+                aria-label="Remove receipt"
+                className="absolute -top-1.5 -right-1.5 w-[20px] h-[20px] rounded-full bg-ink text-parchment border-none cursor-pointer flex items-center justify-center p-0"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+          <button
+            onClick={() => fileRef.current?.click()}
+            aria-label="Add a receipt"
+            className="w-[54px] h-[54px] rounded-lg border border-dashed border-rule bg-transparent cursor-pointer flex items-center justify-center text-granite"
+          >
+            <Camera size={18} />
+          </button>
+          {/* No `capture` attribute: iOS then offers the camera *and* the photo
+              library, which is where a receipt already photographed lives. */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              for (const f of Array.from(e.target.files ?? [])) onAddReceipt(f);
+              e.target.value = "";
+            }}
+          />
         </div>
       </div>
 
@@ -168,9 +227,19 @@ function ExpenseEditor({
           Done
         </Btn>
       </div>
+
+      <PeoplePicker
+        open={pickOpen}
+        onClose={() => setPickOpen(false)}
+        members={members}
+        selected={draft.among}
+        onChange={(ids) => setDraft({ ...draft, among: ids })}
+        solo={solo}
+      />
     </div>
   );
 }
+
 
 /** Settling up. Its own tab since Chris flagged it: deciding what to eat and
  *  working out who owes whom are different jobs on different days. */
@@ -190,8 +259,23 @@ export function Expenses() {
     addMember,
     renameMember,
     deleteMember,
+    receipts,
+    addReceipt,
+    deleteReceipt,
   } = useData();
   const { showUndo, showNotice } = useUi();
+  const [viewing, setViewing] = useState<string | null>(null);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  // An expense being added has no id yet, so its photos wait here and go up the
+  // moment it's saved — you shouldn't have to save first and reopen to attach
+  // the receipt that's already in your hand.
+  const [pending, setPending] = useState<{ id: string; file: File; url: string }[]>([]);
+  const dropPending = () => {
+    setPending((prev) => {
+      for (const p of prev) URL.revokeObjectURL(p.url);
+      return [];
+    });
+  };
 
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({
@@ -205,6 +289,8 @@ export function Expenses() {
   const editorRef = useRef<HTMLDivElement | null>(null);
 
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name || "Someone";
+  const receiptsOf = (expenseId: string) =>
+    receipts.filter((r) => r.expense_id === expenseId);
 
   /** Shares in roster order, so the odd cents always land the same way. */
   const sharesOf = (expenseId: string) => {
@@ -212,11 +298,6 @@ export function Expenses() {
       expenseShares.filter((s) => s.expense_id === expenseId).map((s) => s.member_id),
     );
     return members.filter((m) => ids.has(m.id)).map((m) => m.id);
-  };
-
-  const parseAmount = (s: string) => {
-    const n = parseFloat(s);
-    return isNaN(n) || n < 0 ? null : Math.round(n * 100);
   };
 
   /**
@@ -228,6 +309,12 @@ export function Expenses() {
    */
   const payerOf = (d: Draft) => d.payer || myMemberId || members[0]?.id || "";
 
+  /** The one-person shortcut, named after whoever paid. */
+  const soloOf = (d: Draft) => {
+    const id = payerOf(d);
+    return { id, label: id === myMemberId ? "Just me" : `Just ${nameOf(id)}` };
+  };
+
   const commit = () => {
     const id = editing;
     setEditing(null);
@@ -238,12 +325,17 @@ export function Expenses() {
 
     if (id === NEW) {
       // Nothing typed — the add was opened and abandoned, so nothing is written.
-      if (!desc && !cents) return;
+      if (!desc && !cents) {
+        dropPending();
+        return;
+      }
       if (!payer) {
         showNotice("Add someone to the trip first");
         return;
       }
-      addExpense(desc || "Untitled", cents ?? 0, payer, draft.among);
+      const newId = addExpense(desc || "Untitled", cents ?? 0, payer, draft.among);
+      for (const p of pending) addReceipt(newId, p.file);
+      dropPending();
       return;
     }
 
@@ -324,6 +416,7 @@ export function Expenses() {
 
   return (
     <div className="px-3.5 pt-4 pb-20">
+      <AvatarEditor open={photoOpen} onClose={() => setPhotoOpen(false)} />
       {/* Where you stand — the one number worth reading from across a campsite. */}
       <div className="mb-[18px]">
         {!myMemberId ? (
@@ -352,6 +445,17 @@ export function Expenses() {
           {money(total)} spent by the group
         </div>
       </div>
+
+      {viewing && (
+        <button
+          onClick={() => setViewing(null)}
+          aria-label="Close receipt"
+          className="fixed inset-0 z-50 bg-black/85 border-none cursor-zoom-out flex items-center justify-center p-4"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- user upload */}
+          <img src={viewing} alt="Receipt" className="max-w-full max-h-full object-contain" />
+        </button>
+      )}
 
       {transfers.length > 0 && (
         <div className="mb-5">
@@ -406,7 +510,7 @@ export function Expenses() {
       <div className="mb-5">
         <SubH right={sorted.length ? `${sorted.length}` : null}>What we spent</SubH>
         <Card className="overflow-hidden">
-          {sorted.length === 0 && (
+          {sorted.length === 0 && editing !== NEW && (
             <div className="p-5 text-[13.5px] text-mute text-center border-b border-rule">
               Nothing logged yet. Add what you bought and pick who it was for —
               the app works out who owes whom.
@@ -421,6 +525,11 @@ export function Expenses() {
                     setDraft={setDraft}
                     members={members}
                     memberAvatars={memberAvatars}
+                    solo={soloOf(draft)}
+                    receipts={receiptsOf(e.id)}
+                    onAddReceipt={(f) => addReceipt(e.id, f)}
+                    onDeleteReceipt={deleteReceipt}
+                    onViewReceipt={setViewing}
                     onDone={commit}
                     onDelete={() => drop(e.id)}
                   />
@@ -435,6 +544,18 @@ export function Expenses() {
                   onClick={() => open(e.id)}
                   className="w-full text-left bg-transparent border-none cursor-pointer flex items-center gap-2.5 px-3.5 py-3"
                 >
+                  {/* A receipt is worth seeing from the list — it's the answer
+                      to "what was actually in that $243?" */}
+                  {receiptsOf(e.id)[0] && (
+                    <span className="w-9 h-9 rounded-md overflow-hidden border border-rule shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- user upload */}
+                      <img
+                        src={receiptsOf(e.id)[0].url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    </span>
+                  )}
                   <span className="flex-1 min-w-0">
                     <span className="block text-[14.5px] text-ink truncate">
                       {e.description || "Untitled"}
@@ -460,6 +581,27 @@ export function Expenses() {
                 setDraft={setDraft}
                 members={members}
                 memberAvatars={memberAvatars}
+                solo={soloOf(draft)}
+                receipts={pending.map((p) => ({
+                  id: p.id,
+                  expense_id: NEW,
+                  url: p.url,
+                  sort: 0,
+                }))}
+                onAddReceipt={(f) =>
+                  setPending((prev) => [
+                    ...prev,
+                    { id: newLocalId(), file: f, url: URL.createObjectURL(f) },
+                  ])
+                }
+                onDeleteReceipt={(id) =>
+                  setPending((prev) => {
+                    const hit = prev.find((p) => p.id === id);
+                    if (hit) URL.revokeObjectURL(hit.url);
+                    return prev.filter((p) => p.id !== id);
+                  })
+                }
+                onViewReceipt={setViewing}
                 onDone={commit}
               />
             </div>
@@ -525,6 +667,10 @@ export function Expenses() {
               >
                 <button
                   onClick={() => {
+                    if (m.id === myMemberId && !memberAvatars[m.id]) {
+                      setPhotoOpen(true);
+                      return;
+                    }
                     setNameDraft(m.name);
                     setRenaming(m.id);
                   }}
@@ -535,8 +681,14 @@ export function Expenses() {
                     {m.name}
                   </span>
                   {m.id === myMemberId && (
-                    <span className="font-mono text-[10px] uppercase tracking-[.08em] text-moss shrink-0">
-                      you
+                    <span
+                      className={`font-mono text-[10px] uppercase tracking-[.08em] shrink-0 ${
+                        memberAvatars[m.id] ? "text-moss" : "text-blaze"
+                      }`}
+                    >
+                      {/* Nobody has to have a picture, but a list of grey
+                          initials is harder to read than a list of faces. */}
+                      {memberAvatars[m.id] ? "you" : "add a photo"}
                     </span>
                   )}
                 </button>

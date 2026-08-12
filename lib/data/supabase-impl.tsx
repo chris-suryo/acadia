@@ -11,7 +11,7 @@ import {
   SUPABASE_URL,
   TRIP_DATES,
 } from "@/lib/config";
-import { downscaleAvatar } from "@/lib/avatar";
+import { downscaleAvatar, downscalePhoto } from "@/lib/avatar";
 import type {
   Expense,
   ExpenseShare,
@@ -24,6 +24,7 @@ import type {
   MenuVote,
   PersonalItem,
   Profile,
+  Receipt,
   ShoppingItem,
   SurveyRow,
 } from "@/lib/types";
@@ -42,6 +43,7 @@ type Table =
   | "shopping_items"
   | "expenses"
   | "expense_shares"
+  | "expense_receipts"
   | "survey"
   | "forecast_cache";
 
@@ -55,6 +57,7 @@ const REALTIME_TABLES: Table[] = [
   "shopping_items",
   "expenses",
   "expense_shares",
+  "expense_receipts",
   "survey",
   "forecast_cache",
 ];
@@ -90,6 +93,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseShares, setShareRows] = useState<ExpenseShare[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [surveys, setSurveys] = useState<SurveyRow[]>([]);
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
 
@@ -132,6 +136,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           break;
         case "members":
           setMembers(data as Member[]);
+          break;
+        case "expense_receipts":
+          setReceipts(data as Receipt[]);
           break;
         case "survey":
           setSurveys(data as SurveyRow[]);
@@ -199,6 +206,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       "shopping_items",
       "expenses",
       "expense_shares",
+      "expense_receipts",
       "survey",
       "forecast_cache",
     ];
@@ -257,6 +265,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         refetch("shopping_items"),
         refetch("expenses"),
         refetch("expense_shares"),
+        refetch("expense_receipts"),
         refetch("members"),
         refetch("survey"),
       ]);
@@ -491,6 +500,43 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     [supabase, persist],
   );
 
+  const addReceipt = useCallback(
+    (expenseId: string, file: File) => {
+      const id = newId();
+      (async () => {
+        // Downscaled on the phone: a 12MP camera shot over campground signal
+        // either takes a minute or never lands.
+        const blob = await downscalePhoto(file);
+        const path = `${expenseId}/${id}.jpg`;
+        const { error: err } = await supabase.storage
+          .from("receipts")
+          .upload(path, blob, { contentType: "image/jpeg", upsert: true });
+        if (err) throw err;
+        const url = `${SUPABASE_URL}/storage/v1/object/public/receipts/${path}`;
+        const { error: rerr } = await supabase
+          .from("expense_receipts")
+          .insert({ id, expense_id: expenseId, url, sort: 0 });
+        if (rerr) throw rerr;
+        refetch("expense_receipts");
+      })().catch((e) => {
+        console.error("[receipt]", e);
+        showNotice("Couldn't add that photo — retry");
+        refetch("expense_receipts");
+      });
+    },
+    [supabase, refetch, showNotice],
+  );
+
+  const deleteReceipt = useCallback(
+    (id: string) => {
+      setReceipts((prev) => prev.filter((r) => r.id !== id));
+      // The object stays in the bucket; it's a few KB and orphaned storage is
+      // cheaper than a delete that half-succeeds.
+      persist(supabase.from("expense_receipts").delete().eq("id", id), "expense_receipts");
+    },
+    [supabase, persist],
+  );
+
   const setAvatar = useCallback(
     (file: File) => {
       const uid = userIdRef.current;
@@ -547,6 +593,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     deleteMember,
     claimMember,
     expenseShares,
+    receipts,
+    addReceipt,
+    deleteReceipt,
     setAvatar,
     days,
     blocks,

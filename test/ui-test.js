@@ -1,0 +1,667 @@
+// End-to-end UI suite. Run against a production build in mock mode:
+//
+//   NEXT_PUBLIC_DATA_MODE=mock pnpm build
+//   NEXT_PUBLIC_DATA_MODE=mock PORT=3107 pnpm start
+//   node test/ui-test.js
+//
+// Kill any old `next start` before restarting — a replaced .next under a
+// running server produces phantom failures that look like real regressions.
+const { chromium } = require("playwright");
+const fs = require("fs");
+
+const BASE = "http://localhost:3107";
+const SHOT_DIR = process.env.SHOT_DIR || "/tmp/abc-shots";
+// A 1x1 JPEG, enough to exercise upload/crop/attach paths without a fixture file.
+const TINY_JPEG = Buffer.from(
+  "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+  "base64",
+);
+const results = [];
+const ok = (name, cond, detail = "") => {
+  results.push({ name, pass: !!cond, detail });
+  console.log(`${cond ? "PASS" : "FAIL"}  ${name}${detail ? " — " + detail : ""}`);
+};
+
+(async () => {
+  fs.mkdirSync(SHOT_DIR, { recursive: true });
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
+
+  // Skip the first-open Welcome for the main suite; it gets its own contexts below.
+  await page.addInitScript(() => localStorage.setItem("abc.welcomed", "1"));
+
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.waitForTimeout(600);
+
+  // ---- Itinerary tab: schedule-first, ideas below ----
+  ok("header title", await page.getByRole("heading", { name: "Acadia Base Camp" }).isVisible());
+  ok("bottom nav fixed", (await page.locator("nav.fixed.bottom-0").count()) === 1);
+  ok("no segments on itinerary", (await page.getByRole("button", { name: "Schedule" }).count()) === 0);
+  ok("what people want section", await page.getByText("What people want").isVisible());
+  ok("alana idea card below schedule", await page.getByText("Beehive if the ladders aren't crowded").isVisible());
+  ok("add yours ghost", await page.getByRole("button", { name: "Add yours" }).isVisible());
+  const schedThumbs = await page.locator('[data-day] img.w-11').count();
+  ok("schedule entry photos", schedThumbs === 3, `${schedThumbs} linked-entry thumbs`);
+  await page.screenshot({ path: `${SHOT_DIR}/0-schedule.png`, fullPage: true });
+
+  // ---- Board model ----
+  ok("weather renders", (await page.getByText("79\u00b0 / 57\u00b0").count()) === 1);
+  ok("trip skeleton content", await page.getByText("Camp setup", { exact: true }).isVisible());
+  ok("rolling-in entry gone", (await page.getByText("Rolling in all day").count()) === 0);
+  ok("staggered-arrivals text gone", (await page.getByText(/text the thread/).count()) === 0);
+  ok("saturday is park day", await page.getByText("Dinner in Bar Harbor").isVisible());
+  ok("no Save button anywhere", (await page.getByRole("button", { name: "Save" }).count()) === 0);
+  ok("no day edit mode", (await page.getByLabel("Edit Friday").count()) === 0);
+  const fri = page.locator('[data-day="fri"]');
+  ok("day-part dividers", (await fri.getByText("Afternoon", { exact: true }).count()) === 1 && (await fri.getByText("Evening", { exact: true }).count()) === 1);
+
+  // camp card with the loop map
+  ok("camp card on schedule", await page.getByText("Base camp \u2014 Blackwoods").isVisible());
+  ok("sites on camp card", await page.getByText(/sites B080 \+ B082 · B loop/).isVisible());
+  ok("directions link", (await page.locator('[data-day="fri"] a[href*="maps.apple.com"]').count()) === 1);
+  ok("camp card inside friday", (await page.locator('[data-day="fri"]').getByText("Base camp \u2014 Blackwoods").count()) === 1);
+  ok("camp card is just the sites", (await page.getByText(/State Highway 3/).count()) === 0 && (await page.getByText(/check-in 1 pm/).count()) === 0);
+  ok("show map link", await page.getByRole("button", { name: "show map" }).isVisible());
+  await page.getByRole("button", { name: "camp notes" }).click();
+  await page.waitForTimeout(300);
+  ok("camp notes sheet", await page.getByText(/No showers at Blackwoods/).isVisible());
+  ok("shower link", (await page.locator('a[href*="Hot%20Showers"], a[href*="Hot+Showers"]').count()) === 1);
+  ok("body scroll locked", (await page.evaluate(() => getComputedStyle(document.body).overflow)) === "hidden");
+  await page.getByRole("button", { name: "Got it" }).click();
+  await page.waitForTimeout(250);
+  ok("camp notes closes", (await page.getByText(/No showers at Blackwoods/).count()) === 0);
+  ok("body scroll restored", (await page.evaluate(() => getComputedStyle(document.body).overflow)) !== "hidden");
+  ok("weather links to forecast", (await page.locator('a[href*="forecast.weather.gov"]').count()) === 3);
+  await page.getByLabel("Open the loop map").click();
+  await page.waitForTimeout(300);
+  ok("camp card opens map", await page.getByLabel("Close map").isVisible());
+  await page.getByLabel("Close map").click();
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: `${SHOT_DIR}/1-itinerary.png`, fullPage: true });
+
+  // tap-to-edit + autosave on tap-outside
+  await fri.getByText("Camp setup", { exact: true }).click();
+  await page.waitForTimeout(250);
+  const titleInput = page.locator('input[value="Camp setup"]');
+  ok("tap expands to inline edit", await titleInput.isVisible());
+  await titleInput.fill("Camp setup by 3");
+  await page.screenshot({ path: `${SHOT_DIR}/1b-entry-expanded.png` });
+  await page.getByRole("heading", { name: /Friday/ }).click();
+  await page.waitForTimeout(300);
+  ok("autosaved on tap-away", await fri.getByText("Camp setup by 3").isVisible());
+  ok("edit fields closed", (await page.locator('input[value="Camp setup by 3"]').count()) === 0);
+
+  ok("one add per day", (await fri.getByRole("button", { name: /Add/ }).count()) === 1);
+
+  // ghost add: Enter commits and stays open
+  await fri.getByRole("button", { name: /Add/ }).click();
+  await page.waitForTimeout(150);
+  await page.keyboard.type("Coffee run");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(250);
+  ok("ghost add commits", await fri.getByText("Coffee run").isVisible());
+  const stillOpen = await fri.locator("input").count();
+  ok("ghost add stays open", stillOpen === 1);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(150);
+
+  // day-part chips move entries between groups
+  await fri.getByText("Coffee run").click();
+  await page.waitForTimeout(250);
+  await page.getByRole("button", { name: "Evening", exact: true }).click();
+  await page.waitForTimeout(300);
+  ok("chip moved entry to evening", (await fri.locator('[data-part="evening"] input[value="Coffee run"]').count()) === 1);
+
+  // explicit Done commits and closes the editor
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(250);
+  ok("entry done closes editor", (await page.locator('input[value="Coffee run"]').count()) === 0);
+  await fri.locator('[data-part="evening"]').getByText("Coffee run").click();
+  await page.waitForTimeout(250);
+
+  // delete + undo (entry still expanded inside evening)
+  await page.getByLabel("Delete entry").click();
+  await page.waitForTimeout(250);
+  ok("entry deleted", (await fri.getByText("Coffee run").count()) === 0);
+  ok("undo snackbar", await page.getByRole("button", { name: "Undo" }).isVisible());
+  await page.getByRole("button", { name: "Undo" }).click();
+  await page.waitForTimeout(250);
+  ok("undo restores entry", await fri.locator('[data-part="evening"]').getByText("Coffee run").isVisible());
+
+  // Saturday options strip + entry photo tap both jump to Explore
+  ok("hikes carousel", await page.getByText("Hikes", { exact: true }).isVisible());
+  ok("dinner carousel", (await page.locator(".snap-start").count()) === 16, "6 hikes + 10 eats");
+  ok("dinner cards link to maps", (await page.locator('a.snap-start[href*="maps.apple.com"]').count()) === 10);
+  ok("thirsty whale on the list", await page.getByText("Thirsty Whale").first().isVisible());
+  
+  await page.locator("button.snap-start").first().click();
+  await page.waitForTimeout(800);
+  ok("option card jumps to park", await page.getByText("Beehive Loop").isVisible());
+  await page.getByRole("button", { name: "Itinerary" }).click();
+  await page.waitForTimeout(400);
+  await page.locator('[data-day] img.w-11').first().click();
+  await page.waitForTimeout(800);
+  ok("entry photo jumps to explore", await page.getByText("Island Explorer shuttle").isVisible());
+  ok("photo tap did not open editor", (await page.locator('input[value="Shuttle or cars"]').count()) === 0);
+  await page.getByRole("button", { name: "Itinerary" }).click();
+  await page.waitForTimeout(400);
+
+  // details jump: first linked entry is Saturday's shuttle call → town zone
+  await page.getByRole("button", { name: "details", exact: true }).first().click();
+  await page.waitForTimeout(800);
+  ok("details jump lands on town segment", await page.getByText("Island Explorer shuttle").isVisible());
+  ok("park section hidden on town", (await page.getByText("In the park").count()) === 0);
+  await page.screenshot({ path: `${SHOT_DIR}/2-explore-highlight.png` });
+
+  // ---- Explore: Town ----
+  ok("eat with a group", await page.getByText("Stewman's Lobster Pound").isVisible());
+  ok("eats maps links", (await page.locator('a[href*="maps.apple.com"]').count()) === 20, "title + chip per row, 10 places");
+  const townThumbs = page.locator('button img[src*="/spots/"]');
+  ok("town spot thumbs", (await townThumbs.count()) === 5, `${await townThumbs.count()} thumbs`);
+
+  // ---- Explore: Park ----
+  await page.getByRole("button", { name: "Park", exact: true }).click();
+  await page.waitForTimeout(300);
+  ok("park spots render", await page.getByText("Great Head Loop").isVisible());
+  ok("new spots render", (await page.getByText("Echo Lake Beach").count()) === 1 && (await page.getByText("Bass Harbor Head Lighthouse").count()) === 1 && (await page.getByText("Sand Beach", { exact: true }).count()) === 1);
+  const thumbs = page.locator('button img[src*="/spots/"]');
+  ok("park spot thumbs", (await thumbs.count()) === 11, `${await thumbs.count()} thumbs`);
+  const favs = await page.locator('img[src*="s2/favicons"]').count();
+  ok("favicon source icons", favs > 8, `${favs} favicons`);
+  await thumbs.first().click();
+  await page.waitForTimeout(250);
+  ok("photo viewer opens", await page.getByLabel("Close photo").isVisible());
+  await page.getByLabel("Close photo").click();
+  await page.waitForTimeout(250);
+  ok("photo viewer closes", (await page.getByLabel("Close photo").count()) === 0);
+  await page.screenshot({ path: `${SHOT_DIR}/3-explore.png`, fullPage: true });
+
+  // ---- Explore: Info ----
+  await page.getByRole("button", { name: "Info", exact: true }).click();
+  await page.waitForTimeout(300);
+  ok("compact map row", await page.getByText("Blackwoods loop map").isVisible());
+  await page.getByText("Blackwoods loop map").click();
+  await page.waitForTimeout(300);
+  ok("map overlay opens", await page.getByLabel("Close map").isVisible());
+  ok("map has no caption chrome", (await page.getByText(/pinch to zoom/).count()) === 0);
+  await page.getByLabel("Close map").click();
+  await page.waitForTimeout(200);
+  ok("map overlay closes", (await page.getByLabel("Close map").count()) === 0);
+  ok("guides section", await page.getByText("Joe's Guide to Acadia").isVisible());
+  ok("route 10 link", (await page.getByText("Island Explorer Route 10 — Blackwoods").count()) === 1);
+  const links = await page.locator('a[target="_blank"]').count();
+  ok("info links present", links > 15, `${links} anchors`);
+
+  // ---- Packing: grammar + name sheet ----
+  await page.getByRole("button", { name: "Packing" }).click();
+  await page.waitForTimeout(300);
+  // Read the bar rather than hardcode a count — the gear list grows between
+  // rounds, and what these check is the transition, not the seed size.
+  const claimed = async () => {
+    const t = await page.locator("main").getByText(/^\d+ of \d+ claimed$/).first().innerText();
+    return parseInt(t, 10);
+  };
+  ok("claim progress bar", (await claimed()) === 0, `${await claimed()} claimed at rest`);
+  ok("no at-rest trash", (await page.getByLabel("Delete", { exact: true }).count()) === 0);
+  await page.screenshot({ path: `${SHOT_DIR}/4-packing-group.png`, fullPage: true });
+
+  // whole-row tap with no name -> bottom sheet, action completes after Continue
+  await page.getByText("Tarp or canopy").click();
+  await page.waitForTimeout(300);
+  ok("name sheet opens", (await page.getByPlaceholder("Your name").count()) === 1, "sheet only — header is a greeting now");
+  ok("claim blocked until name", (await claimed()) === 0);
+  await page.getByPlaceholder("Your name").last().fill("Chris");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.waitForTimeout(400);
+  ok("gated action completed", (await claimed()) === 1);
+  ok("claim shows owner name", await page.locator("main").getByText("Chris", { exact: true }).first().isVisible());
+  ok("header shows the name", await page.locator("header").getByText("Chris", { exact: true }).isVisible());
+  ok("header monogram", await page.locator("header").getByText("C", { exact: true }).isVisible());
+  await page.getByLabel("Edit your photo").click();
+  await page.waitForTimeout(300);
+  ok("header opens avatar editor", await page.getByText("choose a photo").isVisible());
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  await page.getByText("Tarp or canopy").click();
+  await page.waitForTimeout(250);
+  ok("row tap unclaims", (await claimed()) === 0);
+
+  // hierarchy: child renders, claiming the parent claims the bundle
+  ok("hierarchy child renders", await page.getByText("Propane canisters \u00d72").isVisible());
+  await page.getByText("Camp stove + fuel").click();
+  await page.waitForTimeout(300);
+  ok("parent claim cascades", (await claimed()) === 2, "the bundle goes with its parent");
+  ok("bundle shows owner twice", (await page.locator("main").getByText("Chris", { exact: true }).count()) === 2);
+  await page.getByText("Camp stove + fuel").click();
+  await page.waitForTimeout(300);
+  ok("parent unclaim cascades", (await claimed()) === 0);
+
+  // ghost add per category (pre-filled category, no select)
+  ok("no category selects", (await page.locator("select").count()) === 0);
+  const shelter = page.locator("div").filter({ has: page.getByText("Shelter", { exact: true }) }).last();
+  await page.getByRole("button", { name: "Add", exact: true }).first().click();
+  await page.keyboard.type("Bug net canopy");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(250);
+  ok("gear ghost add commits", await page.getByText("Bug net canopy").isVisible());
+  await page.keyboard.press("Escape");
+
+  // ---- Packing dnd: vertical mouse drag reorders; drop click is swallowed ----
+  const drag = async (fromText, toText, dropAtTop) => {
+    await page.getByText(toText).first().scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    const src = await page.getByText(fromText).first().boundingBox();
+    const dst = await page.getByText(toText).first().boundingBox();
+    await page.mouse.move(src.x + src.width / 2, src.y + src.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(src.x + src.width / 2, src.y + src.height / 2 + 14, { steps: 4 });
+    await page.mouse.move(dst.x + dst.width / 2, dropAtTop ? dst.y + 2 : dst.y + dst.height - 2, { steps: 14 });
+    await page.waitForTimeout(150);
+    await page.mouse.up();
+    await page.waitForTimeout(450);
+  };
+
+  const shelterCard = page.locator("div.mb-5").filter({ has: page.getByText("Shelter", { exact: true }) });
+  await drag("Tarp or canopy", "Tents — spares for first-timers (Alana)", true);
+  const shelterTexts = await shelterCard.locator("span.text-\\[14\\.5px\\]").allTextContents();
+  ok("dnd reorder within category", shelterTexts[0] === "Tarp or canopy", shelterTexts.join(" | ").slice(0, 90));
+  ok("drop click swallowed — nothing claimed", (await claimed()) === 0);
+
+  const fireCard = page.locator("div.mb-5").filter({ has: page.getByText("Fire & Light", { exact: true }) });
+  await drag("Bottle opener + corkscrew", "Firewood — buy local, don't transport", true);
+  ok("dnd cross-category move", await fireCard.getByText("Bottle opener + corkscrew").isVisible());
+  await page.screenshot({ path: `${SHOT_DIR}/5-packing-dnd.png`, fullPage: true });
+
+  // My list
+  await page.getByRole("button", { name: "My list" }).click();
+  await page.waitForTimeout(300);
+  ok("privacy line", await page.getByText("only visible to you").isVisible());
+  const packedLine = async () =>
+    await page.locator("main").getByText(/^\d+ of \d+ packed$/).first().innerText();
+  const listSize = parseInt((await packedLine()).split(" of ")[1], 10);
+  ok("progress starts at zero", (await packedLine()) === `0 of ${listSize} packed`, await packedLine());
+  await page.getByText("Sleeping bag", { exact: true }).click();
+  await page.waitForTimeout(250);
+  ok("row tap checks item", (await packedLine()) === `1 of ${listSize} packed`, await packedLine());
+  await page.screenshot({ path: `${SHOT_DIR}/6-packing-mine.png`, fullPage: true });
+
+  // checked item sinks to the bottom of its section after ~1s
+  const sleepCard = page.locator("div.mb-5").filter({ has: page.getByText("Sleep", { exact: true }) });
+  await page.waitForTimeout(1400);
+  const sleepTexts = await sleepCard.locator("button").allTextContents();
+  ok("checked item sinks", (sleepTexts[sleepTexts.length - 2] || "").includes("Sleeping bag"), sleepTexts.join(" | ").slice(0, 80));
+
+  // ---- Ideas: own card edit (name is set now, so no gate) ----
+  await page.getByRole("button", { name: "Itinerary" }).click();
+  await page.waitForTimeout(300);
+  await page.getByRole("button", { name: "Add yours" }).click();
+  await page.waitForTimeout(250);
+  ok("ideas editor opens with chips", await page.getByRole("button", { name: "A big hike" }).isVisible());
+  ok("ideas placeholders", (await page.getByPlaceholder("s'mores night, a dish, allergies…").count()) === 1);
+  await page.getByRole("button", { name: "A big hike" }).click();
+  await page.waitForTimeout(150);
+  await page.getByRole("button", { name: "Swimming" }).click();
+  await page.waitForTimeout(150);
+  await page.getByRole("button", { name: "Wander, no plan" }).click();
+  await page.waitForTimeout(150);
+  await page.getByPlaceholder("s'mores night, a dish, allergies…").fill("Breakfast burritos");
+  await page.getByPlaceholder("anything you're hoping to do or see…").fill("Great Head sunrise");
+  await page.screenshot({ path: `${SHOT_DIR}/7-ideas-edit.png`, fullPage: true });
+  await page.getByRole("heading", { name: "Acadia Base Camp" }).click();
+  await page.waitForTimeout(300);
+  ok("vibes saved to card", await page.getByText("A big hike · Swimming", { exact: true }).isVisible());
+  ok("idea card saved on tap-away", await page.getByText("Great Head sunrise").isVisible());
+  ok("pace chips on cards", (await page.getByText("Wander, no plan").count()) === 1 && (await page.getByText("One good hike").count()) === 1, "mine + Alana");
+  ok("vibe tally", await page.getByText(/a big hike \u00d72/).isVisible());
+  ok("ideas editor closed", (await page.locator('input[placeholder*="allergies"]').count()) === 0);
+
+  // reopen own card: explicit Done commit
+  await page.getByText("Great Head sunrise").click();
+  await page.waitForTimeout(250);
+  await page.getByPlaceholder("s'mores night, a dish, allergies…").fill("Breakfast burritos + hot sauce");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(300);
+  ok("done button commits", await page.getByText("Breakfast burritos + hot sauce").isVisible());
+  ok("done closes editor", (await page.locator('input[placeholder*="allergies"]').count()) === 0);
+
+  // ---- Food: a menu you vote on, and a list you can shop ----
+  await page.getByRole("button", { name: "Food", exact: true }).click();
+  await page.waitForTimeout(300);
+  ok("requests card from questionnaire", await page.getByText("S'mores. Non-negotiable.").isVisible());
+  ok("requests promote to the store", (await page.getByRole("button", { name: "add to store" }).count()) >= 1);
+  ok("own request shows", await page.getByText("Breakfast burritos + hot sauce").isVisible());
+  ok("menu candidates seeded", (await page.locator("main").getByRole("button", { name: /^Vote for / }).count()) >= 18);
+  ok("meal sub-headings", await page.locator("main").getByText("Breakfast", { exact: true }).first().isVisible());
+  ok("menu seed taco", await page.getByText("Tacos", { exact: true }).isVisible());
+  ok("all nights render", await page.getByText("Anytime", { exact: true }).isVisible());
+  // Some of the group don't eat meat, so every cooked meal carries an option
+  // and the row says so without anyone being asked about their diet.
+  ok("veg badges seeded", (await page.locator("main").getByText("veg", { exact: true }).count()) === 15);
+  ok("no leader before a vote", (await page.locator("main").getByText("leading", { exact: true }).count()) === 0);
+
+  // Tapping a dish used to open the editor, which made voting fiddly. The whole
+  // row votes now; editing moved behind the pencil.
+  await page.getByRole("button", { name: "Vote for Tacos" }).click();
+  await page.waitForTimeout(350);
+  ok("row tap votes", (await page.getByRole("button", { name: "Remove your vote for Tacos" }).count()) === 1);
+  ok("row tap opens no editor", (await page.locator('input[value="Tacos"]').count()) === 0);
+  ok("a vote crowns a leader", (await page.locator("main").getByText("leading", { exact: true }).count()) >= 1);
+  // ...and voting twice quickly is what raised "couldn't save — retry": both
+  // taps read "not voted yet" off a stale render and both INSERTed.
+  await page.getByRole("button", { name: "Remove your vote for Tacos" }).click();
+  await page.getByRole("button", { name: "Vote for Tacos" }).click();
+  await page.waitForTimeout(500);
+  ok("fast re-vote raises no error", (await page.getByText("Couldn't save").count()) === 0);
+  ok("fast re-vote leaves one vote", (await page.getByRole("button", { name: "Remove your vote for Tacos" }).count()) === 1);
+
+  // ghost add dish under Saturday (name already set; meal defaults Dinner)
+  const satCard = page.locator("div.mb-5").filter({ has: page.getByText("Saturday", { exact: true }) });
+  await satCard.getByRole("button", { name: /Suggest an/ }).click();
+  await page.keyboard.type("Campfire chili");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(250);
+  await page.keyboard.press("Escape");
+  ok("dish ghost add commits", await page.getByText("Campfire chili").isVisible());
+
+  await page.getByRole("button", { name: "Edit Campfire chili" }).click();
+  await page.waitForTimeout(300);
+  ok("pencil opens the editor", (await page.locator('input[value="Campfire chili"]').count()) === 1);
+  // Notes stay editable — they just never render under the dish again.
+  await page.getByPlaceholder(/Notes/).fill("cooked by Chris");
+  await page.getByRole("button", { name: "Lunch", exact: true }).click();
+  await page.waitForTimeout(250);
+  await page.getByRole("button", { name: "Add ingredient" }).click();
+  await page.keyboard.type("Ground beef 4 lb");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(200);
+  await page.keyboard.type("Canned beans ×6");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(200);
+  await page.keyboard.press("Escape");
+  await page.screenshot({ path: `${SHOT_DIR}/8-food-dish-ingredients.png`, fullPage: true });
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(300);
+  ok("meal chip moves the dish", await satCard.getByText("Campfire chili").isVisible());
+  ok("no description under the dish", (await page.getByText("cooked by Chris").count()) === 0);
+  ok("no ingredient byline either", (await page.getByText(/\d\/\d ingredients/).count()) === 0);
+
+  // store view
+  await page.getByRole("button", { name: /^Store( ·|$)/ }).click();
+  await page.waitForTimeout(300);
+  ok("store has ingredient", await page.getByText("Ground beef 4 lb").isVisible());
+  // Grouped by where things sit in a shop, not by where the row came from.
+  ok("store groups by aisle", await page.locator("main").getByText("Meat + Deli", { exact: true }).isVisible());
+  ok("store tags source dish", await page.getByText("Campfire chili · Saturday").first().isVisible());
+  await page.getByRole("button", { name: /Ask for something/ }).click();
+  await page.keyboard.type("Ice ×4");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(250);
+  await page.keyboard.press("Escape");
+  ok("requester name on the line", await page.locator("main").getByText("Chris", { exact: true }).first().isVisible());
+  ok("ice lands in its own aisle", await page.locator("main").getByText("Ice + Frozen", { exact: true }).isVisible());
+  await page.getByText("Ground beef 4 lb").click();
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: `${SHOT_DIR}/9-food-store.png`, fullPage: true });
+
+  ok("store label counts down", await page.getByRole("button", { name: "Store · 2 left" }).isVisible());
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.waitForTimeout(250);
+  await page.getByRole("button", { name: "Edit Campfire chili" }).click();
+  await page.waitForTimeout(300);
+  ok(
+    "store check syncs into the dish editor",
+    (await page.locator("div.bg-\\[\\#FBF8EE\\] .line-through").count()) === 1,
+  );
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(250);
+
+  // ---- Expenses: split it, then settle up ----
+  // Expenses left Food for its own tab: deciding what to eat and working out
+  // who owes whom are different jobs on different days.
+  ok("five tabs", (await page.locator("nav.fixed.bottom-0 > button").count()) === 5);
+  await page.getByRole("button", { name: "Expenses", exact: true }).click();
+  await page.waitForTimeout(300);
+  ok("expenses empty state", await page.getByText(/Nothing logged yet/).isVisible());
+  // The name typed into the gate sheet earlier was already on the roster, so it
+  // resolved to that person instead of minting a second Chris. That is the whole
+  // reason the arithmetic below can be trusted.
+  ok("roster renders", (await page.locator("main").getByText("Alana", { exact: true }).count()) === 1);
+  ok("typing a roster name doesn't duplicate the person",
+    (await page.locator("main").getByText("Chris", { exact: true }).count()) === 1);
+  ok("you are marked on the roster",
+    (await page.locator("main").getByText(/^(you|add a photo)$/).count()) === 1);
+
+  // Paid by you, split with everyone — the common case, no extra taps.
+  await page.getByRole("button", { name: "Add an expense" }).click();
+  await page.waitForTimeout(300);
+  await page.getByPlaceholder("What you bought").fill("Groceries at Hannaford");
+  await page.getByLabel("Amount").fill("243.50");
+  ok("payer defaults to you",
+    (await page.getByRole("button", { name: "Chris paid" }).getAttribute("aria-pressed")) === "true");
+  ok("split defaults to everyone", await page.getByText("Everyone", { exact: true }).isVisible());
+  // The division is visible while you type it, so a wrong amount is obvious
+  // before it's saved rather than after the settle-up looks odd.
+  ok("per-head shown as you type", await page.getByText("$60.88 each · 4 people").isVisible());
+  // A receipt can be attached before the expense exists — you photograph it
+  // while adding, not after saving and reopening.
+  await page.setInputFiles('input[type="file"]', {
+    name: "receipt.jpg", mimeType: "image/jpeg", buffer: TINY_JPEG,
+  });
+  await page.waitForTimeout(300);
+  ok("receipt attaches to an unsaved expense",
+    (await page.getByRole("button", { name: "View receipt" }).count()) === 1);
+  await page.screenshot({ path: `${SHOT_DIR}/10-expenses-editor.png`, fullPage: true });
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(500);
+  ok("row says who paid and how it split",
+    await page.getByText("Chris paid · split with everyone").isVisible());
+  ok("the receipt went up with it", (await page.locator('img[src^="blob:"]').count()) >= 1);
+  // $243.50 across four is indivisible; you carry one of the odd cents, so being
+  // owed 182.62 rather than 182.63 is the split reconciling to the penny.
+  ok("balance says you're owed", await page.getByText("You're owed").isVisible());
+  ok("owed to the cent", await page.getByText("$182.62").first().isVisible());
+
+  // Someone else pays, split among a subset that leaves you out.
+  await page.getByRole("button", { name: "Add an expense" }).click();
+  await page.waitForTimeout(300);
+  await page.getByPlaceholder("What you bought").fill("Lobster rolls");
+  await page.getByLabel("Amount").fill("42.25");
+  await page.getByRole("button", { name: "Erin paid" }).click();
+  await page.getByRole("button", { name: "change" }).click();
+  await page.waitForTimeout(350);
+  const sheet = page.locator("div.fixed.inset-0.z-50");
+  // The old control flipped its label to "none" once everyone was selected,
+  // which read as the opposite of what it did. Both shortcuts are their own
+  // button now and always say the same thing.
+  ok("everyone shortcut is always Everyone",
+    await sheet.getByRole("button", { name: "Everyone" }).isVisible());
+  ok("solo shortcut names the payer",
+    await sheet.getByRole("button", { name: "Just Erin" }).isVisible());
+  await page.screenshot({ path: `${SHOT_DIR}/10b-split-picker.png` });
+  await sheet.getByRole("button", { name: "Leave out Alana" }).click();
+  await sheet.getByRole("button", { name: "Leave out Chris" }).click();
+  await page.waitForTimeout(200);
+  ok("picker updates the summary line", await page.getByText("Erin and Sam").isVisible());
+  await sheet.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(300);
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.waitForTimeout(400);
+  ok("a subset split charges only those people",
+    await page.getByText(/split 2 ways · not you/).isVisible());
+
+  // The settle-up is the point: these payments must clear the ledger exactly.
+  const settleCents = await page
+    .locator("[data-settle]")
+    .evaluateAll((els) => els.map((e) => Number(e.dataset.settle)));
+  ok("settle-up pays off exactly what you're owed",
+    settleCents.reduce((a, b) => a + b, 0) === 18262, `${settleCents}`);
+  ok("one payment per debtor", settleCents.length === 3, `${settleCents.length}`);
+  await page.screenshot({ path: `${SHOT_DIR}/10c-expenses-settle.png`, fullPage: true });
+
+  // Removing someone mid-ledger would rewrite everyone's balance without saying
+  // so, so it's refused while they're on an expense.
+  const swipe = async (row) => {
+    await row.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(150);
+    const b = await row.boundingBox();
+    await page.mouse.move(b.x + b.width - 16, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width - 40, b.y + b.height / 2, { steps: 3 });
+    await page.mouse.move(b.x + 20, b.y + b.height / 2, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+  };
+  await swipe(page.locator("main").getByRole("button", { name: /Erin/ }).last());
+  ok("can't remove someone who's on an expense",
+    await page.getByText(/Erin is on \d expense/).isVisible());
+  ok("they're still on the roster",
+    (await page.locator("main").getByText("Erin", { exact: true }).count()) >= 1);
+
+  // Editing goes through the same form; deleting an expense undoes cleanly.
+  await page.getByText("Lobster rolls").click();
+  await page.waitForTimeout(300);
+  ok("tapping a row opens the editor",
+    (await page.getByRole("button", { name: "Delete expense" }).count()) === 1);
+  await page.getByRole("button", { name: "Delete expense" }).click();
+  await page.waitForTimeout(300);
+  ok("expense deleted", (await page.getByText("Lobster rolls").count()) === 0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await page.waitForTimeout(500);
+  ok("undo restores the expense and its split",
+    await page.getByText(/split 2 ways · not you/).isVisible());
+
+  // ---- the page must never pan sideways ----
+  // Carousels scroll horizontally; the document must not. A stray absolutely
+  // positioned child escaping a carousel widens the document and lets a sideways
+  // swipe drag the whole app off-screen.
+  for (const tab of ["Itinerary", "Packing", "Food", "Expenses", "Explore"]) {
+    await page.getByRole("button", { name: tab, exact: true }).click();
+    await page.waitForTimeout(400);
+    const w = await page.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    }));
+    ok(`${tab} does not scroll sideways`, w.scroll <= w.client, `${w.scroll} > ${w.client}`);
+  }
+  await page.getByRole("button", { name: "Itinerary", exact: true }).click();
+  await page.waitForTimeout(400);
+  ok("carousels contain their overscroll",
+    (await page.locator(".overflow-x-auto.overscroll-x-contain").count()) === 2);
+
+  // ---- persistence: reload lands on the schedule; segments restore per tab ----
+  await page.getByRole("button", { name: "Food", exact: true }).click();
+  await page.waitForTimeout(250);
+  await page.getByRole("button", { name: /^Store( ·|$)/ }).click();
+  await page.waitForTimeout(250);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+  ok("reload lands on schedule", await page.getByText("Camp setup", { exact: true }).isVisible());
+  await page.getByRole("button", { name: "Food", exact: true }).click();
+  await page.waitForTimeout(300);
+  ok("food segment restored", await page.getByRole("button", { name: /Ask for something/ }).isVisible());
+  // A phone that visited before Expenses moved out still has "money" stored;
+  // without a fallback the Food tab renders blank on that phone forever.
+  await page.evaluate(() => sessionStorage.setItem("abc.foodView", "money"));
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+  await page.getByRole("button", { name: "Food", exact: true }).click();
+  await page.waitForTimeout(300);
+  ok("stale money segment falls back to the menu", await page.getByText("Tacos", { exact: true }).isVisible());
+
+  // ---- intro replay from Explore + ?welcome=1 + PWA endpoints ----
+  await page.getByRole("button", { name: "Explore" }).click();
+  await page.waitForTimeout(300);
+  await page.getByRole("button", { name: "Info", exact: true }).click();
+  await page.waitForTimeout(250);
+  await page.getByText("replay the intro").click();
+  await page.waitForTimeout(300);
+  ok("replay shows intro", await page.getByText("What's your name?").isVisible());
+  await page.getByText("skip for now").click();
+  await page.waitForTimeout(300);
+  ok("replay exits to app", await page.getByRole("heading", { name: "Acadia Base Camp" }).isVisible());
+  await page.goto(BASE + "/?welcome=1", { waitUntil: "networkidle" });
+  await page.waitForTimeout(700);
+  ok("welcome=1 forces intro", await page.getByText("What's your name?").isVisible());
+  const man = await page.request.get(BASE + "/manifest.webmanifest");
+  ok("manifest served", man.status() === 200 && (await man.json()).name === "Acadia Base Camp");
+  const ai = await page.request.get(BASE + "/apple-icon.png");
+  ok("apple icon served", ai.status() === 200);
+
+  // ---- Welcome: first-open flow in a fresh context (no welcomed flag) ----
+  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const p2 = await ctx2.newPage();
+  await p2.goto(BASE, { waitUntil: "networkidle" });
+  await p2.waitForTimeout(1200);
+  ok("welcome shows on first visit", await p2.getByText("What's your name?").isVisible());
+  await p2.screenshot({ path: `${SHOT_DIR}/11-welcome.png` });
+  await p2.getByRole("button", { name: "Continue" }).click();
+  await p2.waitForTimeout(200);
+  ok("continue blocked without name", await p2.getByText("What's your name?").isVisible());
+  await p2.getByLabel("Add a photo").click();
+  await p2.waitForTimeout(300);
+  ok("avatar editor opens", await p2.getByText("choose a photo").isVisible());
+  await p2.setInputFiles('input[type="file"]', { name: "me.jpg", mimeType: "image/jpeg", buffer: TINY_JPEG });
+  await p2.waitForTimeout(400);
+  ok("crop frame appears", await p2.getByText("pinch and drag to frame it").isVisible());
+  await p2.getByRole("button", { name: "Save" }).click();
+  await p2.waitForTimeout(500);
+  ok("avatar saved to intro circle", (await p2.locator('button[aria-label="Add a photo"] img').count()) === 1);
+  await p2.getByPlaceholder("Your name").fill("Robin");
+  await p2.getByRole("button", { name: "Continue" }).click();
+  await p2.waitForTimeout(300);
+  ok("questionnaire step", await p2.getByText("What kind of weekend?").isVisible());
+  ok("greets by name", await p2.getByText("Hey Robin").isVisible());
+  await p2.getByRole("button", { name: "A big hike" }).click();
+  await p2.getByRole("button", { name: "Up early, do it all" }).click();
+  await p2.getByPlaceholder("anything you're hoping to do or see…").fill("Precipice at dawn");
+  await p2.screenshot({ path: `${SHOT_DIR}/12-questionnaire.png`, fullPage: true });
+  await p2.getByRole("button", { name: "Done", exact: true }).click();
+  await p2.waitForTimeout(500);
+  ok("done lands in app", await p2.getByRole("heading", { name: "Acadia Base Camp" }).isVisible());
+  ok("name saved — header shows it", await p2.locator("header").getByText("Robin", { exact: true }).isVisible());
+  ok("header shows avatar", (await p2.locator("header img").count()) === 1);
+  ok("questionnaire landed on ideas", await p2.getByText("Precipice at dawn").isVisible());
+  ok("idea card avatar", (await p2.locator('img[src^="blob:"]').count()) >= 2, "header + card");
+
+  // replay is non-destructive: prefilled name + survey, Done keeps answers
+  await p2.getByRole("button", { name: "Explore" }).click();
+  await p2.waitForTimeout(300);
+  await p2.getByRole("button", { name: "Info", exact: true }).click();
+  await p2.waitForTimeout(250);
+  await p2.getByText("replay the intro").click();
+  await p2.waitForTimeout(300);
+  ok("replay prefills name", (await p2.getByPlaceholder("Your name").inputValue()) === "Robin");
+  await p2.getByRole("button", { name: "Continue" }).click();
+  await p2.waitForTimeout(300);
+  ok("replay prefills survey", (await p2.getByPlaceholder("anything you're hoping to do or see…").inputValue()) === "Precipice at dawn");
+  ok("replay keeps vibe chips", (await p2.getByRole("button", { name: "A big hike" }).getAttribute("aria-pressed")) === "true");
+  await p2.getByRole("button", { name: "Done", exact: true }).click();
+  await p2.waitForTimeout(300);
+  await p2.getByRole("button", { name: "Itinerary" }).click();
+  await p2.waitForTimeout(300);
+  ok("replay done keeps answers", await p2.getByText("Precipice at dawn").isVisible());
+
+  await p2.reload({ waitUntil: "networkidle" });
+  await p2.waitForTimeout(700);
+  ok("welcome not shown again", (await p2.getByText("What's your name?").count()) === 0);
+  await ctx2.close();
+
+  // skip path
+  const ctx3 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const p3 = await ctx3.newPage();
+  await p3.goto(BASE, { waitUntil: "networkidle" });
+  await p3.waitForTimeout(600);
+  await p3.getByText("skip for now").click();
+  await p3.waitForTimeout(300);
+  ok("skip lands in app", await p3.getByRole("heading", { name: "Acadia Base Camp" }).isVisible());
+  await ctx3.close();
+
+  await browser.close();
+  const fails = results.filter((r) => !r.pass);
+  console.log(`\n${results.length - fails.length}/${results.length} passed`);
+  process.exit(fails.length ? 1 : 0);
+})().catch((e) => {
+  console.error("SCRIPT ERROR:", e);
+  process.exit(2);
+});

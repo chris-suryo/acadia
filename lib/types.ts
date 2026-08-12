@@ -97,6 +97,14 @@ export type ExpenseShare = {
   member_id: string;
 };
 
+/** A photo of what was actually bought. */
+export type Receipt = {
+  id: string;
+  expense_id: string;
+  url: string;
+  sort: number;
+};
+
 export type SurveyRow = {
   user_id: string;
   activity: string; // Easy | A hike a day | Send it | ''
