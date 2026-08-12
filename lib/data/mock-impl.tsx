@@ -132,7 +132,12 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   const [expenseShares, setShareRows] = useState<ExpenseShare[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
-  const [avatars, setAvatars] = useState<Record<string, string>>({});
+  // Alana's URL is broken on purpose: it 404s against any server, so every
+  // screen that shows her face exercises the Avatar fallback — the suite
+  // asserts she renders as her initial, never as a broken image.
+  const [avatars, setAvatars] = useState<Record<string, string>>({
+    [ALANA]: "/no-such-avatar.jpg",
+  });
   const [surveys, setSurveys] = useState<SurveyRow[]>([
     // One neighbor's answers so the Ideas board renders populated in mock runs.
     {

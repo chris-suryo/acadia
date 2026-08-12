@@ -378,6 +378,16 @@ const ok = (name, cond, detail = "") => {
   ok("vibes saved to card", await page.getByText("A big hike · Swimming", { exact: true }).isVisible());
   ok("idea card saved on tap-away", await page.getByText("Great Head sunrise").isVisible());
   ok("pace chips on cards", (await page.getByText("Wander, no plan").count()) === 1 && (await page.getByText("One good hike").count()) === 1, "mine + Alana");
+  // Alana's mock avatar URL 404s on purpose. A photo that can't load has to
+  // fall back to the initial — on iOS a bare broken <img> renders as "?",
+  // which is exactly what a just-uploaded photo looks like while the storage
+  // CDN catches up, and what any unseen photo looks like offline at camp.
+  // onError removes the img and the monogram takes its place, so a broken
+  // URL must leave zero imgs in the DOM. (That the avatar pipeline mounts
+  // imgs at all is covered by "header shows avatar" further down.)
+  await page.waitForTimeout(400);
+  ok("a broken avatar falls back to the initial",
+    (await page.locator('img[src="/no-such-avatar.jpg"]').count()) === 0);
   ok("camped-before saves from ideas", await page.getByText("First timer").isVisible());
   ok("vibe tally", await page.getByText(/a big hike \u00d72/).isVisible());
   ok("ideas editor closed", (await page.locator('input[placeholder*="allergies"]').count()) === 0);

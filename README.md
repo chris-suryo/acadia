@@ -1,6 +1,6 @@
 # Acadia Base Camp
 
-One-weekend trip site for a 12-person camping trip — Blackwoods Campground, Acadia National Park, Aug 14–16, 2026. Mobile-first; built to be opened on a phone at a picnic table.
+One-weekend trip site for an 11-person camping trip — Blackwoods Campground, Acadia National Park, Aug 14–16, 2026. Mobile-first; built to be opened on a phone at a picnic table.
 
 **Itinerary** — three editable day plans with live NWS weather · **Packing** — claimable group gear + a private per-person checklist · **Food** — menu by night with ingredients, a shared store list, expense split · **Explore** — trails, town, guides, and every logistics link verified.
 
@@ -37,7 +37,7 @@ The Supabase URL and anon key in `lib/config.ts` are public-by-design browser
 values. Access control is RLS, but **the gate is deliberately wide**: the app
 signs in with `signInAnonymously()`, and the shared tables are
 `for all to authenticated using (true)`. "Authenticated" therefore means anyone
-who can reach the project — not just the twelve people on the trip.
+who can reach the project — not just the eleven people on the trip.
 
 That is a considered trade for a three-day trip among friends, not a pattern to
 copy. What follows from it:

@@ -190,7 +190,7 @@ export const SPOTS: Spot[] = [
     name: "Lobster on the pier",
     meta: "Bar Harbor",
     links: [],
-    note: "A dozen options within two blocks of the water. Cooking for twelve three days straight is a lot — one dinner out is a reasonable escape valve.",
+    note: "A dozen options within two blocks of the water. Cooking for eleven three days straight is a lot — one dinner out is a reasonable escape valve.",
     photo: photo("seafood.jpg", "Lee Coursey · CC BY 2.0"),
   },
   {
@@ -208,7 +208,7 @@ export const SPOTS: Spot[] = [
 // reliable path to hours, directions and menus. Addresses confirmed Aug 2026;
 // `street` doubles as the card caption so the list reads as a walking route.
 //
-// Order: best fit for twelve people first (big menus, walk-ins, patios), then
+// Order: best fit for eleven people first (big menus, walk-ins, patios), then
 // the rest. Bar Harbor's restaurants sit in three clusters — Rodick/Cottage in
 // the middle of town, Main St running south, West St on the waterfront — and
 // the order keeps each cluster together so a night out doesn't zig-zag.

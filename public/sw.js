@@ -88,7 +88,20 @@ const cacheFirst = async (req, cacheName) => {
   const cache = await caches.open(cacheName);
   const hit = await cache.match(req);
   if (hit) return hit;
-  const res = await fetch(req);
+  let res = await fetch(req);
+  // A freshly uploaded avatar can 404 for a minute at the storage CDN, and
+  // that 404 can then sit in the browser's HTTP cache — every retry re-serves
+  // it and the photo looks permanently broken. One reload-mode retry punches
+  // through both caches; only ever taken on a failure, so it costs nothing
+  // when things work.
+  if (!res.ok && req.url.includes("/object/public/")) {
+    try {
+      const fresh = await fetch(req, { cache: "reload" });
+      if (fresh.ok) res = fresh;
+    } catch {
+      /* keep the original failure */
+    }
+  }
   if (res.ok) cache.put(req, res.clone());
   return res;
 };
