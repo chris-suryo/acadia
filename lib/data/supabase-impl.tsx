@@ -368,6 +368,11 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
    * too, so both are lost together and the app never shows a tick it isn't
    * still trying to save.
    */
+  // Declared before the outbox that reports into it: useMemo runs its factory
+  // during the first render, so a `const` declared below is still in its
+  // temporal dead zone. Mock mode never builds this provider, so the only
+  // place that showed was the production prerender.
+  const [queued, setQueued] = useState(0);
   const outbox = useMemo(
     () =>
       createOutbox<Table>({
@@ -384,7 +389,6 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  const [queued, setQueued] = useState(0);
 
   const flush = useCallback(async () => {
     await outbox.flush();
