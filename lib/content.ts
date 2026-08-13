@@ -190,7 +190,7 @@ export const SPOTS: Spot[] = [
     name: "Lobster on the pier",
     meta: "Bar Harbor",
     links: [],
-    note: "A dozen options within two blocks of the water. Cooking for eleven three days straight is a lot — one dinner out is a reasonable escape valve.",
+    note: "A dozen options within two blocks of the water. Cooking for twelve three days straight is a lot — one dinner out is a reasonable escape valve.",
     photo: photo("seafood.jpg", "Lee Coursey · CC BY 2.0"),
   },
   {
@@ -208,7 +208,7 @@ export const SPOTS: Spot[] = [
 // reliable path to hours, directions and menus. Addresses confirmed Aug 2026;
 // `street` doubles as the card caption so the list reads as a walking route.
 //
-// Order: best fit for eleven people first (big menus, walk-ins, patios), then
+// Order: best fit for twelve people first (big menus, walk-ins, patios), then
 // the rest. Bar Harbor's restaurants sit in three clusters — Rodick/Cottage in
 // the middle of town, Main St running south, West St on the waterfront — and
 // the order keeps each cluster together so a night out doesn't zig-zag.
@@ -354,9 +354,11 @@ export const CAMP_NOTES: { text: string; link?: SpotLink }[] = [
     link: { label: "Otter Creek, ½ mi", url: "https://maps.apple.com/?q=Hot+Showers+Acadia+Otter+Creek+ME" },
   },
   // The park caps each site at two tents, six people and one vehicle. Two
-  // sites is four tents and two cars for eleven of us — which is a problem
+  // sites is four tents and two cars for twelve of us — which is a problem
   // that only shows up when four cars arrive at a gate that expects two.
-  { text: "Two tents and one car per site: four tents, two cars for the eleven of us." },
+  // Twelve also lands exactly on the people cap: six per site, two sites.
+  { text: "Two tents and one car per site: four tents, two cars for the twelve of us." },
+  { text: "Six people per site is the limit — twelve of us fills both exactly." },
   { text: "Water spigots and flush toilets in every loop." },
   { text: "Food sleeps in the cars — raccoons work this campground." },
   { text: "Buy firewood on the island; out-of-state wood is banned." },
