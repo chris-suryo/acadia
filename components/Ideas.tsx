@@ -15,7 +15,9 @@ import {
   PACE_CHIPS,
   SURVEY_PLACEHOLDERS,
   VIBE_CHIPS,
+  mergeSurvey,
   splitVibes,
+  surveysByPerson,
 } from "@/lib/survey";
 import { useData } from "@/lib/data/context";
 import type { SurveyRow } from "@/lib/types";
@@ -78,10 +80,11 @@ export function Ideas() {
   const [draft, setDraft] = useState<TextDraft>({ food: "", hikes: "" });
   const editRef = useRef<HTMLDivElement | null>(null);
 
-  // This device's own row wins; another of your devices is the fallback, so
-  // answering on a laptop doesn't read as blank on a phone.
-  const mine =
-    surveys.find((s) => s.user_id === userId) ?? surveys.find((s) => isMe(s.user_id));
+  // Everything you've answered, from whichever of your devices you answered it
+  // on — so a vibe picked in Safari still shows in the installed app, and
+  // editing here writes the whole merged answer back onto this device's row.
+  const myRows = surveys.filter((s) => isMe(s.user_id) || s.user_id === userId);
+  const mine = mergeSurvey(myRows);
   const vibes = splitVibes(mine?.wants ?? "");
   /**
    * Everyone else's answers, one card per person.
@@ -89,21 +92,17 @@ export function Ideas() {
    * A row belongs to a device, and adding the app to a Home Screen mints a
    * second device for the same human — so someone who answered in Safari and
    * again in the installed app had two cards here, side by side, under one
-   * name. The newest wins, since it's the one they meant.
+   * name. Merged per field rather than newest-row-wins, because two devices
+   * turned out to hold complementary halves of one answer.
    */
-  const others = [
-    ...surveys
-      .filter((s) => !isMe(s.user_id) && answered(s))
-      .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-      .reduce((acc, s) => {
-        const who = memberOf(s.user_id) || s.user_id;
-        if (!acc.has(who)) acc.set(who, s);
-        return acc;
-      }, new Map<string, (typeof surveys)[number]>())
-      .values(),
-  ].sort((a, b) =>
-    (profiles[a.user_id] || "").localeCompare(profiles[b.user_id] || ""),
-  );
+  const others = surveysByPerson(
+    surveys.filter((s) => !isMe(s.user_id)),
+    memberOf,
+  )
+    .filter(answered)
+    .sort((a, b) =>
+      (profiles[a.user_id] || "").localeCompare(profiles[b.user_id] || ""),
+    );
 
   const startEdit = () => {
     setDraft({ food: mine?.food ?? "", hikes: mine?.hikes ?? "" });
