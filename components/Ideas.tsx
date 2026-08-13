@@ -72,7 +72,7 @@ function CardBody({ s, name }: { s: SurveyRow; name: string }) {
 }
 
 export function Ideas() {
-  const { surveys, profiles, userId, isMe, name, upsertSurvey, ensureName } =
+  const { surveys, profiles, userId, isMe, memberOf, name, upsertSurvey, ensureName } =
     useData();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<TextDraft>({ food: "", hikes: "" });
@@ -83,11 +83,27 @@ export function Ideas() {
   const mine =
     surveys.find((s) => s.user_id === userId) ?? surveys.find((s) => isMe(s.user_id));
   const vibes = splitVibes(mine?.wants ?? "");
-  const others = surveys
-    .filter((s) => !isMe(s.user_id) && answered(s))
-    .sort((a, b) =>
-      (profiles[a.user_id] || "").localeCompare(profiles[b.user_id] || ""),
-    );
+  /**
+   * Everyone else's answers, one card per person.
+   *
+   * A row belongs to a device, and adding the app to a Home Screen mints a
+   * second device for the same human — so someone who answered in Safari and
+   * again in the installed app had two cards here, side by side, under one
+   * name. The newest wins, since it's the one they meant.
+   */
+  const others = [
+    ...surveys
+      .filter((s) => !isMe(s.user_id) && answered(s))
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+      .reduce((acc, s) => {
+        const who = memberOf(s.user_id) || s.user_id;
+        if (!acc.has(who)) acc.set(who, s);
+        return acc;
+      }, new Map<string, (typeof surveys)[number]>())
+      .values(),
+  ].sort((a, b) =>
+    (profiles[a.user_id] || "").localeCompare(profiles[b.user_id] || ""),
+  );
 
   const startEdit = () => {
     setDraft({ food: mine?.food ?? "", hikes: mine?.hikes ?? "" });
