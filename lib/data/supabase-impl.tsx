@@ -470,9 +470,27 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     return m;
   }, [profileRows]);
 
+  /**
+   * Avatar by device — falling back to any other device the same person is
+   * signed in on.
+   *
+   * iOS gives Safari and a Home Screen app separate storage, so adding the app
+   * to the Home Screen mints a second anonymous device for the same human.
+   * They re-claim their name and everything person-level follows them, but the
+   * photo lived on the device that uploaded it, so the new one looked blank
+   * until they took it again. It doesn't have to: a photo belongs to a person,
+   * and any device they're signed in on can lend it.
+   */
   const avatars = useMemo(() => {
+    const byMember: Record<string, string> = {};
+    for (const p of profileRows)
+      if (p.member_id && p.avatar_url && !byMember[p.member_id])
+        byMember[p.member_id] = p.avatar_url;
     const m: Record<string, string> = {};
-    for (const p of profileRows) if (p.avatar_url) m[p.id] = p.avatar_url;
+    for (const p of profileRows) {
+      const own = p.avatar_url || (p.member_id ? byMember[p.member_id] : "");
+      if (own) m[p.id] = own;
+    }
     return m;
   }, [profileRows]);
 
