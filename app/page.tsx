@@ -18,7 +18,7 @@ import { ServiceWorker } from "@/components/ServiceWorker";
 import { keepVisible } from "@/components/ui/keepVisible";
 
 function Shell() {
-  const { ready, error, name, posts, isMe } = useData();
+  const { ready, error, name, posts, isMe, avatars } = useData();
   const [tab, setTab] = useState<TabId>("itinerary");
   const [packView, setPackViewState] = useState("group");
   const [foodView, setFoodViewState] = useState("menu");
@@ -122,6 +122,34 @@ function Shell() {
   const chirpDot =
     tab !== "chirp" &&
     posts.some((p) => !isMe(p.user_id) && p.created_at > chirpSeen);
+
+  /**
+   * Push everyone's face into the offline cache as soon as we know them.
+   *
+   * The service worker's precache list is static trip imagery, so avatars were
+   * never in it — and a tab switch unmounts its <img> elements, so every
+   * return to a tab re-requested twelve photos from storage. On campground
+   * signal that reads as faces fading in each time. They're a few KB each and
+   * they belong on disk; the worker skips whatever it already holds.
+   */
+  const avatarKey = Object.values(avatars).sort().join("|");
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const urls = [...new Set(Object.values(avatars))].filter((u) =>
+      u.startsWith("http"),
+    );
+    if (!urls.length) return;
+    let cancelled = false;
+    navigator.serviceWorker.ready.then((reg) => {
+      if (!cancelled) reg.active?.postMessage({ type: "precache", urls });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Keyed by the URLs themselves — `avatars` is rebuilt on every profile
+    // refetch, and re-sending an unchanged list on each one is pure noise.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avatarKey]);
 
   // Keep the focused inline field visible when the keyboard opens. The field's
   // own onFocus handler usually gets there first; this covers the case where

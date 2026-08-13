@@ -27,6 +27,7 @@ import type {
   MenuItem,
   MenuVote,
   PersonalItem,
+  PollVote,
   Post,
   PostLike,
   Receipt,
@@ -165,6 +166,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       parent_id: null,
       body: "Packing tonight. Who has room for a second cooler?",
       photos: [],
+      poll_options: [],
       pinned: false,
       created_at: "2026-08-12T21:00:00Z",
     },
@@ -174,6 +176,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       parent_id: null,
       body: "Found the loop map — we're B080 + B082",
       photos: ["/maps/blackwoods-map.png"],
+      poll_options: [],
       pinned: false,
       created_at: "2026-08-12T22:30:00Z",
     },
@@ -181,6 +184,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   const [postLikes, setPostLikes] = useState<PostLike[]>([
     { post_id: "post-alana-1", user_id: ALANA, emoji: "❤️" },
   ]);
+  const [pollVotes, setPollVotes] = useState<PollVote[]>([]);
 
   const value = useMemo<DataCtx>(() => {
     const alanaMember = members.find((m) => m.name === "Alana")?.id ?? "";
@@ -514,7 +518,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       },
       posts,
       postLikes,
-      addPost: async (body, files, parentId = null) => {
+      addPost: async (body, files, parentId = null, poll = []) => {
         setPosts((prev) => [
           ...prev,
           {
@@ -523,12 +527,25 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
             parent_id: parentId,
             body: body.trim(),
             photos: files.map((f) => URL.createObjectURL(f)),
+            poll_options: poll,
             pinned: false,
             created_at: new Date().toISOString(),
           },
         ]);
         return true;
       },
+      pollVotes,
+      // Tapping your own answer takes it back — mirrors the supabase impl.
+      votePoll: (postId, choice) =>
+        setPollVotes((prev) => {
+          const same = prev.some(
+            (v) => v.post_id === postId && v.user_id === ME && v.choice === choice,
+          );
+          const rest = prev.filter(
+            (v) => !(v.post_id === postId && v.user_id === ME),
+          );
+          return same ? rest : [...rest, { post_id: postId, user_id: ME, choice }];
+        }),
       deletePost: (id) =>
         setPosts((prev) => prev.filter((p) => p.id !== id && p.parent_id !== id)),
       // Freshest state inside the updater — the same double-tap guard as votes.
@@ -546,7 +563,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       setPostPinned: (id, pinned) =>
         setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, pinned } : p))),
     };
-  }, [name, ensureName, linkName, claimMember, blocks, gear, personal, menu, menuVotes, shopping, expenses, expenseShares, receipts, settlements, members, myMemberId, surveys, avatars, gearClaims, posts, postLikes]);
+  }, [name, ensureName, linkName, claimMember, blocks, gear, personal, menu, menuVotes, shopping, expenses, expenseShares, receipts, settlements, members, myMemberId, surveys, avatars, gearClaims, posts, postLikes, pollVotes]);
 
   return (
     <Ctx.Provider value={value}>

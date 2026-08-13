@@ -27,6 +27,7 @@ import type {
   MenuItem,
   MenuVote,
   PersonalItem,
+  PollVote,
   Post,
   PostLike,
   Profile,
@@ -67,7 +68,8 @@ type Table =
   | "survey"
   | "forecast_cache"
   | "posts"
-  | "post_likes";
+  | "post_likes"
+  | "post_poll_votes";
 
 const REALTIME_TABLES: Table[] = [
   "profiles",
@@ -86,6 +88,7 @@ const REALTIME_TABLES: Table[] = [
   "forecast_cache",
   "posts",
   "post_likes",
+  "post_poll_votes",
 ];
 
 export function SupabaseProvider({ children }: { children: React.ReactNode }) {
@@ -129,7 +132,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [postLikes, setPostLikes] = useState<PostLike[]>([]);
+  const [pollVotes, setPollVotes] = useState<PollVote[]>([]);
   const likesRef = useRef<PostLike[]>([]);
+  const pollVotesRef = useRef<PollVote[]>([]);
   const profileRowsRef = useRef<Profile[]>([]);
 
   // Blackwoods has almost no signal, so every successful read is mirrored to
@@ -193,6 +198,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         case "post_likes":
           setPostLikes(data as PostLike[]);
           break;
+        case "post_poll_votes":
+          setPollVotes(data as PollVote[]);
+          break;
       }
     },
     [],
@@ -227,6 +235,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     profileRowsRef.current = profileRows;
   }, [profileRows]);
+  useEffect(() => {
+    pollVotesRef.current = pollVotes;
+  }, [pollVotes]);
 
   /**
    * Coming back to the foreground refetches everything.
@@ -264,6 +275,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         "survey",
         "posts",
         "post_likes",
+        "post_poll_votes",
       ] as Table[])
         refetch(t);
     };
@@ -310,6 +322,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       "forecast_cache",
       "posts",
       "post_likes",
+      "post_poll_votes",
     ];
     const cached: [Table, unknown[]][] = [];
     for (const table of CACHED) {
@@ -373,6 +386,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         refetch("survey"),
         refetch("posts"),
         refetch("post_likes"),
+        refetch("post_poll_votes"),
       ]);
       if (cancelled) return;
 
@@ -771,6 +785,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       body: string,
       files: File[],
       parentId: string | null = null,
+      poll: string[] = [],
     ): Promise<boolean> => {
       const uid = userIdRef.current;
       if (!uid) return false;
@@ -785,6 +800,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         parent_id: parentId,
         body: clean,
         photos: locals,
+        poll_options: poll,
         pinned: false,
         created_at: new Date().toISOString(),
       };
@@ -805,7 +821,14 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         }
         const { error: err } = await supabase
           .from("posts")
-          .insert({ id, user_id: uid, parent_id: parentId, body: clean, photos });
+          .insert({
+            id,
+            user_id: uid,
+            parent_id: parentId,
+            body: clean,
+            photos,
+            poll_options: poll,
+          });
         if (err) throw err;
         refetch("posts");
         return true;
@@ -877,6 +900,62 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       );
     },
     [supabase, persist],
+  );
+
+  const votePoll = useCallback(
+    (postId: string, choice: number) => {
+      const uid = userIdRef.current;
+      if (!uid) return;
+      // Answering follows the person: every device of mine votes together, so
+      // the Home Screen app can change what Safari picked.
+      const mid = profileRowsRef.current.find((p) => p.id === uid)?.member_id;
+      const myIds = mid
+        ? profileRowsRef.current.filter((p) => p.member_id === mid).map((p) => p.id)
+        : [uid];
+      if (!myIds.includes(uid)) myIds.push(uid);
+      // Tapping the answer you already gave takes it back — every choice in
+      // this app is reversible, and a poll shouldn't be the exception.
+      const same = pollVotesRef.current.some(
+        (v) => v.post_id === postId && myIds.includes(v.user_id) && v.choice === choice,
+      );
+      setPollVotes((prev) => {
+        const rest = prev.filter(
+          (v) => !(v.post_id === postId && myIds.includes(v.user_id)),
+        );
+        return same ? rest : [...rest, { post_id: postId, user_id: uid, choice }];
+      });
+      if (same) {
+        persist(
+          supabase
+            .from("post_poll_votes")
+            .delete()
+            .eq("post_id", postId)
+            .in("user_id", myIds),
+          "post_poll_votes",
+        );
+        return;
+      }
+      // Every device of mine lands on the same answer, so a stale row on the
+      // other phone can't out-vote this one.
+      (async () => {
+        const { error: derr } = await supabase
+          .from("post_poll_votes")
+          .delete()
+          .eq("post_id", postId)
+          .in("user_id", myIds);
+        if (derr) throw derr;
+        const { error: ierr } = await supabase
+          .from("post_poll_votes")
+          .insert(myIds.map((id) => ({ post_id: postId, user_id: id, choice })));
+        if (ierr) throw ierr;
+        refetch("post_poll_votes");
+      })().catch((e) => {
+        console.error("[post_poll_votes]", e);
+        showNotice("Couldn't save — retry");
+        refetch("post_poll_votes");
+      });
+    },
+    [supabase, persist, refetch, showNotice],
   );
 
   const setPostPinned = useCallback(
@@ -979,7 +1058,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     weather,
     posts,
     postLikes,
+    pollVotes,
     addPost,
+    votePoll,
     deletePost,
     toggleLikePost,
     setPostPinned,

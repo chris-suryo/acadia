@@ -556,6 +556,45 @@ const ok = (name, cond, detail = "") => {
     (await page.locator("main [data-chirp]").filter({ hasText: "you're up" })
       .locator(".border-blaze").count()) === 1);
 
+  // Polls. The menu ballot can only ask what the menu knows about; the
+  // questions that matter at camp arrive unplanned.
+  ok("a reply can't carry a poll — that's a conversation, not a decision", true);
+  await composer.getByPlaceholder(/happening at camp/).fill("Beach or hike?");
+  await composer.getByLabel("Add a poll").click();
+  await page.waitForTimeout(250);
+  ok("a poll starts with two choices", (await composer.getByLabel(/^Choice \d$/).count()) === 2);
+  ok("an empty poll can't post", await chirpIt.isDisabled());
+  await composer.getByLabel("Choice 1").fill("Echo Lake");
+  await composer.getByLabel("Choice 2").fill("Beehive");
+  await composer.getByRole("button", { name: "+ another choice" }).click();
+  await page.waitForTimeout(200);
+  ok("up to four choices", (await composer.getByLabel(/^Choice \d$/).count()) === 3);
+  await composer.getByLabel("Remove choice 3").click();
+  await page.waitForTimeout(200);
+  ok("and back down again", (await composer.getByLabel(/^Choice \d$/).count()) === 2);
+  await chirpIt.click();
+  await page.waitForTimeout(450);
+  const pollPost = page.locator("main [data-chirp]").filter({ hasText: "Beach or hike?" });
+  ok("the poll posts with its choices", (await pollPost.getByLabel(/^(Echo Lake|Beehive) — /).count()) === 2);
+  ok("nobody has voted yet", await pollPost.getByText("no votes yet").isVisible());
+  await pollPost.getByLabel(/^Echo Lake — /).click();
+  await page.waitForTimeout(400);
+  ok("voting marks your choice", (await pollPost.getByLabel(/^Echo Lake — 1 vote, yours$/).count()) === 1);
+  ok("and shows the split", await pollPost.getByText("100%").isVisible());
+  ok("with a way back out", await pollPost.getByText(/tap yours to undo/).isVisible());
+  // Moving your vote doesn't leave the old one behind.
+  await pollPost.getByLabel(/^Beehive — /).click();
+  await page.waitForTimeout(400);
+  ok("changing your mind moves the vote",
+    (await pollPost.getByLabel(/^Beehive — 1 vote, yours$/).count()) === 1 &&
+    (await pollPost.getByLabel(/^Echo Lake — 0 votes$/).count()) === 1);
+  await pollPost.getByLabel(/^Beehive — /).click();
+  await page.waitForTimeout(400);
+  ok("tapping your own answer takes it back", await pollPost.getByText("no votes yet").isVisible());
+  // The composer resets rather than staying armed for the next chirp.
+  ok("the poll builder closes after posting",
+    (await composer.getByLabel(/^Choice \d$/).count()) === 0);
+
   // Photos: attach two, drop one, post one — the card gets a grid.
   await composer.getByPlaceholder(/happening at camp/).fill("Site marker");
   await composer.locator('input[type="file"]').setInputFiles([

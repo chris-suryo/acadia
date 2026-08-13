@@ -7,7 +7,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  BarChart2,
   Bird,
+  Check,
   ChevronLeft,
   Heart,
   ImagePlus,
@@ -93,6 +95,70 @@ function PhotoGrid({
   );
 }
 
+type PollProps = {
+  options: string[];
+  /** Votes per option, counted per person. */
+  counts: number[];
+  /** Which one is yours, or -1. */
+  mine: number;
+  onVote: (choice: number) => void;
+};
+
+/**
+ * A poll on a chirp.
+ *
+ * Results are always visible rather than hidden until you answer: this is
+ * twelve friends deciding where to eat, not a survey to be protected from
+ * anchoring, and seeing that four people already said beach is the whole
+ * point of asking.
+ */
+function Poll({ options, counts, mine, onVote }: PollProps) {
+  const total = counts.reduce((a, b) => a + b, 0);
+  return (
+    <div className="grid gap-1.5 mt-2.5">
+      {options.map((opt, i) => {
+        const n = counts[i] ?? 0;
+        const pct = total ? Math.round((n / total) * 100) : 0;
+        const yours = mine === i;
+        return (
+          <button
+            key={`${opt}-${i}`}
+            onClick={() => onVote(i)}
+            aria-label={`${opt} — ${n} ${n === 1 ? "vote" : "votes"}${yours ? ", yours" : ""}`}
+            aria-pressed={yours}
+            className={`relative overflow-hidden w-full text-left rounded-lg border px-2.5 py-2 min-h-[38px] cursor-pointer ${
+              yours ? "border-blaze" : "border-rule"
+            }`}
+          >
+            {/* The fill is the result; the text rides on top of it. */}
+            <span
+              aria-hidden
+              className={`absolute inset-y-0 left-0 transition-[width] duration-[250ms] ${
+                yours ? "bg-[#FBEDE4]" : "bg-[#EFEADB]"
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+            <span className="relative flex items-center gap-2">
+              <span className="flex-1 min-w-0 truncate text-[13.5px] text-ink">
+                {opt}
+              </span>
+              {yours && <Check size={13} className="text-blaze shrink-0" />}
+              <span className="font-mono text-[11px] text-granite tabular-nums shrink-0">
+                {total ? `${pct}%` : "—"}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+      <span className="font-mono text-[10.5px] text-mute">
+        {total === 0
+          ? "no votes yet"
+          : `${total} ${total === 1 ? "vote" : "votes"}${mine >= 0 ? " · tap yours to undo" : ""}`}
+      </span>
+    </div>
+  );
+}
+
 /**
  * One chirp — used for roots and, slightly smaller, for replies.
  * Stateless on purpose: every fact and action arrives as a prop.
@@ -103,6 +169,7 @@ function PostCard({
   time,
   liked,
   likeCount,
+  poll,
   names,
   mentionsMe,
   replyCount,
@@ -119,6 +186,8 @@ function PostCard({
   time: string;
   liked: boolean;
   likeCount: number;
+  /** Present only when this chirp asks something. */
+  poll?: PollProps;
   /** The roster, for resolving @mentions in the body. */
   names: string[];
   mentionsMe: boolean;
@@ -159,6 +228,7 @@ function PostCard({
           <Body text={p.body} names={names} />
         </div>
         <PhotoGrid photos={p.photos} onOpen={onPhoto} />
+        {poll && <Poll {...poll} />}
 
         <div className="flex items-center mt-1.5 -mb-1 -ml-1.5">
           {/* One verb. A row of five emoji was more machinery than a group of
@@ -236,6 +306,8 @@ function Composer({
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [poll, setPoll] = useState(false);
+  const [options, setOptions] = useState<string[]>(["", ""]);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -294,19 +366,29 @@ function Composer({
   };
 
   const left = MAX_CHARS - body.length;
-  const canPost = !busy && (body.trim().length > 0 || files.length > 0) && left >= 0;
+  // A poll needs its question and at least two real choices — an empty second
+  // option is a poll nobody can answer.
+  const filledOptions = options.map((o) => o.trim()).filter(Boolean);
+  const pollReady = !poll || (body.trim().length > 0 && filledOptions.length >= 2);
+  const canPost =
+    !busy &&
+    (body.trim().length > 0 || files.length > 0) &&
+    left >= 0 &&
+    pollReady;
 
   const send = () => {
     if (!canPost) return;
     ensureName(async () => {
       setBusy(true);
-      const ok = await addPost(body, files, parentId);
+      const ok = await addPost(body, files, parentId, poll ? filledOptions : []);
       setBusy(false);
       if (!ok) return; // everything typed stays put for the retry
       previews.forEach((u) => URL.revokeObjectURL(u));
       setBody("");
       setFiles([]);
       setPreviews([]);
+      setPoll(false);
+      setOptions(["", ""]);
       onPosted?.();
     });
   };
@@ -326,7 +408,10 @@ function Composer({
           onFocus={onFieldFocus}
           autoFocus={autoFocus}
           maxLength={MAX_CHARS}
-          rows={compact ? 1 : 2}
+          // One line, grown by the autosize effect. Two reserved a blank
+          // second line under a one-line placeholder, which left a band of
+          // empty card between the prompt and the buttons.
+          rows={1}
           placeholder={placeholder}
           aria-label={placeholder}
           className="w-full resize-none border-none bg-transparent p-0 pt-1 text-[16px] leading-[1.4] text-ink placeholder:text-faint focus:outline-none"
@@ -344,6 +429,53 @@ function Composer({
                 {m.name}
               </button>
             ))}
+          </div>
+        )}
+        {poll && (
+          <div className="grid gap-1.5 mt-2">
+            {options.map((opt, i) => (
+              <span key={i} className="flex items-center gap-1.5">
+                <input
+                  value={opt}
+                  onChange={(e) =>
+                    setOptions((o) => o.map((v, x) => (x === i ? e.target.value : v)))
+                  }
+                  onFocus={onFieldFocus}
+                  maxLength={40}
+                  placeholder={`Choice ${i + 1}`}
+                  aria-label={`Choice ${i + 1}`}
+                  className="flex-1 min-w-0 p-2 rounded-lg border border-rule bg-white text-[15px] text-ink min-h-[38px]"
+                />
+                {options.length > 2 && (
+                  <button
+                    onClick={() => setOptions((o) => o.filter((_, x) => x !== i))}
+                    aria-label={`Remove choice ${i + 1}`}
+                    className="p-1.5 bg-transparent border-none cursor-pointer text-faint"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </span>
+            ))}
+            <div className="flex items-center gap-3">
+              {options.length < 4 && (
+                <button
+                  onClick={() => setOptions((o) => [...o, ""])}
+                  className="bg-transparent border-none p-0 cursor-pointer font-mono text-[11px] text-blaze"
+                >
+                  + another choice
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setPoll(false);
+                  setOptions(["", ""]);
+                }}
+                className="bg-transparent border-none p-0 cursor-pointer font-mono text-[11px] text-mute"
+              >
+                remove poll
+              </button>
+            </div>
           </div>
         )}
         {previews.length > 0 && (
@@ -393,6 +525,20 @@ function Composer({
           >
             <ImagePlus size={18} />
           </button>
+          {/* Replies are conversation; a poll is a question the group has to
+              settle, which only makes sense at the top level. */}
+          {!parentId && (
+            <button
+              onClick={() => setPoll((v) => !v)}
+              aria-label={poll ? "Remove poll" : "Add a poll"}
+              aria-pressed={poll}
+              className={`p-1.5 bg-transparent border-none cursor-pointer flex items-center ${
+                poll ? "text-blaze" : "text-moss"
+              }`}
+            >
+              <BarChart2 size={18} />
+            </button>
+          )}
           {left <= 40 && (
             <span
               aria-hidden
@@ -429,6 +575,9 @@ export function Chirp() {
     deletePost,
     setPostPinned,
     myMemberId,
+    pollVotes,
+    votePoll,
+    ensureName,
   } = useData();
 
   const [view, setViewState] = useState("feed");
@@ -510,6 +659,28 @@ export function Chirp() {
   const iLike = (id: string) =>
     postLikes.some((l) => l.post_id === id && l.emoji === "❤️" && isMe(l.user_id));
 
+  /** Poll tallies, counted per person — two of your phones are one vote. */
+  const pollFor = (p: Post): PollProps | undefined => {
+    if (!p.poll_options.length) return undefined;
+    const counts = p.poll_options.map(() => 0);
+    const seen = new Set<string>();
+    let mine = -1;
+    for (const v of pollVotes) {
+      if (v.post_id !== p.id) continue;
+      if (isMe(v.user_id)) mine = v.choice;
+      const who = memberOf(v.user_id) || v.user_id;
+      if (seen.has(who)) continue;
+      seen.add(who);
+      if (counts[v.choice] !== undefined) counts[v.choice] += 1;
+    }
+    return {
+      options: p.poll_options,
+      counts,
+      mine,
+      onVote: (choice: number) => ensureName(() => votePoll(p.id, choice)),
+    };
+  };
+
   const rosterNames = useMemo(() => members.map((m) => m.name), [members]);
   const myName = members.find((m) => m.id === myMemberId)?.name ?? "";
   const tagsMe = (body: string) => tagsPerson(body, rosterNames, myName);
@@ -545,6 +716,7 @@ export function Chirp() {
     time: chirpTime(p.created_at, now),
     liked: iLike(p.id),
     likeCount: likersOf(p.id).length,
+    poll: pollFor(p),
     names: rosterNames,
     // @everyone reaches you the same way your own name does.
     mentionsMe: tagsMe(p.body),

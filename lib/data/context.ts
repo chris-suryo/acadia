@@ -14,6 +14,7 @@ import type {
   MenuItem,
   MenuVote,
   PersonalItem,
+  PollVote,
   Post,
   PostLike,
   Receipt,
@@ -137,8 +138,18 @@ export type DataCtx = {
   postLikes: PostLike[];
   /** Posts text and/or photos (all photos upload or none of it posts).
    *  Resolves true when it lands — the composer clears on true and keeps
-   *  everything typed on false. */
-  addPost: (body: string, files: File[], parentId?: string | null) => Promise<boolean>;
+   *  everything typed on false. `poll` turns it into a poll: the body is the
+   *  question and these are the two-to-four choices. */
+  addPost: (
+    body: string,
+    files: File[],
+    parentId?: string | null,
+    poll?: string[],
+  ) => Promise<boolean>;
+  pollVotes: PollVote[];
+  /** Moves your answer to `choice`, or clears it if that's already yours.
+   *  Every device you own answers together. */
+  votePoll: (postId: string, choice: number) => void;
   /** Takes the whole thread with it — replies and hearts cascade. */
   deletePost: (id: string) => void;
   /** Adds or removes *your* reaction — every device you own agrees. Defaults

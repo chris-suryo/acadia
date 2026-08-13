@@ -39,6 +39,11 @@ export function Avatar({
         <img
           src={url}
           alt=""
+          // Faces are the first thing on every screen and they're tiny, so
+          // they're worth the network's attention; decoding off the main
+          // thread keeps a feed of them from janking as it mounts.
+          fetchPriority="high"
+          decoding="async"
           onError={() => setFailedUrl(url)}
           className="w-full h-full object-cover"
         />

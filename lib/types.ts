@@ -170,9 +170,20 @@ export type Post = {
   body: string;
   /** Public storage URLs, at most four. */
   photos: string[];
+  /** Two to four choices when this chirp is a poll; empty when it isn't. The
+   *  body is the question. Fixed at posting time — never edited after. */
+  poll_options: string[];
   /** Pinned to the top of the feed — announcements, not favorites. */
   pinned: boolean;
   created_at: string;
+};
+
+/** One device's answer to a poll. One per person after de-duping. */
+export type PollVote = {
+  post_id: string;
+  user_id: string;
+  /** Index into the post's `poll_options`. */
+  choice: number;
 };
 
 /** One device's reaction to one chirp. Counted by person, not device — and
