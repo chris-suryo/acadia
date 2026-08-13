@@ -37,72 +37,80 @@ export const SEED_GEAR: {
   category: string;
   label: string;
   sort: number;
-  parent?: string;
-  /** Mirrors migration 0024 — the fourteen you'd drive back for. */
+  /** Would you drive back to Ellsworth for it? */
   essential?: boolean;
 }[] = [
-  { category: "Shelter", label: "Tents — spares", sort: 1 },
-  { category: "Shelter", label: "Sleeping bags — spares", sort: 2 },
-  { category: "Shelter", label: "Tarp or canopy", sort: 3 , essential: true },
-  { category: "Camp Kitchen", label: "Camp stove + fuel", sort: 1 , essential: true },
-  { category: "Camp Kitchen", label: "Propane ×2", sort: 1, parent: "Camp stove + fuel" , essential: true },
-  { category: "Camp Kitchen", label: "Pots, pans, utensils", sort: 2 , essential: true },
-  { category: "Camp Kitchen", label: "Cutting board + knife", sort: 3 , essential: true },
-  { category: "Coolers & Water", label: "Big cooler + ice", sort: 1 , essential: true },
-  { category: "Camp Kitchen", label: "Dish bin + soap", sort: 5 , essential: true },
-  { category: "Camp Kitchen", label: "Camp table", sort: 6 },
-  { category: "Coolers & Water", label: "Water jug", sort: 4 , essential: true },
-  { category: "Camp Kitchen", label: "Foil + ziplocks", sort: 8 },
-  { category: "Fire & Light", label: "Firewood — buy on the island", sort: 1 , essential: true },
-  { category: "Fire & Light", label: "Fire starter + lighter", sort: 2 , essential: true },
-  { category: "Fire & Light", label: "Lanterns", sort: 3 , essential: true },
-  { category: "Site & Safety", label: "First-aid kit", sort: 1 , essential: true },
-  { category: "Site & Safety", label: "Trash + recycling bags", sort: 2 , essential: true },
-  { category: "Site & Safety", label: "Multi-tool + duct tape", sort: 3 },
-  // Round 11: the gaps a twelve-person, two-night camp actually hits.
+  // One physical thing per row, flat — several people can claim the same row,
+  // so a row has to BE one thing. You can own tongs and no spatula, and the
+  // person with the spatula needs somewhere to say so. Mirrors migration 0035.
+  { category: "Shelter", label: "Tents", sort: 1 },
+  { category: "Shelter", label: "Spare sleeping bags", sort: 2 },
+  { category: "Shelter", label: "Tarp or canopy", sort: 3, essential: true },
   { category: "Shelter", label: "Ground tarps", sort: 4 },
-  { category: "Shelter", label: "Stakes + guylines", sort: 5 },
-  // Blackwoods pitches are hard-packed; stakes don't go in by hand.
-  { category: "Shelter", label: "Mallet for the stakes", sort: 6 },
-  // Eleven people, and not everyone owns a chair.
-  { category: "Shelter", label: "Camp chairs — spares", sort: 7 },
-  { category: "Camp Kitchen", label: "Coffee + filters", sort: 9 , essential: true },
-  { category: "Coolers & Water", label: "Second cooler — drinks", sort: 2 },
+  { category: "Shelter", label: "Extra tent stakes", sort: 5 },
+  { category: "Shelter", label: "Guylines", sort: 6 },
+  { category: "Shelter", label: "Mallet", sort: 7 },
+  { category: "Shelter", label: "Extra camp chairs", sort: 8 },
+
+  { category: "Camp Kitchen", label: "Camp stove", sort: 1, essential: true },
+  { category: "Camp Kitchen", label: "Propane", sort: 2, essential: true },
+  { category: "Camp Kitchen", label: "Second stove", sort: 3, essential: true },
+  { category: "Camp Kitchen", label: "Griddle for the fire", sort: 4, essential: true },
+  { category: "Camp Kitchen", label: "Grill grate", sort: 5 },
+  { category: "Camp Kitchen", label: "Pots + pans", sort: 6, essential: true },
+  { category: "Camp Kitchen", label: "Cooking utensils", sort: 7, essential: true },
+  { category: "Camp Kitchen", label: "Cutting board", sort: 8, essential: true },
+  { category: "Camp Kitchen", label: "Sharp knife", sort: 9, essential: true },
+  { category: "Camp Kitchen", label: "Tongs", sort: 10, essential: true },
+  { category: "Camp Kitchen", label: "Spatula", sort: 11, essential: true },
+  { category: "Camp Kitchen", label: "Can opener", sort: 12, essential: true },
+  { category: "Camp Kitchen", label: "Bottle opener", sort: 13 },
+  { category: "Camp Kitchen", label: "Big mixing bowl", sort: 14 },
+  { category: "Camp Kitchen", label: "Spice kit", sort: 15 },
+  { category: "Camp Kitchen", label: "Coffee maker — press or percolator", sort: 16, essential: true },
+  { category: "Camp Kitchen", label: "Coffee filters", sort: 17 },
+  { category: "Camp Kitchen", label: "Cups", sort: 18 },
+  { category: "Camp Kitchen", label: "Camp table", sort: 19 },
+  { category: "Camp Kitchen", label: "Tablecloth + clips", sort: 20 },
+  { category: "Camp Kitchen", label: "Dish bin", sort: 21, essential: true },
+  { category: "Camp Kitchen", label: "Dish soap + sponges", sort: 22 },
+  { category: "Camp Kitchen", label: "Aluminum foil", sort: 23 },
+  { category: "Camp Kitchen", label: "Ziplock bags", sort: 24 },
+  { category: "Camp Kitchen", label: "Paper towels", sort: 25 },
+
+  { category: "Coolers & Water", label: "Big cooler", sort: 1, essential: true },
+  { category: "Coolers & Water", label: "Drinks cooler", sort: 2 },
   { category: "Coolers & Water", label: "Ice", sort: 3 },
-  { category: "Camp Kitchen", label: "Grill grate", sort: 12 },
-  { category: "Camp Kitchen", label: "Mugs + cups", sort: 13 },
-  { category: "Camp Kitchen", label: "Spice kit", sort: 14 },
-  { category: "Camp Kitchen", label: "Bottle opener", sort: 15 },
-  // Two of five Friday dinners open cans, and nothing else lifts a burger off
-  // a grate or a foil packet out of the coals.
-  { category: "Camp Kitchen", label: "Can opener", sort: 18, essential: true },
-  { category: "Camp Kitchen", label: "Tongs + spatula", sort: 19, essential: true },
-  { category: "Camp Kitchen", label: "Paper towels", sort: 20 },
-  // Three dozen eggs don't scramble in a saucepan.
-  { category: "Camp Kitchen", label: "Big mixing bowl", sort: 21 },
-  { category: "Camp Kitchen", label: "Tablecloth + clips", sort: 22 },
-  // One burner for eleven is the bottleneck of the weekend; pancakes on it is
-  // about eight rounds, and a griddle over the fire makes that two.
-  { category: "Camp Kitchen", label: "Flat griddle for the fire", sort: 16, essential: true },
-  { category: "Camp Kitchen", label: "Second stove or burner", sort: 17, essential: true },
-  { category: "Fire & Light", label: "Spare batteries", sort: 4 },
-  { category: "Fire & Light", label: "Fire gloves + poker", sort: 5 },
-  { category: "Fire & Light", label: "Roasting sticks", sort: 6 },
-  // Fires out before you sleep. This is the thing that does it.
-  { category: "Fire & Light", label: "Water bucket for the fire", sort: 7, essential: true },
-  { category: "Fire & Light", label: "Backup headlamp", sort: 8 },
-  // The wood you buy on the island comes split, but not to kindling.
-  { category: "Fire & Light", label: "Hatchet for kindling", sort: 9 },
-  { category: "Site & Safety", label: "Tick remover", sort: 4 },
-  { category: "Site & Safety", label: "Food bins for the cars", sort: 5 },
-  { category: "Site & Safety", label: "Clothesline", sort: 6 },
-  { category: "Site & Safety", label: "Camp broom", sort: 7 },
-  { category: "Site & Safety", label: "Quarters for showers", sort: 8 },
+  { category: "Coolers & Water", label: "Water jug", sort: 4, essential: true },
+
+  { category: "Fire & Light", label: "Firewood — buy on the island", sort: 1, essential: true },
+  { category: "Fire & Light", label: "Fire starters", sort: 2, essential: true },
+  { category: "Fire & Light", label: "Lighters", sort: 3, essential: true },
+  { category: "Fire & Light", label: "Hatchet", sort: 4 },
+  { category: "Fire & Light", label: "Roasting sticks", sort: 5 },
+  { category: "Fire & Light", label: "Water bucket for the fire", sort: 6, essential: true },
+  { category: "Fire & Light", label: "Fire gloves", sort: 7 },
+  { category: "Fire & Light", label: "Fire poker", sort: 8 },
+  { category: "Fire & Light", label: "Lanterns", sort: 9, essential: true },
+  { category: "Fire & Light", label: "Spare headlamp", sort: 10 },
+  { category: "Fire & Light", label: "Spare batteries", sort: 11 },
+
+  { category: "Site & Safety", label: "First-aid kit", sort: 1, essential: true },
+  { category: "Site & Safety", label: "Tick remover", sort: 2 },
+  { category: "Site & Safety", label: "Trash bags", sort: 3, essential: true },
+  { category: "Site & Safety", label: "Multi-tool", sort: 4 },
+  { category: "Site & Safety", label: "Duct tape", sort: 5 },
+  { category: "Site & Safety", label: "Food bins for the cars", sort: 6 },
+  { category: "Site & Safety", label: "Clothesline", sort: 7 },
+  { category: "Site & Safety", label: "Camp broom", sort: 8 },
+  { category: "Site & Safety", label: "Quarters for showers", sort: 9 },
+
   { category: "Dogs", label: "Leashes", sort: 1 },
   { category: "Dogs", label: "Tie-out line", sort: 2 },
   { category: "Dogs", label: "Water bowls", sort: 3 },
   { category: "Dogs", label: "Waste bags", sort: 4 },
-  { category: "Dogs", label: "Dog bed + towel", sort: 5 },
+  { category: "Dogs", label: "Dog beds", sort: 5 },
+  { category: "Dogs", label: "Dog towels", sort: 6 },
 ];
 
 export const GEAR_CATEGORIES = [
@@ -131,7 +139,7 @@ export const SEED_PERSONAL: {
   { category: "Clothing", label: "Hiking shoes", note: "", sort: 3 , essential: true },
   { category: "Clothing", label: "Camp shoes", note: "", sort: 4 },
   { category: "Clothing", label: "Socks", note: "", sort: 5 },
-  { category: "Clothing", label: "Hat + sunglasses", note: "", sort: 6 },
+  { category: "Clothing", label: "Hat", note: "", sort: 6 },
   { category: "Mess Kit", label: "Plate, bowl, utensils", note: "", sort: 1 },
   { category: "Mess Kit", label: "Water bottle", note: "", sort: 2 , essential: true },
   { category: "Essentials", label: "Headlamp", note: "", sort: 1 , essential: true },
@@ -148,12 +156,14 @@ export const SEED_PERSONAL: {
   { category: "Extras", label: "Swimsuit", note: "", sort: 2 },
   { category: "Extras", label: "Cards, book, speaker", note: "", sort: 3 },
   // Round 11 additions.
-  { category: "Sleep", label: "Earplugs + eye mask", note: "", sort: 5 },
+  { category: "Sleep", label: "Earplugs", note: "", sort: 5 },
   { category: "Sleep", label: "Extra blanket", note: "", sort: 6 },
+  { category: "Sleep", label: "Eye mask", note: "", sort: 7 },
   { category: "Clothing", label: "Long pants", note: "", sort: 7 },
   { category: "Clothing", label: "Beanie", note: "", sort: 8 },
   { category: "Clothing", label: "Underwear", note: "", sort: 9 },
   { category: "Clothing", label: "Shirts + shorts for three days", note: "", sort: 10 },
+  { category: "Clothing", label: "Sunglasses", note: "", sort: 11 },
   { category: "Mess Kit", label: "Mug for coffee", note: "", sort: 3 },
   { category: "Mess Kit", label: "Dish towel", note: "", sort: 4 },
   { category: "Essentials", label: "Daypack", note: "", sort: 6 },

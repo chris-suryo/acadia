@@ -237,18 +237,19 @@ const ok = (name, cond, detail = "") => {
   // The menu asks for things the gear list has to supply. Cross-referencing
   // the two turned up seven holes, three of which a label trim had made.
   ok("the cans can be opened", await page.getByText("Can opener").isVisible());
-  ok("something lifts a burger", await page.getByText("Tongs + spatula").isVisible());
+  ok("something lifts a burger", await page.getByText("Tongs", { exact: true }).isVisible()
+    && await page.getByText("Spatula", { exact: true }).isVisible());
   ok("the fire can be put out", await page.getByText("Water bucket for the fire").isVisible());
   ok("s'mores have something to roast on", await page.getByText("Roasting sticks").isVisible());
   ok("paper towels came back", await page.getByText("Paper towels").isVisible());
-  ok("so did the mallet", await page.getByText("Mallet for the stakes").isVisible());
-  ok("and the backup headlamp", await page.getByText("Backup headlamp").isVisible());
+  ok("so did the mallet", await page.getByText("Mallet", { exact: true }).isVisible());
+  ok("and the backup headlamp", await page.getByText("Spare headlamp").isVisible());
   // Camp Kitchen had grown to a scroll; the cold half is its own section.
   ok("coolers are their own section", await page.locator("main").getByText("Coolers & Water", { exact: true }).isVisible());
   // A second sweep, against the categories a full car-camping list covers.
   ok("something to scramble three dozen eggs in", await page.getByText("Big mixing bowl").isVisible());
-  ok("chairs for whoever hasn't got one", await page.getByText("Camp chairs — spares").isVisible());
-  ok("kindling", await page.getByText("Hatchet for kindling").isVisible());
+  ok("chairs for whoever hasn't got one", await page.getByText("Extra camp chairs").isVisible());
+  ok("kindling", await page.getByText("Hatchet", { exact: true }).isVisible());
 
   ok("labels say the thing and stop",
     await page.getByText("Firewood — buy on the island").isVisible() &&
@@ -281,21 +282,22 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(250);
   ok("row tap unclaims", (await claimed()) === base);
 
-  // hierarchy: child renders, claiming the parent claims the bundle
-  ok("hierarchy child renders", await page.getByText("Propane \u00d72").isVisible());
-  await page.getByText("Camp stove + fuel").click();
+  // One thing per row: the propane is a row of its own, not a child indented
+  // under the stove, and claiming the stove claims exactly the stove.
+  ok("propane stands alone", await page.getByText("Propane", { exact: true }).isVisible());
+  ok("nothing is indented", (await page.locator("main .pl-9").count()) === 0);
+  await page.getByText("Camp stove", { exact: true }).click();
   await page.waitForTimeout(300);
-  ok("parent claim cascades", (await claimed()) === base + 2, "the bundle goes with its parent");
-  ok("bundle shows owner twice", (await page.locator("main").getByText("Chris", { exact: true }).count()) === 2);
-  await page.getByText("Camp stove + fuel").click();
+  ok("a claim is one row exactly", (await claimed()) === base + 1);
+  await page.getByText("Camp stove", { exact: true }).click();
   await page.waitForTimeout(300);
-  ok("parent unclaim cascades", (await claimed()) === base);
+  ok("and lets go of one row exactly", (await claimed()) === base);
 
   // ---- two people can bring the same thing ----
   // The old list had one owner per row, so the second person with a tent had
   // nowhere to say so — and the row already looked handled, so nobody asked.
   const tents = page.locator("div.mb-5").filter({ has: page.getByText("Shelter", { exact: true }) })
-    .getByRole("checkbox", { name: /^Tents — spares/ });
+    .getByRole("checkbox", { name: /^Tents —/ });
   ok("a row someone else has still offers to take you",
     await tents.getByText("+ me", { exact: true }).isVisible());
   ok("and says whose it is", await tents.getByText("Alana", { exact: true }).isVisible());
@@ -335,7 +337,7 @@ const ok = (name, cond, detail = "") => {
     await page.waitForTimeout(450);
   };
 
-  await drag("Tarp or canopy", "Tents — spares", true);
+  await drag("Tarp or canopy", "Tents", true);
   const shelterCard = page.locator("div.mb-5").filter({ has: page.getByText("Shelter", { exact: true }) });
   const shelterTexts = await shelterCard.locator("span.text-\\[14\\.5px\\]").allTextContents();
   ok("dnd reorder within category", shelterTexts[0] === "Tarp or canopy", shelterTexts.join(" | ").slice(0, 90));

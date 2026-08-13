@@ -88,20 +88,17 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   const [blocks, setBlocks] = useState<ItineraryBlock[]>(() =>
     SEED_BLOCKS.map((b, i) => ({ id: `blk-${i}`, ...b })),
   );
-  const [gear, setGear] = useState<GearItem[]>(() => {
-    const idByLabel = new Map<string, string>();
-    SEED_GEAR.forEach((g, i) => {
-      if (!g.parent) idByLabel.set(g.label, `gear-${i}`);
-    });
-    return SEED_GEAR.map((g, i) => ({
+  // Flat since 0035 — one thing per row, nothing nested.
+  const [gear, setGear] = useState<GearItem[]>(() =>
+    SEED_GEAR.map((g, i) => ({
       id: `gear-${i}`,
       category: g.category,
-      parent_id: g.parent ? (idByLabel.get(g.parent) ?? null) : null,
+      parent_id: null,
       label: g.label,
       sort: g.sort,
       essential: !!g.essential,
-    }));
-  });
+    })),
+  );
   const [personal, setPersonal] = useState<PersonalItem[]>(() =>
     SEED_PERSONAL.map((p, i) => ({
       id: `mine-${i}`,
