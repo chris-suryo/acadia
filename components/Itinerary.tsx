@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
+  ChevronRight,
   Cloud,
   CloudRain,
   CloudSun,
@@ -165,7 +166,10 @@ function Entry({
                   }}
                   className="inline-flex items-center gap-[3px] ml-1.5 p-0 bg-transparent border-none cursor-pointer text-blaze text-[12px] font-semibold"
                 >
-                  details <ArrowUpRight size={11} />
+                  {/* This jumps to the Explore tab — it never leaves the app,
+                      so the outward arrow it used to wear was the one
+                      affordance in here that actively lied. */}
+                  details <ChevronRight size={12} />
                 </button>
               )}
             </div>
@@ -382,26 +386,32 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
           <div className="font-mono text-[10.5px] text-moss mt-1">
             sites B080 + B082 · B loop
           </div>
-          <div className="flex items-center gap-4 mt-2">
+          {/* Three actions beside a 64px thumbnail is a tight line, and the
+              marks that make them legible cost width. Wrap by whole label
+              rather than breaking "show map" across two lines. */}
+          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 mt-2">
             <a
               href="https://maps.apple.com/?q=Blackwoods%20Campground&ll=44.3096,-68.2044"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[12px] font-semibold text-blaze no-underline"
+              className="inline-flex items-center gap-1 whitespace-nowrap text-[12px] font-semibold text-blaze no-underline"
             >
               directions <ArrowUpRight size={11} />
             </a>
+            {/* One rule, everywhere: ↗ leaves the app, › opens something
+                here. Three bare words next to a link with an arrow read as
+                three different kinds of thing when they're only two. */}
             <button
               onClick={() => setMapOpen(true)}
-              className="inline-flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-[12px] font-semibold text-blaze"
+              className="inline-flex items-center gap-1 whitespace-nowrap bg-transparent border-none p-0 cursor-pointer text-[12px] font-semibold text-blaze"
             >
-              show map
+              show map <ChevronRight size={12} />
             </button>
             <button
               onClick={() => setNotesOpen(true)}
-              className="inline-flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-[12px] font-semibold text-blaze"
+              className="inline-flex items-center gap-1 whitespace-nowrap bg-transparent border-none p-0 cursor-pointer text-[12px] font-semibold text-blaze"
             >
-              camp notes
+              camp notes <ChevronRight size={12} />
             </button>
           </div>
         </div>

@@ -46,8 +46,17 @@ export function UiProvider({ children }: { children: React.ReactNode }) {
   return (
     <UiCtx.Provider value={{ showUndo, showNotice }}>
       {children}
+      {/* Above the sheets, not below them. Swipe-to-delete works inside a
+          bottom sheet — the settle-up lives in one — and at z-40 the Undo sat
+          under the sheet's own scrim: visible, and impossible to tap. An undo
+          you can't reach is worse than no undo, because you stop checking.
+          `--sheet-h` (published by BottomSheet) lifts it clear of the open
+          sheet, so being on top never means being in the way. */}
       {toast && (
-        <div className="fixed bottom-4 inset-x-3.5 z-40 flex justify-center">
+        <div
+          className="fixed inset-x-3.5 z-[60] flex justify-center transition-[bottom] duration-200"
+          style={{ bottom: "calc(var(--sheet-h, 0px) + 16px)" }}
+        >
           <div className="flex items-center gap-4 bg-ink text-parchment rounded-lg shadow-[0_4px_16px_rgba(0,0,0,.25)] pl-4 pr-2 py-2 max-w-[400px] w-full">
             <span className="flex-1 text-[13px]">{toast.label}</span>
             {toast.onUndo && (

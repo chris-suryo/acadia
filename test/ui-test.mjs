@@ -118,7 +118,14 @@ const ok = (name, cond, detail = "") => {
   ok("directions link", (await page.locator('[data-day="fri"] a[href*="maps.apple.com"]').count()) === 1);
   ok("camp card inside friday", (await page.locator('[data-day="fri"]').getByText("Base camp \u2014 Blackwoods").count()) === 1);
   ok("camp card is just the sites", (await page.getByText(/State Highway 3/).count()) === 0 && (await page.getByText(/check-in 1 pm/).count()) === 0);
+  // One rule: ↗ leaves the app, › opens something here. All three affordances
+  // on this card are marked, and the two that stay in the app agree with each
+  // other rather than each looking like a different kind of thing.
   ok("show map link", await page.getByRole("button", { name: "show map" }).isVisible());
+  ok("in-app openers are marked as such",
+    (await page.locator('[data-day="fri"] button:has(.lucide-chevron-right)').count()) === 2);
+  ok("and the one that leaves keeps its arrow",
+    (await page.locator('[data-day="fri"] a[href*="maps.apple.com"]:has(.lucide-arrow-up-right)').count()) === 1);
   await page.getByRole("button", { name: "camp notes" }).click();
   await page.waitForTimeout(300);
   ok("camp notes sheet", await page.getByText(/No showers at Blackwoods/).isVisible());
@@ -1004,7 +1011,15 @@ const ok = (name, cond, detail = "") => {
   ok("a subset split charges only those people",
     await page.getByText(/split 2 ways · not you/).isVisible());
 
-  // Who you pay isn't always who you split with — the list says so, or the
+  // Settling up is off the page now — it was ten rows summarising two
+  // expenses. Everything it had is one tap away, and nothing is on the page.
+  ok("no settle-up rows on the page", (await page.locator("[data-settle]").count()) === 0);
+  ok("but the page says there is one", await page.getByRole("button", { name: /^Settle up/ }).isVisible());
+  await page.screenshot({ path: `${SHOT_DIR}/10a-expenses-page.png`, fullPage: true });
+  await page.getByRole("button", { name: /^Settle up/ }).click();
+  await page.waitForTimeout(350);
+
+  // Who you pay isn't always who you split with — the sheet says so, or the
   // netting reads as a bug the first time one debt lands on two people.
   ok("the netting explains itself", await page.getByText(/netted into the fewest payments/).isVisible());
   // The settle-up is the point: these payments must clear the ledger exactly.
@@ -1058,6 +1073,11 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(450);
   ok("undo puts it back", await page.getByText("Already paid back").isVisible());
 
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  ok("the sheet closes back to a page of expenses",
+    (await page.locator("[data-settle]").count()) === 0);
+
   // Removing someone mid-ledger would rewrite everyone's balance without saying
   // so, so it's refused while they're on an expense or a payment.
   await page.getByRole("button", { name: /^\d+ on the trip$/ }).click();
@@ -1087,9 +1107,17 @@ const ok = (name, cond, detail = "") => {
   // An expense split with nobody would never reach the settle-up — `balances`
   // skips it, so the payer is silently never paid back while the amount still
   // counts toward what the group spent. The editor refuses to write one.
-  const settleTotal = async () =>
-    (await page.locator("[data-settle]").evaluateAll((els) =>
-      els.map((e) => Number(e.dataset.settle)))).reduce((a, b) => a + b, 0);
+  // The rows live in the sheet now, so reading the ledger means opening it.
+  const settleTotal = async () => {
+    await page.getByRole("button", { name: /^Settle up/ }).click();
+    await page.waitForTimeout(350);
+    const cents = await page
+      .locator("[data-settle]")
+      .evaluateAll((els) => els.map((e) => Number(e.dataset.settle)));
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+    return cents.reduce((a, b) => a + b, 0);
+  };
   const beforeGhost = await settleTotal();
   await page.getByRole("button", { name: "Add an expense" }).click();
   await page.waitForTimeout(300);
@@ -1178,24 +1206,41 @@ const ok = (name, cond, detail = "") => {
   ok("the ledger is empty again", await page.getByText(/Nothing logged yet/).isVisible());
 
   // A recorded payment pins both of its members exactly like an expense does,
-  // so it has to go before anyone can leave the roster.
-  await swipeRow(page.locator("main").getByText(/paid Chris$/).first());
+  // so it has to go before anyone can leave the roster — and it lives in the
+  // settle-up sheet now.
+  await page.getByRole("button", { name: /^Settle up/ }).click();
+  await page.waitForTimeout(350);
+  await swipeRow(page.getByText(/paid Chris$/).first());
   await page.waitForTimeout(300);
   ok("no payments left either", (await page.getByText("Already paid back").count()) === 0);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
 
   const rosterSheet = await openRoster();
   await swipeRow(rosterSheet.getByRole("button", { name: /Chris/ }).first());
   ok("someone on no expense can be removed",
     (await rosterSheet.getByText("Chris", { exact: true }).count()) === 0);
+  // The toast sits above the sheets so its Undo is reachable — which, left at
+  // the bottom edge, would land it on the sheet's own Done button. It rides
+  // above the panel instead.
+  const toastBox = await page.locator("div.fixed.z-\\[60\\]").first().boundingBox();
+  const panelBox = await rosterSheet.locator("div.absolute.bottom-0").first().boundingBox();
+  ok("the undo toast clears the open sheet",
+    !!toastBox && !!panelBox && toastBox.y + toastBox.height <= panelBox.y + 1,
+    `toast ends ${Math.round((toastBox?.y ?? 0) + (toastBox?.height ?? 0))}, sheet starts ${Math.round(panelBox?.y ?? 0)}`);
+  // Read the marker in the sheet that's already open. Walking out and back in
+  // to read it costs four sheet animations — longer than the undo toast lives.
+  ok("and the you marker goes with them",
+    (await rosterSheet.getByText("you", { exact: true }).count()) === 0);
   await closeRoster(rosterSheet);
-  ok("and the you marker goes with them", (await meMarker()) === 0);
   await page.getByRole("button", { name: "Undo" }).click();
   await page.waitForTimeout(600);
   const rosterBack = await openRoster();
   ok("undo puts them back exactly once",
     (await rosterBack.getByText("Chris", { exact: true }).count()) === 1);
+  ok("undo restores the same person, not a namesake",
+    (await rosterBack.getByText("you", { exact: true }).count()) === 1);
   await closeRoster(rosterBack);
-  ok("undo restores the same person, not a namesake", (await meMarker()) === 1);
 
   // ---- the page must never pan sideways ----
   // Carousels scroll horizontally; the document must not. A stray absolutely

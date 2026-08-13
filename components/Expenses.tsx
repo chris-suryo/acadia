@@ -1,12 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowRight, Camera, Plus, Trash2, X } from "lucide-react";
+import { ArrowRight, Camera, ChevronRight, Plus, Trash2, X } from "lucide-react";
 import { Btn, Card, SubH } from "./primitives";
 import { AvatarEditor } from "./AvatarEditor";
 import { Avatar } from "./ui/Avatar";
 import { onFieldFocus } from "./ui/keepVisible";
 import { PeoplePicker, splitLabel } from "./ui/PeoplePicker";
+import { BottomSheet } from "./ui/BottomSheet";
 import { RosterSheet } from "./ui/RosterSheet";
 import { VenmoButton } from "./ui/VenmoButton";
 import { SwipeRow } from "./ui/SwipeRow";
@@ -271,6 +272,7 @@ export function Expenses() {
   const [allTransfers, setAllTransfers] = useState(false);
   const [detail, setDetail] = useState<string | null>(null);
   const [rosterOpen, setRosterOpen] = useState(false);
+  const [settleOpen, setSettleOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   // An expense being added has no id yet, so its photos wait here and go up the
   // moment it's saved — you shouldn't have to save first and reopen to attach
@@ -485,6 +487,20 @@ export function Expenses() {
             </>
           )}
         </div>
+        {(transfers.length > 0 || settled.length > 0) && (
+          <button
+            onClick={() => setSettleOpen(true)}
+            className="inline-flex items-center gap-1 mt-2 bg-transparent border-none p-0 cursor-pointer text-[13px] font-semibold text-blaze"
+          >
+            Settle up
+            {transfers.length > 0 && (
+              <span className="font-mono text-[11px] font-normal text-granite">
+                · {transfers.length} payment{transfers.length > 1 ? "s" : ""}
+              </span>
+            )}
+            <ChevronRight size={13} />
+          </button>
+        )}
       </div>
 
       {viewing && (
@@ -692,172 +708,179 @@ export function Expenses() {
         </Card>
       </div>
 
-      {transfers.length > 0 && (
-        <div className="mb-5">
-          <SubH right={`${transfers.length} payment${transfers.length > 1 ? "s" : ""}`}>
-            Settle up
-          </SubH>
-          {/* Without this line the list reads as broken: you pay one person
-              for a site someone else booked, and one debt can split across
-              two people. That's the netting doing its job — say so. */}
-          <div className="font-mono text-[10.5px] text-mute mb-1.5 leading-[1.5]">
-            Everyone&apos;s debts are netted into the fewest payments — who you
-            pay isn&apos;t always who you split with.
-          </div>
-          <Card className="overflow-hidden">
-            {(allTransfers ? transfers : transfers.slice(0, 3)).map((t) => {
-              const iOwe = t.from === myMemberId;
-              const owedToMe = t.to === myMemberId;
-              const mine = iOwe || owedToMe;
-              // You can pay your own debt and chase someone else's; there's
-              // nothing useful to do about two other people's.
-              const other = iOwe ? t.to : t.from;
-              const key = `${t.from}-${t.to}`;
-              const link = venmoLink(
-                iOwe ? "pay" : "charge",
-                members.find((m) => m.id === other)?.venmo ?? "",
-                t.cents,
-              );
-              return (
-                <div
-                  key={`${t.from}-${t.to}`}
-                  // The suite sums these to prove the payments clear the ledger.
-                  data-settle={t.cents}
-                  className="border-b border-rule last:border-b-0"
-                >
-                  {/* Twelve people around one big grocery run is eleven rows; with
-                      the actions always out that card is taller than the ledger
-                      it's summarising. Tap the one you're settling. */}
-                  <button
-                    onClick={() =>
-                      setOpenTransfer(openTransfer === key ? null : key)
-                    }
-                    aria-expanded={openTransfer === key}
-                    className="w-full text-left bg-transparent border-none cursor-pointer flex items-center gap-2 px-3.5 py-3">
-                    <Avatar
-                      userId={t.from}
-                      url={memberAvatars[t.from]}
-                      name={nameOf(t.from)}
-                      size={22}
-                    />
-                    <span
-                      className={`text-[14px] truncate ${mine ? "text-ink font-medium" : "text-granite"}`}
-                    >
-                      {nameOf(t.from)}
-                    </span>
-                    <ArrowRight size={13} className="text-mute shrink-0" />
-                    <Avatar
-                      userId={t.to}
-                      url={memberAvatars[t.to]}
-                      name={nameOf(t.to)}
-                      size={22}
-                    />
-                    <span
-                      className={`flex-1 min-w-0 text-[14px] truncate ${mine ? "text-ink font-medium" : "text-granite"}`}
-                    >
-                      {nameOf(t.to)}
-                    </span>
-                    <span
-                      className={`font-mono text-[14px] shrink-0 ${mine ? "text-blaze font-semibold" : "text-granite"}`}
-                    >
-                      {money(t.cents)}
-                    </span>
-                  </button>
-                  {openTransfer === key && (
-                  <div className="px-3.5 pb-3 grid gap-2">
-                  {/* Venmo can only prefill a person it has a handle for, and
-                      this is the moment you notice it's missing. */}
-                  {mine && !(members.find((m) => m.id === other)?.venmo) && (
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-[14px] text-mute pointer-events-none">
-                        @
-                      </span>
-                      <input
-                        defaultValue=""
-                        onBlur={(ev) => {
-                          if (ev.target.value.trim()) setMemberVenmo(other, ev.target.value);
-                        }}
-                        onKeyDown={(ev) => {
-                          if (ev.key === "Enter") ev.currentTarget.blur();
-                        }}
-                        placeholder={`${nameOf(other)}'s venmo — optional`}
-                        aria-label={`Venmo handle for ${nameOf(other)}`}
-                        autoCapitalize="none"
-                        enterKeyHint="done"
-                        className="w-full pl-7 pr-3 py-2 rounded-lg border border-rule bg-white text-[16px] text-ink min-h-[42px]"
-                      />
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    {mine && (
-                      <VenmoButton href={link} label={iOwe ? "Pay" : "Request"} />
-                    )}
+      {/* Settling up is a Sunday-night job, and its ten rows were taller
+          than the two expenses they summarise. Off the page, one tap away,
+          with everything it always had: the payments, the Venmo links and
+          what's already been paid back. */}
+      <BottomSheet open={settleOpen} onClose={() => setSettleOpen(false)}>
+        <div className="max-h-[74vh] overflow-y-auto overscroll-contain -mx-1 px-1">
+        {transfers.length > 0 && (
+          <div className="mb-5">
+            <SubH right={`${transfers.length} payment${transfers.length > 1 ? "s" : ""}`}>
+              Settle up
+            </SubH>
+            {/* Without this line the list reads as broken: you pay one person
+                for a site someone else booked, and one debt can split across
+                two people. That's the netting doing its job — say so. */}
+            <div className="font-mono text-[10.5px] text-mute mb-1.5 leading-[1.5]">
+              Everyone&apos;s debts are netted into the fewest payments — who you
+              pay isn&apos;t always who you split with.
+            </div>
+            <Card className="overflow-hidden">
+              {(allTransfers ? transfers : transfers.slice(0, 3)).map((t) => {
+                const iOwe = t.from === myMemberId;
+                const owedToMe = t.to === myMemberId;
+                const mine = iOwe || owedToMe;
+                // You can pay your own debt and chase someone else's; there's
+                // nothing useful to do about two other people's.
+                const other = iOwe ? t.to : t.from;
+                const key = `${t.from}-${t.to}`;
+                const link = venmoLink(
+                  iOwe ? "pay" : "charge",
+                  members.find((m) => m.id === other)?.venmo ?? "",
+                  t.cents,
+                );
+                return (
+                  <div
+                    key={`${t.from}-${t.to}`}
+                    // The suite sums these to prove the payments clear the ledger.
+                    data-settle={t.cents}
+                    className="border-b border-rule last:border-b-0"
+                  >
+                    {/* Twelve people around one big grocery run is eleven rows; with
+                        the actions always out that card is taller than the ledger
+                        it's summarising. Tap the one you're settling. */}
                     <button
-                      onClick={() => {
-                        setOpenTransfer(null);
-                        addSettlement(t.from, t.to, t.cents);
-                        showNotice(`Marked ${nameOf(t.from)} → ${nameOf(t.to)} paid`);
-                      }}
-                      className={`${mine ? "flex-1" : "w-full"} rounded-full border border-rule bg-transparent text-granite cursor-pointer font-mono text-[11px] uppercase tracking-[.07em] py-2 min-h-[38px]`}
-                    >
-                      Mark paid
+                      onClick={() =>
+                        setOpenTransfer(openTransfer === key ? null : key)
+                      }
+                      aria-expanded={openTransfer === key}
+                      className="w-full text-left bg-transparent border-none cursor-pointer flex items-center gap-2 px-3.5 py-3">
+                      <Avatar
+                        userId={t.from}
+                        url={memberAvatars[t.from]}
+                        name={nameOf(t.from)}
+                        size={22}
+                      />
+                      <span
+                        className={`text-[14px] truncate ${mine ? "text-ink font-medium" : "text-granite"}`}
+                      >
+                        {nameOf(t.from)}
+                      </span>
+                      <ArrowRight size={13} className="text-mute shrink-0" />
+                      <Avatar
+                        userId={t.to}
+                        url={memberAvatars[t.to]}
+                        name={nameOf(t.to)}
+                        size={22}
+                      />
+                      <span
+                        className={`flex-1 min-w-0 text-[14px] truncate ${mine ? "text-ink font-medium" : "text-granite"}`}
+                      >
+                        {nameOf(t.to)}
+                      </span>
+                      <span
+                        className={`font-mono text-[14px] shrink-0 ${mine ? "text-blaze font-semibold" : "text-granite"}`}
+                      >
+                        {money(t.cents)}
+                      </span>
                     </button>
+                    {openTransfer === key && (
+                    <div className="px-3.5 pb-3 grid gap-2">
+                    {/* Venmo can only prefill a person it has a handle for, and
+                        this is the moment you notice it's missing. */}
+                    {mine && !(members.find((m) => m.id === other)?.venmo) && (
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-[14px] text-mute pointer-events-none">
+                          @
+                        </span>
+                        <input
+                          defaultValue=""
+                          onBlur={(ev) => {
+                            if (ev.target.value.trim()) setMemberVenmo(other, ev.target.value);
+                          }}
+                          onKeyDown={(ev) => {
+                            if (ev.key === "Enter") ev.currentTarget.blur();
+                          }}
+                          placeholder={`${nameOf(other)}'s venmo — optional`}
+                          aria-label={`Venmo handle for ${nameOf(other)}`}
+                          autoCapitalize="none"
+                          enterKeyHint="done"
+                          className="w-full pl-7 pr-3 py-2 rounded-lg border border-rule bg-white text-[16px] text-ink min-h-[42px]"
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      {mine && (
+                        <VenmoButton href={link} label={iOwe ? "Pay" : "Request"} />
+                      )}
+                      <button
+                        onClick={() => {
+                          setOpenTransfer(null);
+                          addSettlement(t.from, t.to, t.cents);
+                          showNotice(`Marked ${nameOf(t.from)} → ${nameOf(t.to)} paid`);
+                        }}
+                        className={`${mine ? "flex-1" : "w-full"} rounded-full border border-rule bg-transparent text-granite cursor-pointer font-mono text-[11px] uppercase tracking-[.07em] py-2 min-h-[38px]`}
+                      >
+                        Mark paid
+                      </button>
+                    </div>
+                    </div>
+                    )}
                   </div>
+                );
+              })}
+              {transfers.length > 3 && (
+                <button
+                  onClick={() => setAllTransfers(!allTransfers)}
+                  className="w-full bg-transparent border-none cursor-pointer text-granite font-mono text-[11px] px-3.5 py-3 min-h-[44px]"
+                >
+                  {allTransfers
+                    ? "show fewer"
+                    : `show all ${transfers.length} payments`}
+                </button>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {settled.length > 0 && (
+          <div className="mb-5">
+            <SubH right={money(settled.reduce((a, x) => a + x.amount_cents, 0))}>
+              Already paid back
+            </SubH>
+            <Card className="overflow-hidden">
+              {settled.map((x) => (
+                <SwipeRow
+                  key={x.id}
+                  className="border-b border-rule last:border-b-0"
+                  onDelete={() => {
+                    const snap = { ...x };
+                    deleteSettlement(x.id);
+                    showUndo("Removed", () => restoreSettlement(snap));
+                  }}
+                >
+                  <div className="flex items-center gap-2 px-3.5 py-2.5">
+                    <Avatar
+                      userId={x.from_member}
+                      url={memberAvatars[x.from_member]}
+                      name={nameOf(x.from_member)}
+                      size={20}
+                    />
+                    <span className="flex-1 min-w-0 text-[13.5px] text-granite truncate">
+                      {nameOf(x.from_member)} paid {nameOf(x.to_member)}
+                    </span>
+                    <span className="font-mono text-[13px] text-moss shrink-0">
+                      {money(x.amount_cents)}
+                    </span>
                   </div>
-                  )}
-                </div>
-              );
-            })}
-            {transfers.length > 3 && (
-              <button
-                onClick={() => setAllTransfers(!allTransfers)}
-                className="w-full bg-transparent border-none cursor-pointer text-granite font-mono text-[11px] px-3.5 py-3 min-h-[44px]"
-              >
-                {allTransfers
-                  ? "show fewer"
-                  : `show all ${transfers.length} payments`}
-              </button>
-            )}
-          </Card>
+                </SwipeRow>
+              ))}
+            </Card>
+          </div>
+        )}
         </div>
-      )}
-
-      {settled.length > 0 && (
-        <div className="mb-5">
-          <SubH right={money(settled.reduce((a, x) => a + x.amount_cents, 0))}>
-            Already paid back
-          </SubH>
-          <Card className="overflow-hidden">
-            {settled.map((x) => (
-              <SwipeRow
-                key={x.id}
-                className="border-b border-rule last:border-b-0"
-                onDelete={() => {
-                  const snap = { ...x };
-                  deleteSettlement(x.id);
-                  showUndo("Removed", () => restoreSettlement(snap));
-                }}
-              >
-                <div className="flex items-center gap-2 px-3.5 py-2.5">
-                  <Avatar
-                    userId={x.from_member}
-                    url={memberAvatars[x.from_member]}
-                    name={nameOf(x.from_member)}
-                    size={20}
-                  />
-                  <span className="flex-1 min-w-0 text-[13.5px] text-granite truncate">
-                    {nameOf(x.from_member)} paid {nameOf(x.to_member)}
-                  </span>
-                  <span className="font-mono text-[13px] text-moss shrink-0">
-                    {money(x.amount_cents)}
-                  </span>
-                </div>
-              </SwipeRow>
-            ))}
-          </Card>
-        </div>
-      )}
-
+      </BottomSheet>
 
       {/* The roster is fixed and correct, so it stopped earning a card of its
           own — but a wrong name or a person added by mistake still has to be
