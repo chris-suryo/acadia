@@ -105,6 +105,12 @@ export const SEED_GEAR: {
   { category: "Site & Safety", label: "Camp broom", sort: 8 },
   { category: "Site & Safety", label: "Quarters for showers", sort: 9 },
 
+  // Eleven people, two nights, one fire — somebody has to bring the cards.
+  { category: "Games", label: "Deck of cards", sort: 1 },
+  { category: "Games", label: "Uno", sort: 2 },
+  { category: "Games", label: "Flip 7", sort: 3 },
+  { category: "Games", label: "Monopoly Deal", sort: 4 },
+
   { category: "Dogs", label: "Leashes", sort: 1 },
   { category: "Dogs", label: "Tie-out line", sort: 2 },
   { category: "Dogs", label: "Water bowls", sort: 3 },
@@ -119,6 +125,7 @@ export const GEAR_CATEGORIES = [
   "Coolers & Water",
   "Fire & Light",
   "Site & Safety",
+  "Games",
   "Dogs",
 ];
 

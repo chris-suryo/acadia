@@ -1,5 +1,6 @@
 import {
   Backpack,
+  Dices,
   Dog,
   Flame,
   type LucideIcon,
@@ -27,6 +28,7 @@ const ICONS: [RegExp, LucideIcon][] = [
   [/kitchen|cook|mess|food/i, UtensilsCrossed],
   [/fire|light/i, Flame],
   [/safety|first.?aid|site/i, BriefcaseMedical],
+  [/game|dice|puzzle/i, Dices],
   [/dog|pet/i, Dog],
   [/cloth|wear/i, Shirt],
   [/essential|pack/i, Backpack],

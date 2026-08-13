@@ -430,6 +430,19 @@ export function Expenses() {
   const transfers = settle(net);
   const total = expenses.reduce((s, e) => s + e.amount_cents, 0);
   const myNet = net.get(myMemberId) ?? 0;
+  // The two halves of that number, so it stops reading as a bug: you paid $30
+  // but you're owed $24.54, because your own seat at the table costs you the
+  // same share as everyone else's.
+  const myPaid = expenses
+    .filter((e) => e.payer_id === myMemberId)
+    .reduce((s, e) => s + e.amount_cents, 0);
+  const myShare = expenses.reduce((s, e) => s + shareOf(e, myMemberId), 0);
+  const mySettled = settlements.reduce(
+    (s, x) =>
+      s + (x.from_member === myMemberId ? x.amount_cents : 0) -
+      (x.to_member === myMemberId ? x.amount_cents : 0),
+    0,
+  );
 
   const sorted = [...expenses].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const settled = [...settlements].sort((a, b) =>
@@ -465,6 +478,12 @@ export function Expenses() {
         )}
         <div className="font-mono text-[11px] text-granite mt-1">
           {money(total)} spent by the group
+          {myMemberId && (myPaid > 0 || myShare > 0) && (
+            <>
+              {" "}· you paid {money(myPaid)} · your share {money(myShare)}
+              {mySettled !== 0 && <> · {money(Math.abs(mySettled))} settled</>}
+            </>
+          )}
         </div>
       </div>
 
@@ -484,6 +503,13 @@ export function Expenses() {
           <SubH right={`${transfers.length} payment${transfers.length > 1 ? "s" : ""}`}>
             Settle up
           </SubH>
+          {/* Without this line the list reads as broken: you pay one person
+              for a site someone else booked, and one debt can split across
+              two people. That's the netting doing its job — say so. */}
+          <div className="font-mono text-[10.5px] text-mute mb-1.5 leading-[1.5]">
+            Everyone&apos;s debts are netted into the fewest payments — who you
+            pay isn&apos;t always who you split with.
+          </div>
           <Card className="overflow-hidden">
             {(allTransfers ? transfers : transfers.slice(0, 3)).map((t) => {
               const iOwe = t.from === myMemberId;

@@ -26,8 +26,11 @@ const ok = (name, cond, detail = "") => {
   fs.mkdirSync(SHOT_DIR, { recursive: true });
   /** Drag a row left far enough to trip SwipeRow's delete. */
   const swipeRow = async (row) => {
-    await row.scrollIntoViewIfNeeded();
-    await page.waitForTimeout(150);
+    // Centered, not merely "in view": if-needed can leave the row at the
+    // viewport's bottom edge, underneath the fixed tab bar, where the drag
+    // lands on the nav instead of the row.
+    await row.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await page.waitForTimeout(200);
     const b = await row.boundingBox();
     await page.mouse.move(b.x + b.width - 16, b.y + b.height / 2);
     await page.mouse.down();
@@ -250,6 +253,10 @@ const ok = (name, cond, detail = "") => {
   ok("something to scramble three dozen eggs in", await page.getByText("Big mixing bowl").isVisible());
   ok("chairs for whoever hasn't got one", await page.getByText("Extra camp chairs").isVisible());
   ok("kindling", await page.getByText("Hatchet", { exact: true }).isVisible());
+  // Somebody has to bring the cards.
+  ok("games are a section", await page.locator("main").getByText("Games", { exact: true }).isVisible());
+  ok("uno made the list", await page.getByText("Uno", { exact: true }).isVisible()
+    && await page.getByText("Monopoly Deal").isVisible());
 
   ok("labels say the thing and stop",
     await page.getByText("Firewood — buy on the island").isVisible() &&
@@ -652,6 +659,9 @@ const ok = (name, cond, detail = "") => {
   // split reconciling to the penny.
   ok("balance says you're owed", await page.getByText("You're owed").isVisible());
   ok("owed to the cent", await page.getByText("$221.36").first().isVisible());
+  // "You paid $240 but you're owed $221.36" is correct and reads as a bug
+  // until the two parts are on screen.
+  ok("the balance shows its parts", await page.getByText(/you paid .* your share/).isVisible());
 
   // Someone else pays, split among a subset that leaves you out.
   await page.getByRole("button", { name: "Add an expense" }).click();
@@ -681,6 +691,9 @@ const ok = (name, cond, detail = "") => {
   ok("a subset split charges only those people",
     await page.getByText(/split 2 ways · not you/).isVisible());
 
+  // Who you pay isn't always who you split with — the list says so, or the
+  // netting reads as a bug the first time one debt lands on two people.
+  ok("the netting explains itself", await page.getByText(/netted into the fewest payments/).isVisible());
   // The settle-up is the point: these payments must clear the ledger exactly.
   // One person paying for everything is ten rows, so the card shows three until
   // asked for the rest.
