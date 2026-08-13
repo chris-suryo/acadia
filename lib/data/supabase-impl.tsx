@@ -205,6 +205,47 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     votesRef.current = menuVotes;
   }, [menuVotes]);
 
+  /**
+   * Coming back to the foreground refetches everything.
+   *
+   * iOS freezes background tabs and Home Screen apps whole; the realtime
+   * socket usually reconnects after a short trip and usually doesn't after a
+   * night, and "usually" is invisible from the outside. A phone reopened on
+   * Friday showing Thursday's votes doesn't look stale, it looks wrong — so
+   * the app stops trusting the socket the moment it wakes. Throttled, because
+   * desktop tab-switching fires this constantly.
+   */
+  const lastResume = useRef(0);
+  useEffect(() => {
+    const wake = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!userIdRef.current) return; // boot still owns the first fetch
+      const now = Date.now();
+      if (now - lastResume.current < 15_000) return;
+      lastResume.current = now;
+      for (const t of [
+        "profiles",
+        "members",
+        "itinerary_days",
+        "itinerary_blocks",
+        "gear_items",
+        "gear_claims",
+        "personal_items",
+        "menu_items",
+        "menu_votes",
+        "shopping_items",
+        "expenses",
+        "expense_shares",
+        "expense_receipts",
+        "settlements",
+        "survey",
+      ] as Table[])
+        refetch(t);
+    };
+    document.addEventListener("visibilitychange", wake);
+    return () => document.removeEventListener("visibilitychange", wake);
+  }, [refetch]);
+
   const persist = useCallback(
     (write: PromiseLike<{ error: unknown }>, table: Table) => {
       const fail = (err: unknown) => {
