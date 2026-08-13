@@ -59,7 +59,7 @@ const ok = (name, cond, detail = "") => {
   ok("no segments on itinerary", (await page.getByRole("button", { name: "Schedule" }).count()) === 0);
   // The itinerary is the trip and nothing else — no card of asks above it.
   ok("nothing above the schedule", (await page.getByText("Before Friday").count()) === 0);
-  ok("what people want section", await page.getByText("What people want").isVisible());
+  ok("the crew section", await page.getByText("The crew").isVisible());
   // The roster leads the board now: everyone on the trip is a face, including
   // whoever hasn't opened the app, and the answers live one tap deep. The old
   // stack of full cards was the longest wall of text in the app and still
@@ -68,10 +68,24 @@ const ok = (name, cond, detail = "") => {
   const crew = page.locator("main").getByRole("button", { name: /^Alana/ });
   ok("everyone has a face, answered or not", (await page.locator("main .grid-cols-4 > button").count()) === 11,
     `${await page.locator("main .grid-cols-4 > button").count()} on the roster strip`);
-  ok("the count says how many are in", await page.getByText(/^\d+ of \d+ in$/).isVisible());
+  ok("one line replaces twelve unexplained dots",
+    await page.getByText(/^\d+ of \d+ in · \d+ answered$/).isVisible());
   // Someone who hasn't answered is dimmed rather than missing.
   ok("the un-joined are shown, not hidden",
     (await page.locator("main .grid-cols-4 > button.opacity-40").count()) > 0);
+
+  // The aggregate is a bar chart, not three comma-joined words in a header.
+  ok("what everyone wants, aggregated", await page.getByText("What everyone wants").isVisible());
+  ok("every vibe is listed, including the unwanted ones",
+    (await page.getByRole("button", { name: /^(A big hike|Easy walks|Swimming|Views \+ sunsets|Hanging at camp|Town food \+ shops) — \d+ (person|people)$/ }).count()) === 6);
+  ok("counts run highest first", await page.getByRole("button", { name: /^A big hike — 1 person$/ }).isVisible());
+  await page.getByRole("button", { name: /^Swimming — 1 person$/ }).click();
+  await page.waitForTimeout(350);
+  ok("a bar opens who wanted it",
+    await page.locator("div.fixed.inset-0.z-50").getByText("Alana", { exact: true }).isVisible());
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+
   await crew.click();
   await page.waitForTimeout(350);
   const ideaSheet = page.locator("div.fixed.inset-0.z-50");
@@ -248,7 +262,7 @@ const ok = (name, cond, detail = "") => {
   ok("seeded chirps render", await page.getByText("Packing tonight").isVisible()
     && await page.getByText("Found the loop map").isVisible());
   ok("seeded photo renders", (await page.locator('main img[src*="blackwoods-map"]').count()) === 1);
-  const coolerCard = page.locator("main div.bg-card").filter({ hasText: "second cooler" });
+  const coolerCard = page.locator("main [data-chirp]").filter({ hasText: "second cooler" });
   ok("a heart already counts one person", (await coolerCard.getByLabel("Who liked this").innerText()).trim() === "1");
   // Posting is the one thing that needs a name — same gate as votes and claims.
   const composerBox = page.locator("main div.bg-card").filter({ has: page.getByPlaceholder(/happening at camp/) });
@@ -258,7 +272,7 @@ const ok = (name, cond, detail = "") => {
   ok("chirping asks who you are", (await page.getByRole("button", { name: /^I'm / }).count()) === 11);
   await page.keyboard.press("Escape");
   await page.waitForTimeout(300);
-  ok("canceled chirp never posts", (await page.locator("main div.bg-card").filter({ hasText: "hello from the suite" }).count()) === 1, "only the composer holds it");
+  ok("canceled chirp never posts", (await page.locator("main [data-chirp]").filter({ hasText: "hello from the suite" }).count()) === 0, "nothing reached the feed");
   ok("but the words are kept for the retry", (await composerBox.getByPlaceholder(/happening at camp/).inputValue()) === "hello from the suite");
   await composerBox.getByPlaceholder(/happening at camp/).fill("");
   await page.screenshot({ path: `${SHOT_DIR}/3a-chirp-seeded.png`, fullPage: true });
@@ -437,7 +451,7 @@ const ok = (name, cond, detail = "") => {
   await composer.getByPlaceholder(/happening at camp/).fill("First chirp — see https://www.nps.gov/acad for maps.");
   await chirpIt.click();
   await page.waitForTimeout(400);
-  const myPost = page.locator("main div.bg-card").filter({ hasText: "First chirp" });
+  const myPost = page.locator("main [data-chirp]").filter({ hasText: "First chirp" });
   ok("chirp lands as a card", await myPost.getByText(/First chirp/).isVisible());
   ok("under my name", await myPost.getByText("Chris", { exact: true }).isVisible());
   ok("stamped now", await myPost.getByText("now", { exact: true }).isVisible());
@@ -450,7 +464,7 @@ const ok = (name, cond, detail = "") => {
   await composer.getByPlaceholder(/happening at camp/).fill("");
 
   // Hearts: mine joins Alana's, the faces sheet shows both, and it toggles off.
-  const cooler = page.locator("main div.bg-card").filter({ hasText: "second cooler" });
+  const cooler = page.locator("main [data-chirp]").filter({ hasText: "second cooler" });
   await cooler.getByLabel("Like", { exact: true }).click();
   await page.waitForTimeout(300);
   ok("my heart joins the count", (await cooler.getByLabel("Who liked this").innerText()).trim() === "2");
@@ -465,14 +479,32 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(300);
   ok("unlike takes only mine back", (await cooler.getByLabel("Who liked this").innerText()).trim() === "1");
 
-  // Replies thread under the parent, oldest first, and count on the parent.
-  await cooler.getByLabel("Reply to this").click();
-  await page.waitForTimeout(250);
-  await cooler.getByPlaceholder(/^Reply to Alana/).fill("On it — bringing ours.");
-  await cooler.getByRole("button", { name: "Reply", exact: true }).click();
-  await page.waitForTimeout(400);
-  ok("reply threads under the parent", await cooler.getByText("On it — bringing ours.").isVisible());
-  ok("parent counts its thread", ((await cooler.getByLabel("Reply to this").innerText()) || "").includes("1"));
+  // Replying opens the chirp's own thread. The inline box this replaces went
+  // unused for every one of the first six real chirps — three of which were
+  // replies posted as new top-level posts.
+  ok("the reply control says what it is", (await cooler.getByLabel("Open thread").innerText()).includes("Reply"));
+  await cooler.getByLabel("Open thread").click();
+  await page.waitForTimeout(350);
+  const threadView = page.locator("div.fixed.inset-0.z-50");
+  ok("a chirp opens its thread", await threadView.getByText("Thread").isVisible());
+  ok("the thread carries the chirp", await threadView.getByText(/second cooler/).isVisible());
+  await threadView.getByPlaceholder(/^Reply to Alana/).fill("On it — bringing ours.");
+  await threadView.getByRole("button", { name: "Reply", exact: true }).click();
+  await page.waitForTimeout(450);
+  ok("the reply lands in the open thread", await threadView.getByText("On it — bringing ours.").isVisible());
+  await threadView.getByLabel("Back to the feed").click();
+  await page.waitForTimeout(350);
+  ok("and threads under its parent back on the feed",
+    await cooler.getByText("On it — bringing ours.").isVisible());
+  ok("parent counts its thread", (await cooler.getByLabel("Open thread").innerText()).includes("1"));
+  // Tapping the words is the second way in, for anyone who never looks at the
+  // action row at all.
+  await cooler.getByText(/second cooler/).click();
+  await page.waitForTimeout(350);
+  ok("tapping the chirp itself opens the thread too",
+    await page.locator("div.fixed.inset-0.z-50").getByText("Thread").isVisible());
+  await page.locator("div.fixed.inset-0.z-50").getByLabel("Back to the feed").click();
+  await page.waitForTimeout(300);
 
   // Someone else's menu offers pin but never delete.
   await cooler.getByLabel("Post menu").first().click();
@@ -496,7 +528,7 @@ const ok = (name, cond, detail = "") => {
   ok("one preview removes", (await composer.getByLabel("Remove photo").count()) === 1);
   await chirpIt.click();
   await page.waitForTimeout(500);
-  const photoPost = page.locator("main div.bg-card").filter({ hasText: "Site marker" });
+  const photoPost = page.locator("main [data-chirp]").filter({ hasText: "Site marker" });
   ok("photo chirp shows its picture", (await photoPost.locator('img[src^="blob:"]').count()) === 1);
   await page.screenshot({ path: `${SHOT_DIR}/3b-chirp-feed.png`, fullPage: true });
 
@@ -519,14 +551,14 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(300);
   await page.locator("div.fixed.inset-0.z-50").getByText("Pin to top").click();
   await page.waitForTimeout(350);
-  const firstFeedCard = page.locator("main div.bg-card").nth(1); // 0 is the composer
+  const firstFeedCard = page.locator("main [data-chirp]").first();
   ok("pinned post floats to the top", (await firstFeedCard.innerText()).includes("First chirp")
     && (await firstFeedCard.getByText("pinned").count()) === 1);
   await myPost.getByLabel("Post menu").click();
   await page.waitForTimeout(300);
   await page.locator("div.fixed.inset-0.z-50").getByText("Unpin").click();
   await page.waitForTimeout(350);
-  ok("unpinned post falls back in line", !(await page.locator("main div.bg-card").nth(1).innerText()).includes("First chirp"));
+  ok("unpinned post falls back in line", !(await page.locator("main [data-chirp]").first().innerText()).includes("First chirp"));
 
   // Deleting my photo post takes the picture out of the album too.
   await photoPost.getByLabel("Post menu").click();
@@ -535,7 +567,7 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(200);
   await page.locator("div.fixed.inset-0.z-50").getByRole("button", { name: "Really delete?" }).click();
   await page.waitForTimeout(400);
-  ok("delete is a two-tap decision that sticks", (await page.locator("main div.bg-card").filter({ hasText: "Site marker" }).count()) === 0);
+  ok("delete is a two-tap decision that sticks", (await page.locator("main [data-chirp]").filter({ hasText: "Site marker" }).count()) === 0);
   await page.getByRole("button", { name: "Photos", exact: true }).click();
   await page.waitForTimeout(250);
   ok("the album lets it go too", (await page.locator("main .grid-cols-3 button").count()) === 1);
@@ -552,11 +584,11 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(300);
   await page.getByRole("button", { name: "Add yours" }).click();
   await page.waitForTimeout(250);
-  ok("ideas editor opens with chips", await page.getByRole("button", { name: "A big hike" }).isVisible());
+  ok("ideas editor opens with chips", await page.getByRole("button", { name: "A big hike", exact: true }).isVisible());
   ok("ideas placeholders", (await page.getByPlaceholder("s'mores night, a dish, allergies…").count()) === 1);
-  await page.getByRole("button", { name: "A big hike" }).click();
+  await page.getByRole("button", { name: "A big hike", exact: true }).click();
   await page.waitForTimeout(150);
-  await page.getByRole("button", { name: "Swimming" }).click();
+  await page.getByRole("button", { name: "Swimming", exact: true }).click();
   await page.waitForTimeout(150);
   await page.getByRole("button", { name: "Wander, no plan" }).click();
   await page.waitForTimeout(200);
@@ -570,12 +602,24 @@ const ok = (name, cond, detail = "") => {
   await page.screenshot({ path: `${SHOT_DIR}/7-ideas-edit.png`, fullPage: true });
   await page.getByRole("heading", { name: "Acadia Base Camp" }).click();
   await page.waitForTimeout(300);
-  ok("vibes saved to card", await page.getByText("A big hike · Swimming", { exact: true }).isVisible());
-  ok("idea card saved on tap-away", await page.getByText("Great Head sunrise").isVisible());
-  // Your own answer stays on the page — it's the call to action. Everyone
-  // else's pace is one tap into their face.
-  ok("your pace shows on your own card", (await page.getByText("Wander, no plan").count()) === 1);
-  ok("nobody else's prose is on the page", (await page.getByText("One good hike").count()) === 0);
+  // Nobody's prose sits on the page any more — not even yours. Answering
+  // swaps the "Add yours" prompt for your face in the crew grid.
+  ok("your own card comes off the page once you've answered",
+    (await page.getByRole("button", { name: "Add yours" }).count()) === 0);
+  ok("no prose on the board at all",
+    (await page.getByText("Great Head sunrise").count()) === 0 &&
+    (await page.getByText("One good hike").count()) === 0);
+  // ...but the answer saved, and your own face is where it lives.
+  await page.locator("main").getByRole("button", { name: /\(you\)$/ }).click();
+  await page.waitForTimeout(350);
+  const mySheet = page.locator("div.fixed.inset-0.z-50");
+  ok("vibes saved", await mySheet.getByText("A big hike · Swimming", { exact: true }).isVisible());
+  ok("the type-ins saved on tap-away", await mySheet.getByText("Great Head sunrise").isVisible());
+  ok("your pace saved", await mySheet.getByText("Wander, no plan").isVisible());
+  ok("camped-before saved from ideas", await mySheet.getByText("First timer").isVisible());
+  ok("and your own sheet offers the edit", await mySheet.getByRole("button", { name: "Edit yours" }).isVisible());
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
   await page.locator("main").getByRole("button", { name: /^Alana/ }).click();
   await page.waitForTimeout(350);
   ok("their pace is one tap away",
@@ -592,18 +636,33 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(400);
   ok("a broken avatar falls back to the initial",
     (await page.locator('img[src="/no-such-avatar.jpg"]').count()) === 0);
-  ok("camped-before saves from ideas", await page.getByText("First timer").isVisible());
-  ok("vibe tally", await page.getByText(/a big hike \u00d72/).isVisible());
+  // Two people now want a big hike and two want swimming, so the bars move
+  // and the aggregate is counted per person rather than per row.
+  ok("the bars pick up the new answer",
+    await page.getByRole("button", { name: /^A big hike \u2014 2 people$/ }).isVisible() &&
+    await page.getByRole("button", { name: /^Swimming \u2014 2 people$/ }).isVisible());
+  ok("and the answered count moves with it",
+    await page.getByText(/^\d+ of \d+ in \u00b7 2 answered$/).isVisible());
   ok("ideas editor closed", (await page.locator('input[placeholder*="allergies"]').count()) === 0);
 
-  // reopen own card: explicit Done commit
-  await page.getByText("Great Head sunrise").click();
-  await page.waitForTimeout(250);
+  // Reopen through your own face — the only way back in now — and commit with
+  // the explicit Done rather than a tap-away.
+  await page.locator("main").getByRole("button", { name: /\(you\)$/ }).click();
+  await page.waitForTimeout(350);
+  await page.locator("div.fixed.inset-0.z-50").getByRole("button", { name: "Edit yours" }).click();
+  await page.waitForTimeout(350);
+  ok("your face reopens the editor",
+    (await page.locator('input[placeholder*="allergies"]').count()) === 1);
   await page.getByPlaceholder("s'mores night, a dish, allergies…").fill("Breakfast burritos + hot sauce");
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.waitForTimeout(300);
-  ok("done button commits", await page.getByText("Breakfast burritos + hot sauce").isVisible());
   ok("done closes editor", (await page.locator('input[placeholder*="allergies"]').count()) === 0);
+  await page.locator("main").getByRole("button", { name: /\(you\)$/ }).click();
+  await page.waitForTimeout(350);
+  ok("done button commits",
+    await page.locator("div.fixed.inset-0.z-50").getByText("Breakfast burritos + hot sauce").isVisible());
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
 
   // ---- Food: a menu you vote on, and a list you can shop ----
   await page.getByRole("button", { name: "Food", exact: true }).click();

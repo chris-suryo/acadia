@@ -98,6 +98,7 @@ export function Ideas() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<TextDraft>({ food: "", hikes: "" });
   const [openPerson, setOpenPerson] = useState<string | null>(null);
+  const [openVibe, setOpenVibe] = useState<string | null>(null);
   const editRef = useRef<HTMLDivElement | null>(null);
 
   // Everything you've answered, from whichever of your devices you answered it
@@ -130,6 +131,22 @@ export function Ideas() {
     isYou: m.id === myMemberId,
   }));
   const joinedCount = crew.filter((c) => c.joined).length;
+  const answeredCount = crew.filter((c) => c.answer).length;
+
+  /**
+   * What the group wants, counted per person.
+   *
+   * Every vibe is listed, including the ones nobody picked — "nobody wants
+   * easy walks" is as useful for planning Saturday as the count at the top.
+   */
+  const wantRows = VIBE_CHIPS.map((vibe) => ({
+    vibe,
+    who: crew
+      .filter((c) => c.answer && splitVibes(c.answer.wants).includes(vibe))
+      .map((c) => c.member),
+  })).sort((a, b) => b.who.length - a.who.length);
+  const topWant = Math.max(1, ...wantRows.map((r) => r.who.length));
+  const openWant = openVibe ? wantRows.find((r) => r.vibe === openVibe) : undefined;
   const open = openPerson ? crew.find((c) => c.member.id === openPerson) : undefined;
 
   const startEdit = () => {
@@ -221,14 +238,11 @@ export function Ideas() {
           </Card>
         </div>
       ) : mine && answered(mine) ? (
-        <button
-          onClick={startEdit}
-          className="block w-full text-left bg-transparent border-none p-0 cursor-pointer mb-3"
-        >
-          <Card className="px-3.5 py-3">
-            <CardBody s={mine} name={myName} />
-          </Card>
-        </button>
+        // Nothing. Your own answer used to sit here as a full card of your own
+        // prose, which is the one card on the page you already know the
+        // contents of — it's your face in the roster below, and the sheet
+        // there edits it.
+        null
       ) : (
         <Card className="overflow-hidden mb-3">
           <button
@@ -245,14 +259,57 @@ export function Ideas() {
         </Card>
       )}
 
+      {/* The aggregate, as something you can read at a glance. This was three
+          words in a header — the top vibes, comma-joined — which said what led
+          but never by how much, or who. */}
+      {answeredCount > 0 && (
+        <>
+          <div className="flex items-baseline justify-between mb-2.5">
+            <span className="font-mono text-[10.5px] tracking-[.1em] uppercase text-granite">
+              What everyone wants
+            </span>
+            <span className="font-mono text-[10.5px] text-mute">
+              {answeredCount} answered
+            </span>
+          </div>
+          {/* One line per vibe — label, bar, count — so six of them read as a
+              chart you scan rather than a list you work through. */}
+          <div className="grid gap-2.5 mb-1">
+            {wantRows.map(({ vibe, who }) => (
+              <button
+                key={vibe}
+                onClick={() => who.length && setOpenVibe(vibe)}
+                aria-label={`${vibe} — ${who.length} ${who.length === 1 ? "person" : "people"}`}
+                className="flex items-center gap-2.5 text-left bg-transparent border-none p-0 cursor-pointer"
+              >
+                <span className="w-[112px] shrink-0 truncate text-[12px] text-ink">
+                  {vibe}
+                </span>
+                <span className="flex-1 h-[7px] bg-[#E6E0CE] rounded overflow-hidden">
+                  <span
+                    className="block h-full bg-moss transition-[width] duration-[250ms]"
+                    style={{ width: `${(who.length / topWant) * 100}%` }}
+                  />
+                </span>
+                <span className="w-3 shrink-0 text-right font-mono text-[11px] text-granite tabular-nums">
+                  {who.length}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* Everyone, faces first. A person who hasn't opened the app is dimmed
           rather than absent — the gap is the useful part. */}
-      <div className="flex items-baseline justify-between mb-2 mt-5">
+      <div className="flex items-baseline justify-between mb-2 mt-6">
         <span className="font-mono text-[10.5px] tracking-[.1em] uppercase text-granite">
           Who&apos;s coming
         </span>
+        {/* One line instead of twelve marks. A dot under each face needed a
+            legend to mean anything, which is the noise this row replaced. */}
         <span className="font-mono text-[10.5px] text-blaze">
-          {joinedCount} of {crew.length} in
+          {joinedCount} of {crew.length} in · {answeredCount} answered
         </span>
       </div>
       <div className="grid grid-cols-4 gap-x-1 gap-y-3 mb-1">
@@ -260,7 +317,9 @@ export function Ideas() {
           <button
             key={member.id}
             onClick={() => setOpenPerson(member.id)}
-            aria-label={`${member.name}${answer ? "" : " — hasn't weighed in"}`}
+            aria-label={`${member.name}${isYou ? " (you)" : ""}${
+              answer ? "" : " — hasn't weighed in"
+            }`}
             className={`flex flex-col items-center gap-1 bg-transparent border-none cursor-pointer p-1 ${
               joined ? "" : "opacity-40"
             }`}
@@ -275,14 +334,6 @@ export function Ideas() {
               {member.name.split(" ")[0]}
               {isYou ? " (you)" : ""}
             </span>
-            {/* A dot rather than a sentence: twelve "answered / hasn't
-                answered" labels would be the wall of text this replaced. */}
-            <span
-              aria-hidden
-              className={`w-1.5 h-1.5 rounded-full ${
-                answer ? "bg-moss" : joined ? "bg-[#D8D2C0]" : "bg-transparent"
-              }`}
-            />
           </button>
         ))}
       </div>
@@ -328,6 +379,30 @@ export function Ideas() {
                 </Btn>
               </div>
             )}
+          </>
+        )}
+      </BottomSheet>
+
+      {/* "Seven want swimming" is a fact; "which seven" is what you act on. */}
+      <BottomSheet open={!!openWant} onClose={() => setOpenVibe(null)}>
+        {openWant && (
+          <>
+            <div className="font-mono text-[10.5px] tracking-[.1em] uppercase text-granite mb-3">
+              {openWant.vibe} · {openWant.who.length}
+            </div>
+            <div className="grid gap-3">
+              {openWant.who.map((m) => (
+                <span key={m.id} className="flex items-center gap-2.5">
+                  <Avatar
+                    userId={m.id}
+                    url={memberAvatars[m.id]}
+                    name={m.name}
+                    size={28}
+                  />
+                  <span className="text-[14px] font-medium text-ink">{m.name}</span>
+                </span>
+              ))}
+            </div>
           </>
         )}
       </BottomSheet>

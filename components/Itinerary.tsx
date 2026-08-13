@@ -33,7 +33,6 @@ import { CSS } from "@dnd-kit/utilities";
 import { Btn, Card, SubH } from "./primitives";
 import { Ideas } from "./Ideas";
 import { MapOverlay, useMapPrefetch } from "./MapLightbox";
-import { splitVibes, surveysByPerson } from "@/lib/survey";
 import { Difficulty } from "./ui/Difficulty";
 import { TRIP_DATES } from "@/lib/config";
 import { CAMP_NOTES, EATS, SPOTS } from "@/lib/content";
@@ -267,8 +266,7 @@ function Entry({
 }
 
 export function Itinerary({ jump }: { jump: (slug: string) => void }) {
-  const { days, blocks, weather, surveys, memberOf, addBlock, updateBlock, reorderDay } =
-    useData();
+  const { days, blocks, weather, addBlock, updateBlock, reorderDay } = useData();
   const [mapOpen, setMapOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   useMapPrefetch();
@@ -285,18 +283,6 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
     return () => clearTimeout(t);
   }, []);
 
-  // Vibe tally across everyone's questionnaire answers — counted per person,
-  // not per row. Two phones belonging to one human were two votes here, so a
-  // pair of Home Screen installs quietly inflated whatever they'd picked.
-  const vibeCounts = new Map<string, number>();
-  for (const s of surveysByPerson(surveys, memberOf))
-    for (const v of splitVibes(s.wants))
-      vibeCounts.set(v, (vibeCounts.get(v) ?? 0) + 1);
-  const vibeTally = [...vibeCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([v, n]) => (n > 1 ? `${v.toLowerCase()} ×${n}` : v.toLowerCase()))
-    .join(" · ");
   const [draft, setDraft] = useState<Draft>({ title: "", detail: "" });
   const expandedRef = useRef<HTMLDivElement | null>(null);
   // A drop lands a click on the dragged row — don't expand from it.
@@ -610,8 +596,10 @@ export function Itinerary({ jump }: { jump: (slug: string) => void }) {
         );
       })}
 
+      {/* The tally that used to ride in this header is a bar chart inside
+          Ideas now — it said what led but never by how much, or who. */}
       <div className="mt-8">
-        <SubH right={vibeTally || null}>What people want</SubH>
+        <SubH>The crew</SubH>
         <Ideas />
       </div>
 

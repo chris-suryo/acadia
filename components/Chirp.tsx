@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bird,
+  ChevronLeft,
   Heart,
   ImagePlus,
   Loader2,
@@ -102,6 +103,7 @@ function PostCard({
   onLike,
   onLikers,
   onReply,
+  onOpen,
   onMenu,
   onPhoto,
 }: {
@@ -115,6 +117,8 @@ function PostCard({
   onLike: () => void;
   onLikers: () => void;
   onReply?: () => void;
+  /** Tapping the words opens the thread — a second, more obvious way in. */
+  onOpen?: () => void;
   onMenu: () => void;
   onPhoto: (src: string) => void;
 }) {
@@ -124,16 +128,21 @@ function PostCard({
         <Avatar userId={p.user_id} name={name} size={isReply ? 26 : 34} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-1.5 min-w-0">
-          <span className="text-[13.5px] font-semibold text-ink truncate">{name}</span>
-          <span className="font-mono text-[10.5px] text-faint shrink-0">{time}</span>
-          {p.pinned && !isReply ? (
-            <span className="ml-auto shrink-0 inline-flex items-center gap-1 font-mono text-[10px] tracking-[.08em] uppercase text-granite">
-              <Pin size={10} /> pinned
-            </span>
-          ) : null}
+        <div
+          onClick={onOpen}
+          className={onOpen ? "cursor-pointer" : undefined}
+        >
+          <div className="flex items-baseline gap-1.5 min-w-0">
+            <span className="text-[13.5px] font-semibold text-ink truncate">{name}</span>
+            <span className="font-mono text-[10.5px] text-faint shrink-0">{time}</span>
+            {p.pinned && !isReply ? (
+              <span className="ml-auto shrink-0 inline-flex items-center gap-1 font-mono text-[10px] tracking-[.08em] uppercase text-granite">
+                <Pin size={10} /> pinned
+              </span>
+            ) : null}
+          </div>
+          <Body text={p.body} />
         </div>
-        <Body text={p.body} />
         <PhotoGrid photos={p.photos} onOpen={onPhoto} />
         <div className="flex items-center mt-1.5 -mb-1 -ml-1.5">
           <span className="flex items-center">
@@ -158,16 +167,20 @@ function PostCard({
               </button>
             ) : null}
           </span>
+          {/* The word matters. This was a bare outline bubble between a heart
+              and a "…", and in the first fifteen minutes of real use nobody
+              found it: six chirps, zero replies, and three of those chirps
+              were plainly replies posted as new ones. */}
           {onReply ? (
             <button
               onClick={onReply}
-              aria-label="Reply to this"
-              className="ml-4 p-1.5 bg-transparent border-none cursor-pointer flex items-center gap-1 text-mute"
+              aria-label="Open thread"
+              className="ml-3 px-2 py-1.5 min-h-[36px] bg-transparent border-none cursor-pointer flex items-center gap-1.5 text-mute"
             >
               <MessageCircle size={16} />
-              {replyCount ? (
-                <span className="font-mono text-[11px]">{replyCount}</span>
-              ) : null}
+              <span className="font-mono text-[11px]">
+                {replyCount ? replyCount : "Reply"}
+              </span>
             </button>
           ) : null}
           <button
@@ -369,11 +382,18 @@ export function Chirp() {
     return () => clearInterval(t);
   }, []);
 
-  const [lightbox, setLightbox] = useState<{ src: string; caption: string } | null>(null);
+  const [lightbox, setLightbox] = useState<{
+    photos: string[];
+    index: number;
+    caption: string;
+  } | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [likersFor, setLikersFor] = useState<string | null>(null);
-  const [replyFor, setReplyFor] = useState<string | null>(null);
+  // Replying opens the chirp's own thread rather than an inline box below the
+  // fold — the inline one existed and went unused for every one of the first
+  // six chirps.
+  const [threadFor, setThreadFor] = useState<string | null>(null);
 
   const nameOf = (uid: string) =>
     profiles[uid] ||
@@ -416,7 +436,8 @@ export function Chirp() {
 
   const openPhoto = (p: Post, src: string) =>
     setLightbox({
-      src,
+      photos: p.photos,
+      index: Math.max(0, p.photos.indexOf(src)),
       caption: `${nameOf(p.user_id)}${p.body ? ` — ${p.body}` : ""}`,
     });
 
@@ -426,6 +447,9 @@ export function Chirp() {
   };
 
   const menuPost = menuFor ? posts.find((p) => p.id === menuFor) : undefined;
+  // Reads from `posts`, so a reply landing over realtime appears in the open
+  // thread without it having to be reopened.
+  const thread = threadFor ? posts.find((p) => p.id === threadFor) : undefined;
 
   const album = useMemo(
     () =>
@@ -473,38 +497,43 @@ export function Chirp() {
               </p>
             </div>
           ) : (
-            roots.map((p) => {
-              const replies = repliesOf(p.id);
-              return (
-                <Card key={p.id} className="p-3.5 mb-2.5">
-                  <PostCard
-                    {...cardProps(p)}
-                    replyCount={replies.length}
-                    onReply={() =>
-                      setReplyFor((cur) => (cur === p.id ? null : p.id))
-                    }
-                  />
-                  {replies.length > 0 && (
-                    <div className="mt-3 ml-1 pl-3 border-l-2 border-rule flex flex-col gap-3.5">
-                      {replies.map((r) => (
-                        <PostCard key={r.id} {...cardProps(r)} isReply />
-                      ))}
-                    </div>
-                  )}
-                  {replyFor === p.id && (
-                    <div className="mt-3 ml-1 pl-3 border-l-2 border-rule">
-                      <Composer
-                        placeholder={`Reply to ${nameOf(p.user_id)}…`}
-                        parentId={p.id}
-                        autoFocus
-                        compact
-                        onPosted={() => setReplyFor(null)}
-                      />
-                    </div>
-                  )}
-                </Card>
-              );
-            })
+            // One card, hairline-divided. A bordered box per chirp turned a
+            // feed into a stack of receipts.
+            <Card className="overflow-hidden">
+              {roots.map((p) => {
+                const replies = repliesOf(p.id);
+                const shown = replies.slice(0, 2);
+                return (
+                  <div
+                    key={p.id}
+                    data-chirp={p.id}
+                    className="p-3.5 border-b border-rule last:border-b-0"
+                  >
+                    <PostCard
+                      {...cardProps(p)}
+                      replyCount={replies.length}
+                      onReply={() => setThreadFor(p.id)}
+                      onOpen={() => setThreadFor(p.id)}
+                    />
+                    {shown.length > 0 && (
+                      <div className="mt-3 ml-1 pl-3 border-l-2 border-rule flex flex-col gap-3.5">
+                        {shown.map((r) => (
+                          <PostCard key={r.id} {...cardProps(r)} isReply />
+                        ))}
+                        {replies.length > shown.length && (
+                          <button
+                            onClick={() => setThreadFor(p.id)}
+                            className="text-left bg-transparent border-none p-0 cursor-pointer font-mono text-[11px] text-blaze"
+                          >
+                            view all {replies.length} replies
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </Card>
           )}
         </>
       )}
@@ -541,10 +570,51 @@ export function Chirp() {
 
       {lightbox && (
         <PhotoLightbox
-          src={lightbox.src}
+          photos={lightbox.photos}
+          index={lightbox.index}
           caption={lightbox.caption}
           onClose={() => setLightbox(null)}
         />
+      )}
+
+      {/* The thread, full screen: the chirp, everything said back, and a reply
+          box already focused. Replying used to mean spotting an unlabelled
+          bubble and typing into a box that opened below the fold. */}
+      {thread && (
+        <div className="fixed inset-0 z-50 bg-parchment flex flex-col">
+          <div className="flex items-center gap-1 px-2 py-2 border-b border-rule bg-card">
+            <button
+              onClick={() => setThreadFor(null)}
+              aria-label="Back to the feed"
+              className="w-11 h-11 flex items-center justify-center bg-transparent border-none cursor-pointer text-ink"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <span className="font-mono text-[10.5px] tracking-[.1em] uppercase text-granite">
+              Thread
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto overscroll-contain">
+            <div className="max-w-[640px] mx-auto px-3.5 py-4">
+              <PostCard {...cardProps(thread)} />
+              <div className="mt-4 flex flex-col gap-4">
+                {repliesOf(thread.id).map((r) => (
+                  <PostCard key={r.id} {...cardProps(r)} isReply />
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-rule bg-card px-3.5 py-2.5 pb-[max(10px,env(safe-area-inset-bottom))]">
+            <div className="max-w-[640px] mx-auto">
+              <Composer
+                placeholder={`Reply to ${nameOf(thread.user_id)}…`}
+                parentId={thread.id}
+                autoFocus
+                compact
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Who liked — faces, not a number. */}
