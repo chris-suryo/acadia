@@ -725,7 +725,7 @@ export function Expenses() {
                   data-settle={t.cents}
                   className="border-b border-rule last:border-b-0"
                 >
-                  {/* Eleven people around one big grocery run is ten rows; with
+                  {/* Twelve people around one big grocery run is eleven rows; with
                       the actions always out that card is taller than the ledger
                       it's summarising. Tap the one you're settling. */}
                   <button

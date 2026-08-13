@@ -257,6 +257,15 @@ export function Food({
                     leading
                   </span>
                 )}
+                {/* A dish that's winning its meal but has no ingredients puts
+                    nothing on the store list — and does it silently, since an
+                    empty contribution looks exactly like a short list. The
+                    first dish anyone added arrived this way. */}
+                {leading.has(f.id) && ings.length === 0 && (
+                  <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[.08em] text-white bg-blaze rounded-full px-1.5 py-[1px]">
+                    nothing to buy
+                  </span>
+                )}
               </span>
               {voters.length > 0 && (
                 <span className="flex items-center gap-1.5 mt-[3px]">

@@ -24,7 +24,7 @@ export const SEED_BLOCKS: {
   { day_id: "sat", title: "Pick the hikes", detail: "who's going where", day_part: "morning", link_slug: null, sort: 2 },
   { day_id: "sat", title: "Shuttle or cars", detail: "", day_part: "morning", link_slug: "shuttle", sort: 3 },
   { day_id: "sat", title: "Out in the park", detail: "", day_part: "afternoon", link_slug: "beehive", sort: 4 },
-  { day_id: "sat", title: "Dinner in Bar Harbor", detail: "call ahead for 11", day_part: "evening", link_slug: "bar-harbor", sort: 5 },
+  { day_id: "sat", title: "Dinner in Bar Harbor", detail: "call ahead for 12", day_part: "evening", link_slug: "bar-harbor", sort: 5 },
   { day_id: "sun", title: "Breakfast, break camp", detail: "trash packs out", day_part: "morning", link_slug: null, sort: 1 },
   { day_id: "sun", title: "Permit in the check-out box", detail: "sweep both sites", day_part: "morning", link_slug: null, sort: 2 },
   { day_id: "sun", title: "Roll out", detail: "checkout is 11 am", day_part: "morning", link_slug: null, sort: 3 },
@@ -105,7 +105,7 @@ export const SEED_GEAR: {
   { category: "Site & Safety", label: "Camp broom", sort: 8 },
   { category: "Site & Safety", label: "Quarters for showers", sort: 9 },
 
-  // Eleven people, two nights, one fire — somebody has to bring the cards.
+  // Twelve people, two nights, one fire — somebody has to bring the cards.
   { category: "Games", label: "Deck of cards", sort: 1 },
   { category: "Games", label: "Uno", sort: 2 },
   { category: "Games", label: "Flip 7", sort: 3 },
@@ -180,7 +180,7 @@ export const SEED_PERSONAL: {
   { category: "Toiletries", label: "Shower flip-flops", note: "", sort: 6 },
   { category: "Toiletries", label: "Lip balm", note: "", sort: 7 },
   // Fourth casualty of the label trim in 0026: "Wet wipes / hand sanitizer"
-  // lost the half that matters with no showers and eleven people cooking.
+  // lost the half that matters with no showers and twelve people cooking.
   { category: "Toiletries", label: "Hand sanitizer", note: "no showers, and everyone handles the food", sort: 8, essential: true },
   { category: "Extras", label: "Dry bag for your phone", note: "", sort: 4 },
   { category: "Extras", label: "Trekking poles", note: "", sort: 5 },

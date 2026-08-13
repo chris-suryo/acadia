@@ -39,7 +39,7 @@ delete from personal_items;
 delete from survey;
 
 -- The device rows themselves, last, since other tables reference them. Members
--- survive — the roster is the eleven people, not their phones — and clearing
+-- survive — the roster is the twelve people, not their phones — and clearing
 -- profiles unclaims every name so everyone picks their own on first open.
 update members set venmo = '' where venmo <> '';
 delete from profiles;

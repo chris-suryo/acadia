@@ -1,6 +1,6 @@
 // Chirp's clock and linkifier.
 //
-// The clock's cases matter because eleven phones disagree about the time:
+// The clock's cases matter because twelve phones disagree about the time:
 // a post stamped slightly in the future is clock skew, not time travel.
 
 import test from "node:test";

@@ -11,7 +11,7 @@ import type { Member } from "@/lib/types";
  *
  * The party is a closed list of people who all know each other, so this isn't
  * authentication — it's attendance. Nobody needs an account; they need to say
- * which of eleven names is theirs, once, and have it stick.
+ * which of twelve names is theirs, once, and have it stick.
  *
  * That makes the failure modes accidents rather than attacks: tapping the name
  * next to yours, finding your name already taken and not knowing whether that's

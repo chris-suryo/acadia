@@ -11,7 +11,7 @@ const MONTHS = [
 /**
  * Twitter's relative clock: "now" → "4m" → "2h" → "Fri" → "Aug 3".
  *
- * Clocks on eleven phones disagree; a post from three seconds in the future
+ * Clocks on twelve phones disagree; a post from three seconds in the future
  * is a skewed clock, not time travel, so anything not clearly old is "now".
  */
 export function chirpTime(iso: string, now: Date): string {
