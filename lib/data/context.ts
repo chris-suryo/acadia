@@ -133,6 +133,9 @@ export type DataCtx = {
   /** Merges the patch into the caller's own survey row (creating it if absent). */
   upsertSurvey: (patch: SurveyPatch) => void;
 
+  /** Writes waiting for signal. Zero means everything has landed. */
+  queuedWrites: number;
+
   /** The trip feed, unsorted — Chirp orders pinned-then-newest itself. */
   posts: Post[];
   postLikes: PostLike[];

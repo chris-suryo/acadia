@@ -14,6 +14,7 @@ import {
   TRIP_DATES,
 } from "@/lib/config";
 import { downscalePhoto } from "@/lib/avatar";
+import { createOutbox } from "@/lib/outbox";
 import { votableSlot } from "@/lib/seeds";
 import type {
   Expense,
@@ -283,19 +284,86 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("visibilitychange", wake);
   }, [refetch]);
 
-  const persist = useCallback(
-    (write: PromiseLike<{ error: unknown }>, table: Table) => {
-      const fail = (err: unknown) => {
-        console.error(`[${table}]`, err);
-        showNotice("Couldn't save — retry");
-        refetch(table);
-      };
-      Promise.resolve(write).then(({ error: err }) => {
-        if (err) fail(err);
-      }, fail);
-    },
-    [refetch, showNotice],
+  /**
+   * Writes that survive losing signal.
+   *
+   * Blackwoods has almost no bars, and reads already cope — every table is
+   * mirrored to localStorage and replayed on boot. Writes didn't: a tick with
+   * no signal failed, said "couldn't save", and un-ticked itself. That is most
+   * of a weekend at this campground.
+   *
+   * The distinction that makes this safe is *why* a write failed. PostgREST
+   * answering with an error means the server considered the write and refused
+   * it — a constraint, a bad column — and the optimistic change is wrong, so
+   * it still reverts. A rejected fetch means nothing was considered at all;
+   * the write is still valid and only the network is missing, so it waits.
+   *
+   * Waiting work is held as thunks rather than serialized rows, which is the
+   * honest boundary of this: queued writes survive an hour in a pocket with no
+   * signal, but not the tab being killed. Optimistic state lives in memory
+   * too, so both are lost together and the app never shows a tick it isn't
+   * still trying to save.
+   */
+  const outbox = useMemo(
+    () =>
+      createOutbox<Table>({
+        // The server considered it and refused. The optimistic change is
+        // wrong, so it goes back the way it always did.
+        onServerError: (table, err) => {
+          console.error(`[${table}]`, err);
+          showNotice("Couldn't save — retry");
+          refetch(table);
+        },
+        onSizeChange: setQueued,
+      }),
+    // showNotice and refetch are stable for the provider's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
+  const [queued, setQueued] = useState(0);
+
+  const flush = useCallback(async () => {
+    await outbox.flush();
+    // Re-read whatever finally landed, so a queued write that raced someone
+    // else's edit settles on the server's answer rather than ours.
+    for (const t of outbox.drained()) refetch(t);
+  }, [outbox, refetch]);
+
+  const persist = useCallback(
+    (make: () => PromiseLike<{ error: unknown }>, table: Table) => {
+      // Anything already waiting has to land first, or a retry could overtake
+      // the edit that came before it.
+      if (outbox.size()) {
+        outbox.push({ make, table });
+        return;
+      }
+      Promise.resolve(make()).then(
+        ({ error: err }) => {
+          if (!err) return;
+          console.error(`[${table}]`, err);
+          showNotice("Couldn't save — retry");
+          refetch(table);
+        },
+        () => outbox.push({ make, table }),
+      );
+    },
+    [outbox, refetch, showNotice],
+  );
+
+  useEffect(() => {
+    if (!queued) return;
+    const t = setInterval(flush, 8000);
+    const wake = () => {
+      if (document.visibilityState === "visible") flush();
+    };
+    window.addEventListener("online", flush);
+    document.addEventListener("visibilitychange", wake);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("online", flush);
+      document.removeEventListener("visibilitychange", wake);
+    };
+  }, [queued, flush]);
 
   useEffect(() => {
     if (!CONFIGURED) return;
@@ -532,7 +600,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       if (nameTimer.current) clearTimeout(nameTimer.current);
       setNameState(m.name);
       patchMyProfile(uid, { name: m.name, member_id: memberId });
-      persist(
+      persist(() => 
         supabase
           .from("profiles")
           .upsert({ id: uid, name: m.name, member_id: memberId }),
@@ -641,7 +709,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         venmo: "",
       };
       setMembers((prev) => byRosterOrder([...prev, row]));
-      persist(supabase.from("members").insert(row), "members");
+      persist(() => supabase.from("members").insert(row), "members");
     },
     [supabase, persist],
   );
@@ -650,7 +718,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     (id: string, name: string) => {
       const clean = name.trim();
       setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, name: clean } : m)));
-      persist(supabase.from("members").update({ name: clean }).eq("id", id), "members");
+      persist(() => supabase.from("members").update({ name: clean }).eq("id", id), "members");
     },
     [supabase, persist],
   );
@@ -660,7 +728,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       // Stored bare; the @ and the URL are presentation.
       const clean = handle.trim().replace(/^@/, "");
       setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, venmo: clean } : m)));
-      persist(supabase.from("members").update({ venmo: clean }).eq("id", id), "members");
+      persist(() => supabase.from("members").update({ venmo: clean }).eq("id", id), "members");
     },
     [supabase, persist],
   );
@@ -676,7 +744,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         created_at: new Date().toISOString(),
       };
       setSettlements((prev) => [...prev, row]);
-      persist(supabase.from("settlements").insert(row), "settlements");
+      persist(() => supabase.from("settlements").insert(row), "settlements");
     },
     [supabase, persist],
   );
@@ -684,7 +752,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteSettlement = useCallback(
     (id: string) => {
       setSettlements((prev) => prev.filter((x) => x.id !== id));
-      persist(supabase.from("settlements").delete().eq("id", id), "settlements");
+      persist(() => supabase.from("settlements").delete().eq("id", id), "settlements");
     },
     [supabase, persist],
   );
@@ -692,7 +760,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const restoreSettlement = useCallback(
     (row: Settlement) => {
       setSettlements((prev) => [...prev.filter((x) => x.id !== row.id), row]);
-      persist(supabase.from("settlements").upsert(row), "settlements");
+      persist(() => supabase.from("settlements").upsert(row), "settlements");
     },
     [supabase, persist],
   );
@@ -700,7 +768,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteMember = useCallback(
     (id: string) => {
       setMembers((prev) => prev.filter((m) => m.id !== id));
-      persist(supabase.from("members").delete().eq("id", id), "members");
+      persist(() => supabase.from("members").delete().eq("id", id), "members");
     },
     [supabase, persist],
   );
@@ -708,7 +776,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const restoreMember = useCallback(
     (row: Member) => {
       setMembers((prev) => byRosterOrder([...prev.filter((m) => m.id !== row.id), row]));
-      persist(supabase.from("members").upsert(row), "members");
+      persist(() => supabase.from("members").upsert(row), "members");
     },
     [supabase, persist],
   );
@@ -746,7 +814,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       setReceiptRows((prev) => prev.filter((r) => r.id !== id));
       // The object stays in the bucket; it's a few KB and orphaned storage is
       // cheaper than a delete that half-succeeds.
-      persist(supabase.from("expense_receipts").delete().eq("id", id), "expense_receipts");
+      persist(() => supabase.from("expense_receipts").delete().eq("id", id), "expense_receipts");
     },
     [supabase, persist],
   );
@@ -851,7 +919,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       // The thread goes with it — the DB cascades replies and hearts; the
       // local mirror drops the replies too so nothing orphaned flashes.
       setPosts((prev) => prev.filter((p) => p.id !== id && p.parent_id !== id));
-      persist(supabase.from("posts").delete().eq("id", id), "posts");
+      persist(() => supabase.from("posts").delete().eq("id", id), "posts");
     },
     [supabase, persist],
   );
@@ -884,7 +952,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             ? prev
             : [...prev, { post_id: postId, user_id: uid, emoji }],
       );
-      persist(
+      persist(() => 
         had
           ? supabase
               .from("post_likes")
@@ -925,7 +993,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         return same ? rest : [...rest, { post_id: postId, user_id: uid, choice }];
       });
       if (same) {
-        persist(
+        persist(() => 
           supabase
             .from("post_poll_votes")
             .delete()
@@ -961,7 +1029,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const setPostPinned = useCallback(
     (id: string, pinned: boolean) => {
       setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, pinned } : p)));
-      persist(supabase.from("posts").update({ pinned }).eq("id", id), "posts");
+      persist(() => supabase.from("posts").update({ pinned }).eq("id", id), "posts");
     },
     [supabase, persist],
   );
@@ -1056,6 +1124,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     surveys,
     forecast,
     weather,
+    queuedWrites: queued,
     posts,
     postLikes,
     pollVotes,
@@ -1076,13 +1145,13 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         sort: nextSort(blocks.filter((b) => b.day_id === dayId)),
       };
       setBlocks((prev) => [...prev, row]);
-      persist(supabase.from("itinerary_blocks").insert(row), "itinerary_blocks");
+      persist(() => supabase.from("itinerary_blocks").insert(row), "itinerary_blocks");
       return row.id;
     },
 
     updateBlock: (id, patch: BlockPatch) => {
       setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
-      persist(
+      persist(() => 
         supabase.from("itinerary_blocks").update(patch).eq("id", id),
         "itinerary_blocks",
       );
@@ -1090,12 +1159,12 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
     deleteBlock: (id) => {
       setBlocks((prev) => prev.filter((b) => b.id !== id));
-      persist(supabase.from("itinerary_blocks").delete().eq("id", id), "itinerary_blocks");
+      persist(() => supabase.from("itinerary_blocks").delete().eq("id", id), "itinerary_blocks");
     },
 
     restoreBlock: (row) => {
       setBlocks((prev) => [...prev.filter((b) => b.id !== row.id), row]);
-      persist(supabase.from("itinerary_blocks").upsert(row), "itinerary_blocks");
+      persist(() => supabase.from("itinerary_blocks").upsert(row), "itinerary_blocks");
     },
 
     reorderDay: (rows) => {
@@ -1108,7 +1177,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       // One request for the whole drag. This was a round trip per row, which
       // on campground signal is the difference between a reorder that lands
       // and one that hangs halfway through with the list half-rewritten.
-      persist(
+      persist(() => 
         supabase.from("itinerary_blocks").upsert(next.filter((b) => byId.has(b.id))),
         "itinerary_blocks",
       );
@@ -1129,7 +1198,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         setGearClaims((prev) =>
           prev.filter((c) => !(ids.includes(c.gear_item_id) && c.user_id === uid)),
         );
-        persist(
+        persist(() => 
           supabase.from("gear_claims").delete().eq("user_id", uid).in("gear_item_id", ids),
           "gear_claims",
         );
@@ -1139,7 +1208,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           ...prev.filter((c) => !(ids.includes(c.gear_item_id) && c.user_id === uid)),
           ...rows,
         ]);
-        persist(
+        persist(() => 
           supabase.from("gear_claims").upsert(rows, { onConflict: "gear_item_id,user_id" }),
           "gear_claims",
         );
@@ -1158,12 +1227,12 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         essential: false,
       };
       setGear((prev) => [...prev, row]);
-      persist(supabase.from("gear_items").insert(row), "gear_items");
+      persist(() => supabase.from("gear_items").insert(row), "gear_items");
     },
 
     deleteGear: (id) => {
       setGear((prev) => prev.filter((g) => g.id !== id && g.parent_id !== id));
-      persist(supabase.from("gear_items").delete().eq("id", id), "gear_items");
+      persist(() => supabase.from("gear_items").delete().eq("id", id), "gear_items");
     },
 
     reorderGear: (rows) => {
@@ -1173,7 +1242,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         return r ? { ...g, category: r.category, sort: r.sort } : g;
       });
       setGear(next);
-      persist(
+      persist(() => 
         supabase.from("gear_items").upsert(next.filter((g) => byId.has(g.id))),
         "gear_items",
       );
@@ -1186,7 +1255,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         return r ? { ...p, category: r.category, sort: r.sort } : p;
       });
       setPersonal(next);
-      persist(
+      persist(() => 
         supabase.from("personal_items").upsert(next.filter((p) => byId.has(p.id))),
         "personal_items",
       );
@@ -1203,7 +1272,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       setPersonal((prev) =>
         prev.map((p) => (ids.includes(p.id) ? { ...p, checked } : p)),
       );
-      persist(
+      persist(() => 
         supabase.from("personal_items").update({ checked }).in("id", ids),
         "personal_items",
       );
@@ -1222,12 +1291,12 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         essential: false,
       };
       setPersonal((prev) => [...prev, row]);
-      persist(supabase.from("personal_items").insert(row), "personal_items");
+      persist(() => supabase.from("personal_items").insert(row), "personal_items");
     },
 
     deletePersonal: (id) => {
       setPersonal((prev) => prev.filter((p) => p.id !== id && p.parent_id !== id));
-      persist(supabase.from("personal_items").delete().eq("id", id), "personal_items");
+      persist(() => supabase.from("personal_items").delete().eq("id", id), "personal_items");
     },
 
     toggleVote: (menuItemId) => {
@@ -1249,7 +1318,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             ? prev
             : [...prev, { menu_item_id: menuItemId, user_id: uid }],
       );
-      persist(
+      persist(() => 
         has
           ? supabase
               .from("menu_votes")
@@ -1279,19 +1348,19 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         sort: nextSort(menu),
       };
       setMenu((prev) => [...prev, row]);
-      persist(supabase.from("menu_items").insert(row), "menu_items");
+      persist(() => supabase.from("menu_items").insert(row), "menu_items");
       return row.id;
     },
 
     updateDish: (id, patch: DishPatch) => {
       setMenu((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
-      persist(supabase.from("menu_items").update(patch).eq("id", id), "menu_items");
+      persist(() => supabase.from("menu_items").update(patch).eq("id", id), "menu_items");
     },
 
     deleteDish: (id) => {
       setMenu((prev) => prev.filter((m) => m.id !== id));
       setShopping((prev) => prev.filter((s) => s.menu_item_id !== id));
-      persist(supabase.from("menu_items").delete().eq("id", id), "menu_items");
+      persist(() => supabase.from("menu_items").delete().eq("id", id), "menu_items");
     },
 
     restoreDish: (row, ingredients) => {
@@ -1324,7 +1393,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         aisle: "",
       };
       setShopping((prev) => [...prev, row]);
-      persist(supabase.from("shopping_items").insert(row), "shopping_items");
+      persist(() => supabase.from("shopping_items").insert(row), "shopping_items");
     },
 
     addShopping: (label, aisle = "") => {
@@ -1338,7 +1407,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         aisle,
       };
       setShopping((prev) => [...prev, row]);
-      persist(supabase.from("shopping_items").insert(row), "shopping_items");
+      persist(() => supabase.from("shopping_items").insert(row), "shopping_items");
     },
 
     setShoppingChecked: (ids, checked) => {
@@ -1348,7 +1417,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       setShopping((prev) =>
         prev.map((s) => (set.has(s.id) ? { ...s, checked, checked_by } : s)),
       );
-      persist(
+      persist(() => 
         supabase.from("shopping_items").update({ checked, checked_by }).in("id", ids),
         "shopping_items",
       );
@@ -1356,7 +1425,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
     deleteShopping: (id) => {
       setShopping((prev) => prev.filter((s) => s.id !== id));
-      persist(supabase.from("shopping_items").delete().eq("id", id), "shopping_items");
+      persist(() => supabase.from("shopping_items").delete().eq("id", id), "shopping_items");
     },
 
     upsertSurvey: (patch: SurveyPatch) => {
@@ -1376,7 +1445,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         updated_at: new Date().toISOString(),
       };
       setSurveys((prev) => [...prev.filter((s) => s.user_id !== uid), row]);
-      persist(supabase.from("survey").upsert(row), "survey");
+      persist(() => supabase.from("survey").upsert(row), "survey");
     },
 
     addExpense: (description, amountCents, payerId, among) => {
@@ -1419,7 +1488,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
     updateExpense: (id, patch) => {
       setExpenses((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-      persist(supabase.from("expenses").update(patch).eq("id", id), "expenses");
+      persist(() => supabase.from("expenses").update(patch).eq("id", id), "expenses");
     },
 
     setExpenseShares: (expenseId, memberIds) => {
@@ -1448,7 +1517,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       setExpenses((prev) => prev.filter((e) => e.id !== id));
       setShareRows((prev) => prev.filter((s) => s.expense_id !== id));
       // The shares go with it — `on delete cascade` on the far side.
-      persist(supabase.from("expenses").delete().eq("id", id), "expenses");
+      persist(() => supabase.from("expenses").delete().eq("id", id), "expenses");
     },
 
     restoreGear: (row, children = []) => {
@@ -1485,7 +1554,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
     restoreShopping: (row) => {
       setShopping((prev) => [...prev.filter((s) => s.id !== row.id), row]);
-      persist(supabase.from("shopping_items").upsert(row), "shopping_items");
+      persist(() => supabase.from("shopping_items").upsert(row), "shopping_items");
     },
 
     restoreExpense: (row, among) => {

@@ -534,6 +534,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
         ]);
         return true;
       },
+      queuedWrites: 0,
       pollVotes,
       // Tapping your own answer takes it back — mirrors the supabase impl.
       votePoll: (postId, choice) =>

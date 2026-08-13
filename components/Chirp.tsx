@@ -619,7 +619,16 @@ export function Chirp() {
     members.find((m) => m.id === memberOf(uid))?.name ||
     "Someone";
 
-  const roots = useMemo(
+  /**
+   * Chirps that arrive while you're reading wait behind a pill.
+   *
+   * Realtime means somebody else's post lands mid-scroll and everything under
+   * your thumb shifts down — which at best loses your place and at worst moves
+   * the reply you were aiming for. Held back by time rather than by count, so
+   * the feed you're looking at simply doesn't change until you say so.
+   */
+  const [showSince, setShowSince] = useState(() => new Date().toISOString());
+  const allRoots = useMemo(
     () =>
       posts
         .filter((p) => !p.parent_id)
@@ -630,6 +639,14 @@ export function Chirp() {
         ),
     [posts],
   );
+  // Your own chirp never waits — you just wrote it, and watching it queue
+  // behind a "new chirps" pill would read as a failure to post.
+  const held = allRoots.filter((p) => p.created_at > showSince && !isMe(p.user_id));
+  const roots = allRoots.filter((p) => !held.includes(p));
+  const reveal = () => {
+    setShowSince(new Date().toISOString());
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const repliesOf = (id: string) =>
     posts
@@ -742,6 +759,15 @@ export function Chirp() {
           <Card className="p-3.5 mb-3">
             <Composer placeholder="What’s happening at camp?" />
           </Card>
+
+          {held.length > 0 && (
+            <button
+              onClick={reveal}
+              className="w-full mb-3 rounded-full border border-moss bg-[#E9EEE4] px-3 py-2 min-h-[38px] cursor-pointer text-[13px] font-semibold text-moss"
+            >
+              {held.length} new {held.length === 1 ? "chirp" : "chirps"}
+            </button>
+          )}
 
           {roots.length === 0 ? (
             <div className="p-[44px_20px] text-center text-granite">

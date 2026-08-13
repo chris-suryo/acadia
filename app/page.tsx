@@ -18,7 +18,7 @@ import { ServiceWorker } from "@/components/ServiceWorker";
 import { keepVisible } from "@/components/ui/keepVisible";
 
 function Shell() {
-  const { ready, error, name, posts, isMe, avatars } = useData();
+  const { ready, error, name, posts, isMe, avatars, queuedWrites } = useData();
   const [tab, setTab] = useState<TabId>("itinerary");
   const [packView, setPackViewState] = useState("group");
   const [foodView, setFoodViewState] = useState("menu");
@@ -229,6 +229,16 @@ function Shell() {
           </>
         )}
       </main>
+      {/* Changes made without signal stay on screen and keep trying. Saying so
+          is the difference between "it worked" and "did that save?" — and at
+          Blackwoods this is the normal state, not the error state. */}
+      {queuedWrites > 0 && (
+        <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-40 flex justify-center pointer-events-none">
+          <span className="mb-2 rounded-full bg-ink/85 text-parchment px-3 py-1.5 font-mono text-[11px] shadow-[0_2px_8px_rgba(0,0,0,.2)]">
+            {queuedWrites} {queuedWrites === 1 ? "change" : "changes"} waiting for signal
+          </span>
+        </div>
+      )}
       <Tabs tab={tab} onChange={setTab} dot={{ chirp: chirpDot }} />
     </div>
   );
