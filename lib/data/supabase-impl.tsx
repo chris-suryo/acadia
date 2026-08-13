@@ -221,6 +221,70 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     [supabase, applyRows],
   );
 
+  /**
+   * Everything the app needs to open, in one round trip.
+   *
+   * This was eighteen `select *` calls, which on one bar at a picnic table is
+   * the slowest moment in the app — and the moment it most needs to survive.
+   * `trip_snapshot()` returns the same eighteen tables as one JSON object.
+   *
+   * The fallback is the point of the shape: any failure at all — the function
+   * missing, a shape we don't recognise, a network wobble — drops through to
+   * exactly the eighteen fetches this replaced. The worst case is what used to
+   * be the only case, so this can't be the reason someone's phone shows an
+   * empty app at a campsite.
+   */
+  const BOOT_TABLES: Table[] = [
+    "profiles",
+    "members",
+    "itinerary_days",
+    "itinerary_blocks",
+    "gear_items",
+    "gear_claims",
+    "personal_items",
+    "menu_items",
+    "menu_votes",
+    "shopping_items",
+    "expenses",
+    "expense_shares",
+    "expense_receipts",
+    "settlements",
+    "survey",
+    "posts",
+    "post_likes",
+    "post_poll_votes",
+  ];
+
+  const bootFetch = useCallback(async () => {
+    try {
+      const { data, error: err } = await supabase.rpc("trip_snapshot");
+      if (err || !data || typeof data !== "object") throw err ?? new Error("no snapshot");
+      const snap = data as Record<string, unknown[]>;
+      // Every table has to be present and an array; a half-understood snapshot
+      // would paint a half-empty app, which is worse than a slow one.
+      if (BOOT_TABLES.some((t) => !Array.isArray(snap[t]))) throw new Error("bad snapshot");
+      // Called without a session the function answers 200 with nineteen empty
+      // arrays — RLS refusing an anonymous caller, correctly. That is a valid
+      // shape and a useless answer, and taking it would blank the offline
+      // cache. The roster and the three trip days are seeded content that is
+      // never legitimately empty, so they're the tell.
+      if (!snap.members.length || !snap.itinerary_days.length)
+        throw new Error("snapshot came back empty — no session?");
+      for (const t of BOOT_TABLES) {
+        applyRows(t, snap[t]);
+        try {
+          localStorage.setItem(cacheKey(t), JSON.stringify(snap[t]));
+        } catch {
+          // Quota or private mode — the offline copy is a bonus, not a gate.
+        }
+      }
+    } catch (e) {
+      console.warn("[snapshot] falling back to per-table reads", e);
+      await Promise.all(BOOT_TABLES.map((t) => refetch(t)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, applyRows, refetch]);
+
   // Fire a write; on failure, notify, log, and re-sync the table so the
   // optimistic change reverts.
   const { showNotice } = useUi();
@@ -436,26 +500,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         .upsert({ id: uid }, { onConflict: "id", ignoreDuplicates: true });
       await supabase.rpc("seed_personal_items");
 
-      await Promise.all([
-        refetch("profiles"),
-        refetch("itinerary_days"),
-        refetch("itinerary_blocks"),
-        refetch("gear_items"),
-        refetch("gear_claims"),
-        refetch("personal_items"),
-        refetch("menu_items"),
-        refetch("menu_votes"),
-        refetch("shopping_items"),
-        refetch("expenses"),
-        refetch("expense_shares"),
-        refetch("expense_receipts"),
-        refetch("settlements"),
-        refetch("members"),
-        refetch("survey"),
-        refetch("posts"),
-        refetch("post_likes"),
-        refetch("post_poll_votes"),
-      ]);
+      await bootFetch();
       if (cancelled) return;
 
       const { data: prof } = await supabase
@@ -521,7 +566,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       if (flush) clearTimeout(flush);
       supabase.removeChannel(channel);
     };
-  }, [supabase, refetch, applyRows, showNotice]);
+    // bootFetch is stable — its own deps are the memoised client, applyRows
+    // and refetch — so listing it can't re-run boot.
+  }, [supabase, refetch, applyRows, showNotice, bootFetch]);
 
   // Handlers decide things from this, not from whatever the last render
   // captured — the same mistake that lost a round of menu votes.
