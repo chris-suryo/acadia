@@ -498,6 +498,200 @@ export function Expenses() {
         </button>
       )}
 
+      <div className="mb-5">
+        <SubH right={sorted.length ? `${sorted.length}` : null}>What we spent</SubH>
+        <Card className="overflow-hidden">
+          {sorted.length === 0 && editing !== NEW && (
+            <div className="p-5 text-[13.5px] text-mute text-center border-b border-rule">
+              Nothing logged yet. Add what you bought and pick who it was for —
+              the app works out who owes whom.
+            </div>
+          )}
+          {sorted.map((e) => {
+            if (editing === e.id) {
+              return (
+                <div key={e.id} ref={editorRef}>
+                  <ExpenseEditor
+                    draft={{ ...draft, payer: payerOf(draft) }}
+                    setDraft={setDraft}
+                    members={members}
+                    memberAvatars={memberAvatars}
+                    solo={soloOf(draft)}
+                    receipts={receiptsOf(e.id)}
+                    onAddReceipt={(f) => addReceipt(e.id, f)}
+                    onDeleteReceipt={deleteReceipt}
+                    onViewReceipt={setViewing}
+                    onDone={commit}
+                    onDelete={() => drop(e.id)}
+                  />
+                </div>
+              );
+            }
+            const among = sharesOf(e.id);
+            const mineShare = among.includes(myMemberId);
+            const shown = detail === e.id;
+            return (
+              <SwipeRow key={e.id} className="border-b border-rule" onDelete={() => drop(e.id)}>
+                {/* Tapping opens what it was, not how to change it — the
+                    receipt and who's actually on the hook. Editing is a step
+                    further in, where it can't be reached by accident. */}
+                <button
+                  onClick={() => setDetail(shown ? null : e.id)}
+                  aria-expanded={shown}
+                  className="w-full text-left bg-transparent border-none cursor-pointer flex items-center gap-2.5 px-3.5 py-3"
+                >
+                  {/* A receipt is worth seeing from the list — it's the answer
+                      to "what was actually in that $243?" */}
+                  {receiptsOf(e.id)[0] && (
+                    <span className="w-9 h-9 rounded-md overflow-hidden border border-rule shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- user upload */}
+                      <img
+                        src={receiptsOf(e.id)[0].url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    </span>
+                  )}
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[14.5px] text-ink truncate">
+                      {e.description || "Untitled"}
+                    </span>
+                    <span className="flex items-center gap-1.5 mt-0.5">
+                      {/* The face makes the list scannable — "which ones are
+                          Erin's" stops requiring reading. */}
+                      <Avatar
+                        userId={e.payer_id ?? ""}
+                        url={memberAvatars[e.payer_id ?? ""]}
+                        name={nameOf(e.payer_id ?? "")}
+                        size={16}
+                      />
+                      <span className="font-mono text-[10.5px] text-moss truncate">
+                        {nameOf(e.payer_id ?? "")} paid
+                        {among.length > 0 &&
+                          ` · split ${among.length === members.length ? "with everyone" : `${among.length} way${among.length > 1 ? "s" : ""}`}`}
+                        {!mineShare && myMemberId && " · not you"}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="font-mono text-[14px] text-ink font-medium shrink-0">
+                    {money(e.amount_cents)}
+                  </span>
+                </button>
+                {shown && (
+                  <div className="px-3.5 pb-3.5 grid gap-3 bg-[#FBF8EE] border-t border-rule pt-3">
+                    {receiptsOf(e.id).length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {receiptsOf(e.id).map((r) => (
+                          <button
+                            key={r.id}
+                            onClick={() => setViewing(r.url)}
+                            aria-label="View receipt"
+                            className="w-[72px] h-[72px] rounded-lg overflow-hidden border border-rule bg-white cursor-pointer p-0"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element -- user upload */}
+                            <img src={r.url} alt="" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="grid gap-1.5">
+                      <span className={LABEL}>
+                        Split between · {perHead(String(e.amount_cents / 100), among.length)}
+                      </span>
+                      <div className="grid gap-1">
+                        {members
+                          .filter((m) => among.includes(m.id))
+                          .map((m) => (
+                            <div key={m.id} className="flex items-center gap-2">
+                              <Avatar
+                                userId={m.id}
+                                url={memberAvatars[m.id]}
+                                name={m.name}
+                                size={20}
+                              />
+                              <span className="flex-1 min-w-0 text-[13.5px] text-ink truncate">
+                                {m.name}
+                                {m.id === e.payer_id && (
+                                  <span className="font-mono text-[10px] text-moss ml-1.5">
+                                    paid
+                                  </span>
+                                )}
+                              </span>
+                              <span className="font-mono text-[12.5px] text-granite shrink-0">
+                                {money(shareOf(e, m.id))}
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => {
+                          setDetail(null);
+                          drop(e.id);
+                        }}
+                        aria-label="Delete expense"
+                        className="bg-transparent border-none cursor-pointer p-2 text-[#8F8676]"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                      <Btn
+                        small
+                        onClick={() => {
+                          setDetail(null);
+                          open(e.id);
+                        }}
+                      >
+                        Edit
+                      </Btn>
+                    </div>
+                  </div>
+                )}
+              </SwipeRow>
+            );
+          })}
+          {editing === NEW ? (
+            <div ref={editorRef}>
+              <ExpenseEditor
+                draft={{ ...draft, payer: payerOf(draft) }}
+                setDraft={setDraft}
+                members={members}
+                memberAvatars={memberAvatars}
+                solo={soloOf(draft)}
+                receipts={pending.map((p) => ({
+                  id: p.id,
+                  expense_id: NEW,
+                  url: p.url,
+                  sort: 0,
+                }))}
+                onAddReceipt={(f) =>
+                  setPending((prev) => [
+                    ...prev,
+                    { id: newLocalId(), file: f, url: URL.createObjectURL(f) },
+                  ])
+                }
+                onDeleteReceipt={(id) =>
+                  setPending((prev) => {
+                    const hit = prev.find((p) => p.id === id);
+                    if (hit) URL.revokeObjectURL(hit.url);
+                    return prev.filter((p) => p.id !== id);
+                  })
+                }
+                onViewReceipt={setViewing}
+                onDone={commit}
+              />
+            </div>
+          ) : (
+            <button
+              onClick={startAdd}
+              className="flex items-center gap-1.5 w-full text-left bg-transparent border-none cursor-pointer text-granite text-[13px] px-3.5 py-[11px] min-h-[44px]"
+            >
+              <Plus size={14} /> Add an expense
+            </button>
+          )}
+        </Card>
+      </div>
+
       {transfers.length > 0 && (
         <div className="mb-5">
           <SubH right={`${transfers.length} payment${transfers.length > 1 ? "s" : ""}`}>
@@ -664,189 +858,6 @@ export function Expenses() {
         </div>
       )}
 
-      <div className="mb-5">
-        <SubH right={sorted.length ? `${sorted.length}` : null}>What we spent</SubH>
-        <Card className="overflow-hidden">
-          {sorted.length === 0 && editing !== NEW && (
-            <div className="p-5 text-[13.5px] text-mute text-center border-b border-rule">
-              Nothing logged yet. Add what you bought and pick who it was for —
-              the app works out who owes whom.
-            </div>
-          )}
-          {sorted.map((e) => {
-            if (editing === e.id) {
-              return (
-                <div key={e.id} ref={editorRef}>
-                  <ExpenseEditor
-                    draft={{ ...draft, payer: payerOf(draft) }}
-                    setDraft={setDraft}
-                    members={members}
-                    memberAvatars={memberAvatars}
-                    solo={soloOf(draft)}
-                    receipts={receiptsOf(e.id)}
-                    onAddReceipt={(f) => addReceipt(e.id, f)}
-                    onDeleteReceipt={deleteReceipt}
-                    onViewReceipt={setViewing}
-                    onDone={commit}
-                    onDelete={() => drop(e.id)}
-                  />
-                </div>
-              );
-            }
-            const among = sharesOf(e.id);
-            const mineShare = among.includes(myMemberId);
-            const shown = detail === e.id;
-            return (
-              <SwipeRow key={e.id} className="border-b border-rule" onDelete={() => drop(e.id)}>
-                {/* Tapping opens what it was, not how to change it — the
-                    receipt and who's actually on the hook. Editing is a step
-                    further in, where it can't be reached by accident. */}
-                <button
-                  onClick={() => setDetail(shown ? null : e.id)}
-                  aria-expanded={shown}
-                  className="w-full text-left bg-transparent border-none cursor-pointer flex items-center gap-2.5 px-3.5 py-3"
-                >
-                  {/* A receipt is worth seeing from the list — it's the answer
-                      to "what was actually in that $243?" */}
-                  {receiptsOf(e.id)[0] && (
-                    <span className="w-9 h-9 rounded-md overflow-hidden border border-rule shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element -- user upload */}
-                      <img
-                        src={receiptsOf(e.id)[0].url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    </span>
-                  )}
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-[14.5px] text-ink truncate">
-                      {e.description || "Untitled"}
-                    </span>
-                    <span className="block font-mono text-[10.5px] text-moss mt-0.5 truncate">
-                      {nameOf(e.payer_id ?? "")} paid
-                      {among.length > 0 &&
-                        ` · split ${among.length === members.length ? "with everyone" : `${among.length} way${among.length > 1 ? "s" : ""}`}`}
-                      {!mineShare && myMemberId && " · not you"}
-                    </span>
-                  </span>
-                  <span className="font-mono text-[14px] text-ink font-medium shrink-0">
-                    {money(e.amount_cents)}
-                  </span>
-                </button>
-                {shown && (
-                  <div className="px-3.5 pb-3.5 grid gap-3 bg-[#FBF8EE] border-t border-rule pt-3">
-                    {receiptsOf(e.id).length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {receiptsOf(e.id).map((r) => (
-                          <button
-                            key={r.id}
-                            onClick={() => setViewing(r.url)}
-                            aria-label="View receipt"
-                            className="w-[72px] h-[72px] rounded-lg overflow-hidden border border-rule bg-white cursor-pointer p-0"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element -- user upload */}
-                            <img src={r.url} alt="" className="w-full h-full object-cover" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <div className="grid gap-1.5">
-                      <span className={LABEL}>
-                        Split between · {perHead(String(e.amount_cents / 100), among.length)}
-                      </span>
-                      <div className="grid gap-1">
-                        {members
-                          .filter((m) => among.includes(m.id))
-                          .map((m) => (
-                            <div key={m.id} className="flex items-center gap-2">
-                              <Avatar
-                                userId={m.id}
-                                url={memberAvatars[m.id]}
-                                name={m.name}
-                                size={20}
-                              />
-                              <span className="flex-1 min-w-0 text-[13.5px] text-ink truncate">
-                                {m.name}
-                                {m.id === e.payer_id && (
-                                  <span className="font-mono text-[10px] text-moss ml-1.5">
-                                    paid
-                                  </span>
-                                )}
-                              </span>
-                              <span className="font-mono text-[12.5px] text-granite shrink-0">
-                                {money(shareOf(e, m.id))}
-                              </span>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => {
-                          setDetail(null);
-                          drop(e.id);
-                        }}
-                        aria-label="Delete expense"
-                        className="bg-transparent border-none cursor-pointer p-2 text-[#8F8676]"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                      <Btn
-                        small
-                        onClick={() => {
-                          setDetail(null);
-                          open(e.id);
-                        }}
-                      >
-                        Edit
-                      </Btn>
-                    </div>
-                  </div>
-                )}
-              </SwipeRow>
-            );
-          })}
-          {editing === NEW ? (
-            <div ref={editorRef}>
-              <ExpenseEditor
-                draft={{ ...draft, payer: payerOf(draft) }}
-                setDraft={setDraft}
-                members={members}
-                memberAvatars={memberAvatars}
-                solo={soloOf(draft)}
-                receipts={pending.map((p) => ({
-                  id: p.id,
-                  expense_id: NEW,
-                  url: p.url,
-                  sort: 0,
-                }))}
-                onAddReceipt={(f) =>
-                  setPending((prev) => [
-                    ...prev,
-                    { id: newLocalId(), file: f, url: URL.createObjectURL(f) },
-                  ])
-                }
-                onDeleteReceipt={(id) =>
-                  setPending((prev) => {
-                    const hit = prev.find((p) => p.id === id);
-                    if (hit) URL.revokeObjectURL(hit.url);
-                    return prev.filter((p) => p.id !== id);
-                  })
-                }
-                onViewReceipt={setViewing}
-                onDone={commit}
-              />
-            </div>
-          ) : (
-            <button
-              onClick={startAdd}
-              className="flex items-center gap-1.5 w-full text-left bg-transparent border-none cursor-pointer text-granite text-[13px] px-3.5 py-[11px] min-h-[44px]"
-            >
-              <Plus size={14} /> Add an expense
-            </button>
-          )}
-        </Card>
-      </div>
 
       {/* The roster is fixed and correct, so it stopped earning a card of its
           own — but a wrong name or a person added by mistake still has to be
