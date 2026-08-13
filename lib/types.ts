@@ -159,3 +159,24 @@ export type MenuVote = {
   menu_item_id: string;
   user_id: string;
 };
+
+/** One chirp on the trip feed — text, photos, or both. */
+export type Post = {
+  id: string;
+  user_id: string;
+  /** The ROOT post this replies to — replies to replies join the same
+   *  thread rather than nesting. Null = a top-level chirp. */
+  parent_id: string | null;
+  body: string;
+  /** Public storage URLs, at most four. */
+  photos: string[];
+  /** Pinned to the top of the feed — announcements, not favorites. */
+  pinned: boolean;
+  created_at: string;
+};
+
+/** One device's heart on one chirp. Counted by person, not device. */
+export type PostLike = {
+  post_id: string;
+  user_id: string;
+};

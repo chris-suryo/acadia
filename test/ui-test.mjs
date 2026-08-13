@@ -220,6 +220,33 @@ const ok = (name, cond, detail = "") => {
   const links = await page.locator('a[target="_blank"]').count();
   ok("info links present", links > 15, `${links} anchors`);
 
+  // ---- Chirp, before a name is set: seeded feed, unread dot, the gate ----
+  ok("six tabs", (await page.locator("nav.fixed.bottom-0 button").count()) === 6);
+  // Alana chirped and this device hasn't looked yet.
+  ok("unread dot before first visit", await page.getByTestId("dot-chirp").isVisible());
+  await page.getByRole("button", { name: "Chirp" }).click();
+  await page.waitForTimeout(500);
+  ok("seeded chirps render", await page.getByText("Packing tonight").isVisible()
+    && await page.getByText("Found the loop map").isVisible());
+  ok("seeded photo renders", (await page.locator('main img[src*="blackwoods-map"]').count()) === 1);
+  const coolerCard = page.locator("main div.bg-card").filter({ hasText: "second cooler" });
+  ok("a heart already counts one person", (await coolerCard.getByLabel("Who liked this").innerText()).trim() === "1");
+  // Posting is the one thing that needs a name — same gate as votes and claims.
+  const composerBox = page.locator("main div.bg-card").filter({ has: page.getByPlaceholder(/happening at camp/) });
+  await composerBox.getByPlaceholder(/happening at camp/).fill("hello from the suite");
+  await composerBox.getByRole("button", { name: "Chirp", exact: true }).click();
+  await page.waitForTimeout(300);
+  ok("chirping asks who you are", (await page.getByRole("button", { name: /^I'm / }).count()) === 11);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  ok("canceled chirp never posts", (await page.locator("main div.bg-card").filter({ hasText: "hello from the suite" }).count()) === 1, "only the composer holds it");
+  ok("but the words are kept for the retry", (await composerBox.getByPlaceholder(/happening at camp/).inputValue()) === "hello from the suite");
+  await composerBox.getByPlaceholder(/happening at camp/).fill("");
+  await page.screenshot({ path: `${SHOT_DIR}/3a-chirp-seeded.png`, fullPage: true });
+  await page.getByRole("button", { name: "Itinerary" }).click();
+  await page.waitForTimeout(300);
+  ok("dot clears once the feed's been seen", (await page.getByTestId("dot-chirp").count()) === 0);
+
   // ---- Packing: grammar + name sheet ----
   await page.getByRole("button", { name: "Packing" }).click();
   await page.waitForTimeout(300);
@@ -381,6 +408,125 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(1400);
   const sleepTexts = await sleepCard.locator("button").allTextContents();
   ok("checked item sinks", (sleepTexts[sleepTexts.length - 2] || "").includes("Sleeping bag"), sleepTexts.join(" | ").slice(0, 80));
+
+  // ---- Chirp, with a name: post, link, like, reply, photos, pin, delete ----
+  await page.getByRole("button", { name: "Chirp" }).click();
+  await page.waitForTimeout(400);
+  const composer = page.locator("main div.bg-card").filter({ has: page.getByPlaceholder(/happening at camp/) });
+  const chirpIt = composer.getByRole("button", { name: "Chirp", exact: true });
+  ok("empty composer can't post", await chirpIt.isDisabled());
+  await composer.getByPlaceholder(/happening at camp/).fill("First chirp — see https://www.nps.gov/acad for maps.");
+  await chirpIt.click();
+  await page.waitForTimeout(400);
+  const myPost = page.locator("main div.bg-card").filter({ hasText: "First chirp" });
+  ok("chirp lands as a card", await myPost.getByText(/First chirp/).isVisible());
+  ok("under my name", await myPost.getByText("Chris", { exact: true }).isVisible());
+  ok("stamped now", await myPost.getByText("now", { exact: true }).isVisible());
+  ok("links come out tappable", (await myPost.locator('a[href*="nps.gov"]').count()) === 1);
+  ok("composer cleared", (await composer.getByPlaceholder(/happening at camp/).inputValue()) === "");
+
+  // The counter appears for the last 40 characters.
+  await composer.getByPlaceholder(/happening at camp/).fill("x".repeat(260));
+  ok("character counter counts down", await composer.getByText("20", { exact: true }).isVisible());
+  await composer.getByPlaceholder(/happening at camp/).fill("");
+
+  // Hearts: mine joins Alana's, the faces sheet shows both, and it toggles off.
+  const cooler = page.locator("main div.bg-card").filter({ hasText: "second cooler" });
+  await cooler.getByLabel("Like", { exact: true }).click();
+  await page.waitForTimeout(300);
+  ok("my heart joins the count", (await cooler.getByLabel("Who liked this").innerText()).trim() === "2");
+  await cooler.getByLabel("Who liked this").click();
+  await page.waitForTimeout(300);
+  const likersSheet = page.locator("div.fixed.inset-0.z-50");
+  ok("who-liked shows faces", (await likersSheet.getByText("Alana", { exact: true }).count()) === 1
+    && (await likersSheet.getByText("Chris", { exact: true }).count()) === 1);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(250);
+  await cooler.getByLabel("Unlike", { exact: true }).click();
+  await page.waitForTimeout(300);
+  ok("unlike takes only mine back", (await cooler.getByLabel("Who liked this").innerText()).trim() === "1");
+
+  // Replies thread under the parent, oldest first, and count on the parent.
+  await cooler.getByLabel("Reply to this").click();
+  await page.waitForTimeout(250);
+  await cooler.getByPlaceholder(/^Reply to Alana/).fill("On it — bringing ours.");
+  await cooler.getByRole("button", { name: "Reply", exact: true }).click();
+  await page.waitForTimeout(400);
+  ok("reply threads under the parent", await cooler.getByText("On it — bringing ours.").isVisible());
+  ok("parent counts its thread", ((await cooler.getByLabel("Reply to this").innerText()) || "").includes("1"));
+
+  // Someone else's menu offers pin but never delete.
+  await cooler.getByLabel("Post menu").first().click();
+  await page.waitForTimeout(300);
+  const menuSheet = page.locator("div.fixed.inset-0.z-50");
+  ok("anyone may pin", await menuSheet.getByText("Pin to top").isVisible());
+  ok("only the author may delete", (await menuSheet.getByRole("button", { name: "Delete" }).count()) === 0);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(250);
+
+  // Photos: attach two, drop one, post one — the card gets a grid.
+  await composer.getByPlaceholder(/happening at camp/).fill("Site marker");
+  await composer.locator('input[type="file"]').setInputFiles([
+    { name: "a.jpg", mimeType: "image/jpeg", buffer: TINY_JPEG },
+    { name: "b.jpg", mimeType: "image/jpeg", buffer: TINY_JPEG },
+  ]);
+  await page.waitForTimeout(300);
+  ok("two previews attach", (await composer.getByLabel("Remove photo").count()) === 2);
+  await composer.getByLabel("Remove photo").first().click();
+  await page.waitForTimeout(200);
+  ok("one preview removes", (await composer.getByLabel("Remove photo").count()) === 1);
+  await chirpIt.click();
+  await page.waitForTimeout(500);
+  const photoPost = page.locator("main div.bg-card").filter({ hasText: "Site marker" });
+  ok("photo chirp shows its picture", (await photoPost.locator('img[src^="blob:"]').count()) === 1);
+  await page.screenshot({ path: `${SHOT_DIR}/3b-chirp-feed.png`, fullPage: true });
+
+  // The album is the same feed as pictures, newest first, with a lightbox.
+  await page.getByRole("button", { name: "Photos", exact: true }).click();
+  await page.waitForTimeout(300);
+  ok("album collects every photo", (await page.locator("main .grid-cols-3 button").count()) === 2);
+  await page.locator("main .grid-cols-3 button").first().click();
+  await page.waitForTimeout(300);
+  ok("album opens the lightbox", await page.getByLabel("Close photo").isVisible());
+  ok("with who and what", await page.getByText(/Chris — Site marker/).isVisible());
+  await page.getByLabel("Close photo").click();
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: `${SHOT_DIR}/3c-chirp-album.png`, fullPage: true });
+  await page.getByRole("button", { name: "Feed", exact: true }).click();
+  await page.waitForTimeout(250);
+
+  // Pin floats a post to the top; unpin sends it back to its place in time.
+  await myPost.getByLabel("Post menu").click();
+  await page.waitForTimeout(300);
+  await page.locator("div.fixed.inset-0.z-50").getByText("Pin to top").click();
+  await page.waitForTimeout(350);
+  const firstFeedCard = page.locator("main div.bg-card").nth(1); // 0 is the composer
+  ok("pinned post floats to the top", (await firstFeedCard.innerText()).includes("First chirp")
+    && (await firstFeedCard.getByText("pinned").count()) === 1);
+  await myPost.getByLabel("Post menu").click();
+  await page.waitForTimeout(300);
+  await page.locator("div.fixed.inset-0.z-50").getByText("Unpin").click();
+  await page.waitForTimeout(350);
+  ok("unpinned post falls back in line", !(await page.locator("main div.bg-card").nth(1).innerText()).includes("First chirp"));
+
+  // Deleting my photo post takes the picture out of the album too.
+  await photoPost.getByLabel("Post menu").click();
+  await page.waitForTimeout(300);
+  await page.locator("div.fixed.inset-0.z-50").getByRole("button", { name: "Delete" }).click();
+  await page.waitForTimeout(200);
+  await page.locator("div.fixed.inset-0.z-50").getByRole("button", { name: "Really delete?" }).click();
+  await page.waitForTimeout(400);
+  ok("delete is a two-tap decision that sticks", (await page.locator("main div.bg-card").filter({ hasText: "Site marker" }).count()) === 0);
+  await page.getByRole("button", { name: "Photos", exact: true }).click();
+  await page.waitForTimeout(250);
+  ok("the album lets it go too", (await page.locator("main .grid-cols-3 button").count()) === 1);
+  await page.getByRole("button", { name: "Feed", exact: true }).click();
+  await page.waitForTimeout(200);
+
+  // My own chirps never light my dot.
+  await page.getByRole("button", { name: "Itinerary" }).click();
+  await page.waitForTimeout(300);
+  ok("my own chirps don't ping me", (await page.getByTestId("dot-chirp").count()) === 0);
 
   // ---- Ideas: own card edit (name is set now, so no gate) ----
   await page.getByRole("button", { name: "Itinerary" }).click();
@@ -585,7 +731,7 @@ const ok = (name, cond, detail = "") => {
   // ---- Expenses: split it, then settle up ----
   // Expenses left Food for its own tab: deciding what to eat and working out
   // who owes whom are different jobs on different days.
-  ok("five tabs", (await page.locator("nav.fixed.bottom-0 > button").count()) === 5);
+  ok("six tabs since Chirp", (await page.locator("nav.fixed.bottom-0 > button").count()) === 6);
   await page.getByRole("button", { name: "Expenses", exact: true }).click();
   await page.waitForTimeout(300);
   ok("expenses empty state", await page.getByText(/Nothing logged yet/).isVisible());

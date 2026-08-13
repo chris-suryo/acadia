@@ -27,6 +27,8 @@ import type {
   MenuItem,
   MenuVote,
   PersonalItem,
+  Post,
+  PostLike,
   Profile,
   Receipt,
   Settlement,
@@ -63,7 +65,9 @@ type Table =
   | "expense_receipts"
   | "settlements"
   | "survey"
-  | "forecast_cache";
+  | "forecast_cache"
+  | "posts"
+  | "post_likes";
 
 const REALTIME_TABLES: Table[] = [
   "profiles",
@@ -80,6 +84,8 @@ const REALTIME_TABLES: Table[] = [
   "settlements",
   "survey",
   "forecast_cache",
+  "posts",
+  "post_likes",
 ];
 
 export function SupabaseProvider({ children }: { children: React.ReactNode }) {
@@ -121,6 +127,10 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [surveys, setSurveys] = useState<SurveyRow[]>([]);
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [postLikes, setPostLikes] = useState<PostLike[]>([]);
+  const likesRef = useRef<PostLike[]>([]);
+  const profileRowsRef = useRef<Profile[]>([]);
 
   // Blackwoods has almost no signal, so every successful read is mirrored to
   // localStorage and replayed on boot — the app opens with the last sync
@@ -177,6 +187,12 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         case "forecast_cache":
           setForecast(data as ForecastRow[]);
           break;
+        case "posts":
+          setPosts(data as Post[]);
+          break;
+        case "post_likes":
+          setPostLikes(data as PostLike[]);
+          break;
       }
     },
     [],
@@ -204,6 +220,13 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     votesRef.current = menuVotes;
   }, [menuVotes]);
+  // Same reasoning for hearts as for votes — see toggleLikePost.
+  useEffect(() => {
+    likesRef.current = postLikes;
+  }, [postLikes]);
+  useEffect(() => {
+    profileRowsRef.current = profileRows;
+  }, [profileRows]);
 
   /**
    * Coming back to the foreground refetches everything.
@@ -239,6 +262,8 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         "expense_receipts",
         "settlements",
         "survey",
+        "posts",
+        "post_likes",
       ] as Table[])
         refetch(t);
     };
@@ -283,6 +308,8 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       "settlements",
       "survey",
       "forecast_cache",
+      "posts",
+      "post_likes",
     ];
     const cached: [Table, unknown[]][] = [];
     for (const table of CACHED) {
@@ -344,6 +371,8 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         refetch("settlements"),
         refetch("members"),
         refetch("survey"),
+        refetch("posts"),
+        refetch("post_likes"),
       ]);
       if (cancelled) return;
 
@@ -737,6 +766,122 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     [supabase, showNotice, refetch, patchMyProfile],
   );
 
+  const addPost = useCallback(
+    async (
+      body: string,
+      files: File[],
+      parentId: string | null = null,
+    ): Promise<boolean> => {
+      const uid = userIdRef.current;
+      if (!uid) return false;
+      const id = newId();
+      const clean = body.trim();
+      // The card lands under your thumb; blob URLs stand in for the photos
+      // until the uploads finish and the refetch swaps in storage URLs.
+      const locals = files.map((f) => URL.createObjectURL(f));
+      const optimistic: Post = {
+        id,
+        user_id: uid,
+        parent_id: parentId,
+        body: clean,
+        photos: locals,
+        pinned: false,
+        created_at: new Date().toISOString(),
+      };
+      setPosts((prev) => [...prev, optimistic]);
+      try {
+        // All-or-nothing: a chirp with two of three photos isn't the chirp
+        // that was written. Any failed upload aborts the whole post; already
+        // uploaded objects are orphans, the same accepted cost as receipts.
+        const photos: string[] = [];
+        for (const [i, f] of files.entries()) {
+          const blob = await downscalePhoto(f);
+          const path = `${id}/${i}.jpg`;
+          const { error: err } = await supabase.storage
+            .from("posts")
+            .upload(path, blob, { contentType: "image/jpeg" });
+          if (err) throw err;
+          photos.push(`${SUPABASE_URL}/storage/v1/object/public/posts/${path}`);
+        }
+        const { error: err } = await supabase
+          .from("posts")
+          .insert({ id, user_id: uid, parent_id: parentId, body: clean, photos });
+        if (err) throw err;
+        refetch("posts");
+        return true;
+      } catch (e) {
+        console.error("[posts]", e);
+        showNotice("Couldn't post — retry");
+        setPosts((prev) => prev.filter((p) => p.id !== id));
+        return false;
+      } finally {
+        // By then the refetch (or the failure filter) has replaced the
+        // optimistic row, so nothing renders these anymore.
+        setTimeout(() => locals.forEach((u) => URL.revokeObjectURL(u)), 10_000);
+      }
+    },
+    [supabase, refetch, showNotice],
+  );
+
+  const deletePost = useCallback(
+    (id: string) => {
+      // The thread goes with it — the DB cascades replies and hearts; the
+      // local mirror drops the replies too so nothing orphaned flashes.
+      setPosts((prev) => prev.filter((p) => p.id !== id && p.parent_id !== id));
+      persist(supabase.from("posts").delete().eq("id", id), "posts");
+    },
+    [supabase, persist],
+  );
+
+  const toggleLikePost = useCallback(
+    (postId: string) => {
+      const uid = userIdRef.current;
+      if (!uid) return;
+      // Hearts follow the person, not the device: a like given in Safari must
+      // be removable from the Home Screen app, which iOS treats as a separate
+      // anonymous user. So "did I like this" checks every device of mine, and
+      // unliking clears all of them.
+      const mid = profileRowsRef.current.find((p) => p.id === uid)?.member_id;
+      const myIds = mid
+        ? profileRowsRef.current.filter((p) => p.member_id === mid).map((p) => p.id)
+        : [uid];
+      if (!myIds.includes(uid)) myIds.push(uid);
+      // The ref, not the render closure — the toggleVote double-tap lesson.
+      const had = likesRef.current.some(
+        (l) => l.post_id === postId && myIds.includes(l.user_id),
+      );
+      setPostLikes((prev) =>
+        had
+          ? prev.filter((l) => !(l.post_id === postId && myIds.includes(l.user_id)))
+          : prev.some((l) => l.post_id === postId && l.user_id === uid)
+            ? prev
+            : [...prev, { post_id: postId, user_id: uid }],
+      );
+      persist(
+        had
+          ? supabase
+              .from("post_likes")
+              .delete()
+              .eq("post_id", postId)
+              .in("user_id", myIds)
+          : supabase.from("post_likes").upsert(
+              { post_id: postId, user_id: uid },
+              { onConflict: "post_id,user_id", ignoreDuplicates: true },
+            ),
+        "post_likes",
+      );
+    },
+    [supabase, persist],
+  );
+
+  const setPostPinned = useCallback(
+    (id: string, pinned: boolean) => {
+      setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, pinned } : p)));
+      persist(supabase.from("posts").update({ pinned }).eq("id", id), "posts");
+    },
+    [supabase, persist],
+  );
+
   /** An already-absolute link — a legacy public URL, or a mock blob. */
   const isAbsolute = (u: string) => u.includes("://");
 
@@ -827,6 +972,12 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     surveys,
     forecast,
     weather,
+    posts,
+    postLikes,
+    addPost,
+    deletePost,
+    toggleLikePost,
+    setPostPinned,
 
     addBlock: (dayId, dayPart, title) => {
       const row: ItineraryBlock = {

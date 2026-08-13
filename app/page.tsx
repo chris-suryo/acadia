@@ -8,6 +8,7 @@ import { UiProvider } from "@/components/ui/UiProvider";
 import { Header } from "@/components/Header";
 import { Tabs, type TabId } from "@/components/Tabs";
 import { Itinerary } from "@/components/Itinerary";
+import { Chirp } from "@/components/Chirp";
 import { Packing } from "@/components/Packing";
 import { Food } from "@/components/Food";
 import { Expenses } from "@/components/Expenses";
@@ -17,7 +18,7 @@ import { ServiceWorker } from "@/components/ServiceWorker";
 import { keepVisible } from "@/components/ui/keepVisible";
 
 function Shell() {
-  const { ready, error, name } = useData();
+  const { ready, error, name, posts, isMe } = useData();
   const [tab, setTab] = useState<TabId>("itinerary");
   const [packView, setPackViewState] = useState("group");
   const [foodView, setFoodViewState] = useState("menu");
@@ -97,6 +98,31 @@ function Shell() {
     window.scrollTo(0, v ? parseInt(v, 10) || 0 : 0);
   }, [tab, ready]);
 
+  // Chirp's unread dot: lit while somebody else's newest post is newer than
+  // the last one seen on this device. State starts empty and hydrates in an
+  // effect so the server render and the first client render agree.
+  const [chirpSeen, setChirpSeen] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setChirpSeen(localStorage.getItem("abc.chirpSeen") ?? "");
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (tab !== "chirp" || !ready) return;
+    const newest = posts.map((p) => p.created_at).sort().at(-1) ?? "";
+    if (!newest) return;
+    const timer = setTimeout(() => {
+      if (newest > (localStorage.getItem("abc.chirpSeen") ?? ""))
+        localStorage.setItem("abc.chirpSeen", newest);
+      setChirpSeen((cur) => (newest > cur ? newest : cur));
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [tab, ready, posts]);
+  const chirpDot =
+    tab !== "chirp" &&
+    posts.some((p) => !isMe(p.user_id) && p.created_at > chirpSeen);
+
   // Keep the focused inline field visible when the keyboard opens. The field's
   // own onFocus handler usually gets there first; this covers the case where
   // the keyboard appears late, and `keepVisible` no-ops when there's nothing
@@ -159,6 +185,7 @@ function Shell() {
         ) : (
           <>
             {tab === "itinerary" && <Itinerary jump={jump} />}
+            {tab === "chirp" && <Chirp />}
             {tab === "packing" && <Packing view={packView} setView={setPackView} />}
             {tab === "food" && <Food view={foodView} setView={setFoodView} />}
             {tab === "expenses" && <Expenses />}
@@ -174,7 +201,7 @@ function Shell() {
           </>
         )}
       </main>
-      <Tabs tab={tab} onChange={setTab} />
+      <Tabs tab={tab} onChange={setTab} dot={{ chirp: chirpDot }} />
     </div>
   );
 }

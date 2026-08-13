@@ -15,7 +15,7 @@
 // same — a replaced photo in the `spots` bucket, say. Cached entries are
 // served without revalidating, so an old copy would otherwise stick around on
 // phones that already have it.
-const VERSION = "abc-v2";
+const VERSION = "abc-v3";
 const SHELL = `${VERSION}-shell`;
 const ASSETS = `${VERSION}-assets`;
 

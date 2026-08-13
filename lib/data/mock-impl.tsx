@@ -27,6 +27,8 @@ import type {
   MenuItem,
   MenuVote,
   PersonalItem,
+  Post,
+  PostLike,
   Receipt,
   Settlement,
   ShoppingItem,
@@ -152,6 +154,32 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       food: "S'mores. Non-negotiable.",
       updated_at: "2026-08-10T12:00:00Z",
     },
+  ]);
+  // Two of Alana's chirps keep every feed path on screen in mock runs: a
+  // plain one, and a photo post (repo-hosted image — mock can't reach
+  // storage) that also arrives pre-hearted so counts render non-zero.
+  const [posts, setPosts] = useState<Post[]>([
+    {
+      id: "post-alana-1",
+      user_id: ALANA,
+      parent_id: null,
+      body: "Packing tonight. Who has room for a second cooler?",
+      photos: [],
+      pinned: false,
+      created_at: "2026-08-12T21:00:00Z",
+    },
+    {
+      id: "post-alana-2",
+      user_id: ALANA,
+      parent_id: null,
+      body: "Found the loop map — we're B080 + B082",
+      photos: ["/maps/blackwoods-map.png"],
+      pinned: false,
+      created_at: "2026-08-12T22:30:00Z",
+    },
+  ]);
+  const [postLikes, setPostLikes] = useState<PostLike[]>([
+    { post_id: "post-alana-1", user_id: ALANA },
   ]);
 
   const value = useMemo<DataCtx>(() => {
@@ -484,8 +512,36 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
           ...among.map((member_id) => ({ expense_id: row.id, member_id })),
         ]);
       },
+      posts,
+      postLikes,
+      addPost: async (body, files, parentId = null) => {
+        setPosts((prev) => [
+          ...prev,
+          {
+            id: newId(),
+            user_id: ME,
+            parent_id: parentId,
+            body: body.trim(),
+            photos: files.map((f) => URL.createObjectURL(f)),
+            pinned: false,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+        return true;
+      },
+      deletePost: (id) =>
+        setPosts((prev) => prev.filter((p) => p.id !== id && p.parent_id !== id)),
+      // Freshest state inside the updater — the same double-tap guard as votes.
+      toggleLikePost: (postId) =>
+        setPostLikes((prev) =>
+          prev.some((l) => l.post_id === postId && l.user_id === ME)
+            ? prev.filter((l) => !(l.post_id === postId && l.user_id === ME))
+            : [...prev, { post_id: postId, user_id: ME }],
+        ),
+      setPostPinned: (id, pinned) =>
+        setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, pinned } : p))),
     };
-  }, [name, ensureName, linkName, claimMember, blocks, gear, personal, menu, menuVotes, shopping, expenses, expenseShares, receipts, settlements, members, myMemberId, surveys, avatars, gearClaims]);
+  }, [name, ensureName, linkName, claimMember, blocks, gear, personal, menu, menuVotes, shopping, expenses, expenseShares, receipts, settlements, members, myMemberId, surveys, avatars, gearClaims, posts, postLikes]);
 
   return (
     <Ctx.Provider value={value}>

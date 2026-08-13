@@ -14,6 +14,8 @@ import type {
   MenuItem,
   MenuVote,
   PersonalItem,
+  Post,
+  PostLike,
   Receipt,
   Settlement,
   ShoppingItem,
@@ -129,6 +131,19 @@ export type DataCtx = {
   deleteShopping: (id: string) => void;
   /** Merges the patch into the caller's own survey row (creating it if absent). */
   upsertSurvey: (patch: SurveyPatch) => void;
+
+  /** The trip feed, unsorted — Chirp orders pinned-then-newest itself. */
+  posts: Post[];
+  postLikes: PostLike[];
+  /** Posts text and/or photos (all photos upload or none of it posts).
+   *  Resolves true when it lands — the composer clears on true and keeps
+   *  everything typed on false. */
+  addPost: (body: string, files: File[], parentId?: string | null) => Promise<boolean>;
+  /** Takes the whole thread with it — replies and hearts cascade. */
+  deletePost: (id: string) => void;
+  /** Adds or removes *your* heart — every device you own agrees. */
+  toggleLikePost: (postId: string) => void;
+  setPostPinned: (id: string, pinned: boolean) => void;
   expenseShares: ExpenseShare[];
   /** `among` is the members it's split between — equally, to the cent. */
   addExpense: (
