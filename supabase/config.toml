@@ -1,0 +1,61 @@
+# Local Supabase config, so a fresh clone can stand the backend up without
+# hand-linking a project: `supabase start` for a local stack, or
+# `supabase link --project-ref <ref> && supabase db push` against a real one.
+#
+# project_id is the local container name, not the hosted project ref.
+
+project_id = "acadia-base-camp"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+# Nothing in this app pages; the whole trip is a few hundred rows.
+max_rows = 5000
+
+[db]
+port = 54322
+# Matches the hosted project, so migrations can't pass locally and fail there.
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+
+# Catches outbound mail locally. The app sends none — there are no accounts.
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+# Photos are downscaled in the browser first (lib/avatar.ts, 1400px/q0.8);
+# this is headroom, not the expected size.
+file_size_limit = "10MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3107"]
+# A device is an identity. No accounts, no passwords, no email confirmations —
+# see the identity section of the README before changing this.
+enable_signup = true
+enable_anonymous_sign_ins = true
+
+[auth.email]
+enable_signup = false
+enable_confirmations = false
+
+[edge_runtime]
+enabled = true
+policy = "oneshot"
+
+[analytics]
+enabled = false
