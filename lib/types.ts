@@ -56,7 +56,6 @@ export type GearItem = {
   category: string;
   parent_id: string | null;
   label: string;
-  owner_id: string | null;
   sort: number;
   /** Would you drive back to Ellsworth for it? Fourteen of thirty-nine. */
   essential: boolean;
@@ -88,6 +87,15 @@ export type MenuItem = {
    *  Sunday breakfast, snacks and drinks aren't questions. */
   votable: boolean;
   sort: number;
+};
+
+/**
+ * One person saying they'll bring one thing. Several people can claim the same
+ * row — two tents is two tents, and the list has to be able to say so.
+ */
+export type GearClaim = {
+  gear_item_id: string;
+  user_id: string;
 };
 
 export type ShoppingItem = {

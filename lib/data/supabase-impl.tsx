@@ -19,6 +19,7 @@ import type {
   Expense,
   ExpenseShare,
   ForecastRow,
+  GearClaim,
   GearItem,
   ItineraryBlock,
   ItineraryDay,
@@ -52,6 +53,7 @@ type Table =
   | "itinerary_days"
   | "itinerary_blocks"
   | "gear_items"
+  | "gear_claims"
   | "personal_items"
   | "menu_items"
   | "menu_votes"
@@ -68,6 +70,7 @@ const REALTIME_TABLES: Table[] = [
   "members",
   "itinerary_blocks",
   "gear_items",
+  "gear_claims",
   "menu_items",
   "menu_votes",
   "shopping_items",
@@ -102,6 +105,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [days, setDays] = useState<ItineraryDay[]>([]);
   const [blocks, setBlocks] = useState<ItineraryBlock[]>([]);
   const [gear, setGear] = useState<GearItem[]>([]);
+  const [gearClaims, setGearClaims] = useState<GearClaim[]>([]);
   const [personal, setPersonal] = useState<PersonalItem[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [menuVotes, setMenuVotes] = useState<MenuVote[]>([]);
@@ -136,6 +140,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           break;
         case "gear_items":
           setGear(data as GearItem[]);
+          break;
+        case "gear_claims":
+          setGearClaims(data as GearClaim[]);
           break;
         case "personal_items":
           setPersonal(data as PersonalItem[]);
@@ -224,6 +231,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       "itinerary_days",
       "itinerary_blocks",
       "gear_items",
+      "gear_claims",
       "personal_items",
       "menu_items",
       "menu_votes",
@@ -284,6 +292,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         refetch("itinerary_days"),
         refetch("itinerary_blocks"),
         refetch("gear_items"),
+        refetch("gear_claims"),
         refetch("personal_items"),
         refetch("menu_items"),
         refetch("menu_votes"),
@@ -750,6 +759,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     days,
     blocks,
     gear,
+    gearClaims,
     personal,
     menu,
     menuVotes,
@@ -810,19 +820,34 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
     toggleClaimGear: (id) => {
       const item = gear.find((g) => g.id === id);
-      if (!item) return;
-      const owner = item.owner_id ? null : userIdRef.current;
+      const uid = userIdRef.current;
+      if (!item || !uid) return;
       // Claiming a parent claims the whole bundle.
       const ids = item.parent_id
         ? [id]
         : gear.filter((g) => g.id === id || g.parent_id === id).map((g) => g.id);
-      setGear((prev) =>
-        prev.map((g) => (ids.includes(g.id) ? { ...g, owner_id: owner } : g)),
-      );
-      persist(
-        supabase.from("gear_items").update({ owner_id: owner }).in("id", ids),
-        "gear_items",
-      );
+      // Toggles *my* claim, not the row's. Someone else having claimed it is
+      // no longer a reason I can't — two people can both own a tent.
+      const had = gearClaims.some((c) => c.gear_item_id === id && c.user_id === uid);
+      if (had) {
+        setGearClaims((prev) =>
+          prev.filter((c) => !(ids.includes(c.gear_item_id) && c.user_id === uid)),
+        );
+        persist(
+          supabase.from("gear_claims").delete().eq("user_id", uid).in("gear_item_id", ids),
+          "gear_claims",
+        );
+      } else {
+        const rows = ids.map((gid) => ({ gear_item_id: gid, user_id: uid }));
+        setGearClaims((prev) => [
+          ...prev.filter((c) => !(ids.includes(c.gear_item_id) && c.user_id === uid)),
+          ...rows,
+        ]);
+        persist(
+          supabase.from("gear_claims").upsert(rows, { onConflict: "gear_item_id,user_id" }),
+          "gear_claims",
+        );
+      }
     },
 
     addGear: (category, label) => {
@@ -831,7 +856,6 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         category,
         parent_id: null,
         label,
-        owner_id: null,
         sort: nextSort(gear.filter((g) => g.category === category)),
         // Matches the column default — the fourteen are set in migration 0024,
         // and anything typed in afterwards is the group's own addition.

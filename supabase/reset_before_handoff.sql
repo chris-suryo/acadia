@@ -27,8 +27,9 @@ delete from menu_votes;
 delete from shopping_items where menu_item_id is null;
 update shopping_items set checked = false, checked_by = null;
 
--- Group gear goes back to unclaimed.
-update gear_items set owner_id = null;
+-- Group gear goes back to unclaimed. Claims are their own rows now, and they
+-- cascade off profiles anyway — this just makes the order explicit.
+delete from gear_claims;
 
 -- Personal packing lists are per-device and get re-seeded on first sign-in, so
 -- the rows belonging to test devices are just noise.
@@ -54,5 +55,5 @@ select
   (select count(*) from menu_items)                             as dishes,
   (select count(*) from shopping_items)                         as list_lines,
   (select count(*) from gear_items)                             as gear,
-  (select count(*) from gear_items where owner_id is not null)  as gear_claimed,
+  (select count(*) from gear_claims)                             as gear_claimed,
   (select count(*) from expenses)                               as expenses;

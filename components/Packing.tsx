@@ -151,9 +151,11 @@ export function Packing({
 }) {
   const {
     gear,
+    gearClaims,
     personal,
     profiles,
     isMe,
+    memberOf,
     toggleClaimGear,
     addGear,
     deleteGear,
@@ -168,7 +170,6 @@ export function Packing({
   } = useData();
   const { showUndo, showNotice } = useUi();
   const { poke, sink } = useSink();
-  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dragActive, setDragActive] = useState(false);
   // A drop lands a click on the dragged row — swallow it briefly.
   const justDropped = useRef(false);
@@ -178,8 +179,29 @@ export function Packing({
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   );
 
-  const claimed = gear.filter((i) => i.owner_id).length;
-  const mine = gear.filter((i) => isMe(i.owner_id)).length;
+  /**
+   * Everyone who's said they're bringing this one, one entry per person.
+   *
+   * Deduped by person, not device: signing in on a phone and a laptop is one
+   * tent, and it shouldn't read as two faces on the row.
+   */
+  const claimersOf = (id: string) => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const c of gearClaims) {
+      if (c.gear_item_id !== id) continue;
+      const who = memberOf(c.user_id) || c.user_id;
+      if (seen.has(who)) continue;
+      seen.add(who);
+      out.push(c.user_id);
+    }
+    return out;
+  };
+  const iClaimed = (id: string) =>
+    gearClaims.some((c) => c.gear_item_id === id && isMe(c.user_id));
+
+  const claimed = gear.filter((i) => claimersOf(i.id).length > 0).length;
+  const mine = gear.filter((i) => iClaimed(i.id)).length;
   const done = personal.filter((i) => i.checked).length;
 
   const groupTree = (cat: string) => tree(gear.filter((i) => i.category === cat));
@@ -219,19 +241,11 @@ export function Packing({
     })),
   );
 
-  const clearPress = () => {
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-    pressTimer.current = null;
-  };
-
   const onDragStart = (e: DragStartEvent) => {
-    clearPress();
     setDragActive(true);
-    // Long-press on someone else's claim lifts the row for reorder — still
-    // surface whose it is.
-    const it = gear.find((g) => g.id === e.active.id);
-    if (it?.owner_id && !isMe(it.owner_id))
-      showNotice(`Claimed by ${profiles[it.owner_id]?.trim() || "someone"}`);
+    // Long-press lifts the row for reorder — still surface who's on it.
+    const who = namesOn(String(e.active.id));
+    if (who && !iClaimed(String(e.active.id))) showNotice(`${who} bringing this`);
   };
   const endDrag = () => {
     justDropped.current = true;
@@ -255,17 +269,23 @@ export function Packing({
     if (rows?.length) reorderPersonal(rows);
   };
 
-  const claim = (id: string) => {
-    const it = gear.find((i) => i.id === id);
-    if (!it) return;
-    if (!it.owner_id) ensureName(() => toggleClaimGear(id));
-    else if (isMe(it.owner_id)) toggleClaimGear(id);
-    // someone else's claim is inert — long-press shows who has it
+  /** Names on a row, as you'd say them out loud. */
+  const namesOn = (id: string) => {
+    const names = claimersOf(id).map((u) => profiles[u]?.trim() || "someone");
+    if (names.length === 0) return "";
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return `${names[0]} + ${names[1]}`;
+    return `${names[0]} +${names.length - 1}`;
   };
 
+  // Someone else being on a row is no longer a reason you can't be: two people
+  // with tents both need to say so, and the row has to show both.
+  const claim = (id: string) => ensureName(() => toggleClaimGear(id));
+
   const gearRow = (i: GearItem, child: boolean) => {
-    const ownerName = i.owner_id ? profiles[i.owner_id]?.trim() || "Claimed" : "";
-    const othersClaim = !!i.owner_id && !isMe(i.owner_id);
+    const claimers = claimersOf(i.id);
+    const mineToo = iClaimed(i.id);
+    const who = namesOn(i.id);
     return (
       <SortRow
         key={i.id}
@@ -283,48 +303,45 @@ export function Packing({
           // what it is and whether it's on — otherwise a screen reader reads a
           // list of labels with no state at all.
           role="checkbox"
-          aria-checked={!!i.owner_id}
+          aria-checked={claimers.length > 0}
           aria-label={
-            i.owner_id
-              ? `${i.label} — claimed by ${isMe(i.owner_id) ? "you" : ownerName}`
-              : `${i.label} — unclaimed`
+            claimers.length === 0
+              ? `${i.label} — nobody bringing it`
+              : `${i.label} — ${who} bringing it${mineToo ? ", including you" : ""}`
           }
           onClick={() => {
             if (justDropped.current) return;
             claim(i.id);
           }}
-          onPointerDown={() => {
-            if (!othersClaim) return;
-            clearPress();
-            pressTimer.current = setTimeout(
-              () => showNotice(`Claimed by ${ownerName}`),
-              500,
-            );
-          }}
-          onPointerUp={clearPress}
-          onPointerMove={clearPress}
-          onPointerLeave={clearPress}
-          className={`w-full text-left bg-transparent border-none flex items-center gap-[11px] py-3 pr-3.5 ${
-            othersClaim ? "cursor-default" : "cursor-pointer"
-          } ${child ? "pl-9" : "pl-3.5"}`}
+          className={`w-full text-left bg-transparent border-none cursor-pointer flex items-center gap-[11px] py-3 pr-3.5 ${
+            child ? "pl-9" : "pl-3.5"
+          }`}
         >
-          <Box on={!!i.owner_id} size={22} />
+          <Box on={claimers.length > 0} size={22} />
           <span className="flex-1 min-w-0">
             <span className="block text-[14.5px] text-ink leading-[1.35]">{i.label}</span>
           </span>
-          {/* An unclaimed row says nothing about being unclaimed — the bar up
-              top counts those. It offers the action instead, which is the one
-              thing this tab is for. */}
-          {i.owner_id ? (
-            <span className="inline-flex items-center gap-1.5 shrink-0 max-w-[42%]">
-              <Avatar userId={i.owner_id} name={ownerName} size={22} />
-              <span className="font-mono text-[10.5px] text-moss truncate">
-                {ownerName}
+          {/* Faces first, then the offer. A row someone else has taken still
+              offers "+ me", because two people can both own a tent and the old
+              list had no way to say so. */}
+          {claimers.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 shrink-0 max-w-[46%]">
+              <span className="flex items-center -space-x-1.5">
+                {claimers.slice(0, 3).map((u) => (
+                  <Avatar
+                    key={u}
+                    userId={u}
+                    name={profiles[u]?.trim() || "?"}
+                    size={22}
+                  />
+                ))}
               </span>
+              <span className="font-mono text-[10.5px] text-moss truncate">{who}</span>
             </span>
-          ) : (
+          )}
+          {!mineToo && (
             <span className="font-mono text-[10.5px] text-blaze shrink-0 border border-blaze/40 rounded-full px-2 py-0.5">
-              claim
+              {claimers.length > 0 ? "+ me" : "claim"}
             </span>
           )}
         </button>

@@ -226,7 +226,8 @@ const ok = (name, cond, detail = "") => {
     const t = await page.locator("main").getByText(/^\d+ of \d+ claimed$/).first().innerText();
     return parseInt(t, 10);
   };
-  ok("claim progress bar", (await claimed()) === 0, `${await claimed()} claimed at rest`);
+  const base = await claimed();
+  ok("claim progress bar", base === 1, `${base} claimed at rest — Alana's tent`);
   ok("no at-rest trash", (await page.getByLabel("Delete", { exact: true }).count()) === 0);
 
   // Every row is one short phrase now — no must-have tags, no filter pills,
@@ -263,10 +264,10 @@ const ok = (name, cond, detail = "") => {
   ok("typing is behind a link", (await page.getByPlaceholder("Your name").count()) === 0);
   ok("unclaimed names read as free",
     (await page.getByRole("button", { name: /already claimed/ }).count()) === 1, "only Alana is taken");
-  ok("claim blocked until name", (await claimed()) === 0);
+  ok("claim blocked until name", (await claimed()) === base);
   await page.getByRole("button", { name: "I'm Chris" }).click();
   await page.waitForTimeout(400);
-  ok("gated action completed", (await claimed()) === 1);
+  ok("gated action completed", (await claimed()) === base + 1);
   ok("claim shows owner name", await page.locator("main").getByText("Chris", { exact: true }).first().isVisible());
   ok("header shows the name", await page.locator("header").getByText("Chris", { exact: true }).isVisible());
   ok("header monogram", await page.locator("header").getByText("C", { exact: true }).isVisible());
@@ -278,17 +279,37 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(300);
   await page.getByText("Tarp or canopy").click();
   await page.waitForTimeout(250);
-  ok("row tap unclaims", (await claimed()) === 0);
+  ok("row tap unclaims", (await claimed()) === base);
 
   // hierarchy: child renders, claiming the parent claims the bundle
   ok("hierarchy child renders", await page.getByText("Propane \u00d72").isVisible());
   await page.getByText("Camp stove + fuel").click();
   await page.waitForTimeout(300);
-  ok("parent claim cascades", (await claimed()) === 2, "the bundle goes with its parent");
+  ok("parent claim cascades", (await claimed()) === base + 2, "the bundle goes with its parent");
   ok("bundle shows owner twice", (await page.locator("main").getByText("Chris", { exact: true }).count()) === 2);
   await page.getByText("Camp stove + fuel").click();
   await page.waitForTimeout(300);
-  ok("parent unclaim cascades", (await claimed()) === 0);
+  ok("parent unclaim cascades", (await claimed()) === base);
+
+  // ---- two people can bring the same thing ----
+  // The old list had one owner per row, so the second person with a tent had
+  // nowhere to say so — and the row already looked handled, so nobody asked.
+  const tents = page.locator("div.mb-5").filter({ has: page.getByText("Shelter", { exact: true }) })
+    .getByRole("checkbox", { name: /^Tents — spares/ });
+  ok("a row someone else has still offers to take you",
+    await tents.getByText("+ me", { exact: true }).isVisible());
+  ok("and says whose it is", await tents.getByText("Alana", { exact: true }).isVisible());
+  await tents.click();
+  await page.waitForTimeout(400);
+  ok("both names show on one row", await tents.getByText("Alana + Chris").isVisible());
+  ok("two faces, not one", (await tents.locator("span.rounded-full.overflow-hidden").count()) === 2);
+  ok("no offer once you're on it", (await tents.getByText("+ me", { exact: true }).count()) === 0);
+  // Taking yourself off leaves the other person alone.
+  await tents.click();
+  await page.waitForTimeout(400);
+  ok("leaving doesn't take anyone else with you", await tents.getByText("Alana", { exact: true }).isVisible());
+  ok("and the offer comes back", await tents.getByText("+ me", { exact: true }).isVisible());
+
 
   // ghost add per category (pre-filled category, no select)
   ok("no category selects", (await page.locator("select").count()) === 0);
@@ -318,7 +339,7 @@ const ok = (name, cond, detail = "") => {
   const shelterCard = page.locator("div.mb-5").filter({ has: page.getByText("Shelter", { exact: true }) });
   const shelterTexts = await shelterCard.locator("span.text-\\[14\\.5px\\]").allTextContents();
   ok("dnd reorder within category", shelterTexts[0] === "Tarp or canopy", shelterTexts.join(" | ").slice(0, 90));
-  ok("drop click swallowed — nothing claimed", (await claimed()) === 0);
+  ok("drop click swallowed — nothing claimed", (await claimed()) === base);
 
   // Across a section boundary — from the bottom of Coolers & Water into the
   // top of Fire & Light, which are adjacent in the canonical order.

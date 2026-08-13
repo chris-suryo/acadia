@@ -6,6 +6,7 @@ import type {
   Expense,
   ExpenseShare,
   ForecastRow,
+  GearClaim,
   GearItem,
   ItineraryBlock,
   ItineraryDay,
@@ -80,6 +81,8 @@ export type DataCtx = {
   days: ItineraryDay[];
   blocks: ItineraryBlock[];
   gear: GearItem[];
+  /** Who's bringing what. Several people can claim the same row. */
+  gearClaims: GearClaim[];
   personal: PersonalItem[];
   menu: MenuItem[];
   shopping: ShoppingItem[];
@@ -93,6 +96,7 @@ export type DataCtx = {
   deleteBlock: (id: string) => void;
   restoreBlock: (row: ItineraryBlock) => void;
   reorderDay: (rows: { id: string; day_part: DayPart | null; sort: number }[]) => void;
+  /** Adds or removes *your* claim, leaving everyone else's alone. */
   toggleClaimGear: (id: string) => void;
   addGear: (category: string, label: string) => void;
   deleteGear: (id: string) => void;

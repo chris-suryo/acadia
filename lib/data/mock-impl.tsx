@@ -20,6 +20,7 @@ import {
 import type {
   Expense,
   ExpenseShare,
+  GearClaim,
   GearItem,
   ItineraryBlock,
   Member,
@@ -97,7 +98,6 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       category: g.category,
       parent_id: g.parent ? (idByLabel.get(g.parent) ?? null) : null,
       label: g.label,
-      owner_id: null,
       sort: g.sort,
       essential: !!g.essential,
     }));
@@ -112,6 +112,12 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       essential: !!p.essential,
     })),
   );
+  // Alana has a tent and so does Chris — the seeded pair that keeps the
+  // several-people-per-row path on screen in every run.
+  const [gearClaims, setGearClaims] = useState<GearClaim[]>(() => {
+    const tents = SEED_GEAR.findIndex((g) => g.label.startsWith("Tents"));
+    return tents < 0 ? [] : [{ gear_item_id: `gear-${tents}`, user_id: ALANA }];
+  });
   const [menuVotes, setMenuVotes] = useState<MenuVote[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>(() =>
     SEED_MENU.map((m, i) => ({ id: `menu-${i}`, added_by: null, ...m })),
@@ -227,6 +233,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       days: SEED_DAYS,
       blocks,
       gear,
+      gearClaims,
       personal,
       menu,
       menuVotes,
@@ -265,15 +272,21 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
           }),
         );
       },
+      // Toggles *my* claim, not the row's — two people can both own a tent.
       toggleClaimGear: (id) =>
-        setGear((prev) => {
-          const item = prev.find((g) => g.id === id);
+        setGearClaims((prev) => {
+          const item = gear.find((g) => g.id === id);
           if (!item) return prev;
-          const owner = item.owner_id ? null : ME;
           const ids = item.parent_id
             ? [id]
-            : prev.filter((g) => g.id === id || g.parent_id === id).map((g) => g.id);
-          return prev.map((g) => (ids.includes(g.id) ? { ...g, owner_id: owner } : g));
+            : gear.filter((g) => g.id === id || g.parent_id === id).map((g) => g.id);
+          const rest = prev.filter(
+            (c) => !(ids.includes(c.gear_item_id) && c.user_id === ME),
+          );
+          const had = prev.some((c) => c.gear_item_id === id && c.user_id === ME);
+          return had
+            ? rest
+            : [...rest, ...ids.map((gid) => ({ gear_item_id: gid, user_id: ME }))];
         }),
       addGear: (category, label) =>
         setGear((prev) => [
@@ -283,7 +296,6 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
             category,
             parent_id: null,
             label,
-            owner_id: null,
             sort: nextSort(prev.filter((g) => g.category === category)),
             essential: false,
           },
@@ -476,7 +488,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
         ]);
       },
     };
-  }, [name, ensureName, linkName, claimMember, blocks, gear, personal, menu, menuVotes, shopping, expenses, expenseShares, receipts, settlements, members, myMemberId, surveys, avatars]);
+  }, [name, ensureName, linkName, claimMember, blocks, gear, personal, menu, menuVotes, shopping, expenses, expenseShares, receipts, settlements, members, myMemberId, surveys, avatars, gearClaims]);
 
   return (
     <Ctx.Provider value={value}>
