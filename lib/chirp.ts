@@ -26,7 +26,7 @@ export function chirpTime(iso: string, now: Date): string {
   return `${MONTHS[then.getMonth()]} ${then.getDate()}`;
 }
 
-export type TextPart = { text: string; href?: string };
+export type TextPart = { text: string; href?: string; mention?: string };
 
 /**
  * Splits a body into plain runs and links, for rendering without
@@ -46,4 +46,57 @@ export function splitLinks(body: string): TextPart[] {
   }
   if (last < body.length) out.push({ text: body.slice(last) });
   return out;
+}
+
+/**
+ * Links, plus @mentions resolved against the roster.
+ *
+ * A mention is only ever text — nothing is stored — so this matches what
+ * people actually type against who is actually on the trip. The first real
+ * chirp was "Here u go @molida", lowercase and unpunctuated, which is why the
+ * match is case-insensitive and why an `@` naming nobody stays plain prose
+ * rather than rendering as a broken tag.
+ *
+ * Names are tried longest-first so "Erin 🍀" wins over a bare "Erin", and the
+ * emoji in that name is why this compares slices rather than using a word
+ * boundary — Postgres and JS disagree about where one falls next to 🍀.
+ */
+export function splitBody(body: string, names: string[]): TextPart[] {
+  const roster = [...names]
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  const out: TextPart[] = [];
+  for (const part of splitLinks(body)) {
+    if (part.href) {
+      out.push(part);
+      continue;
+    }
+    const text = part.text;
+    let last = 0;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] !== "@") continue;
+      const rest = text.slice(i + 1);
+      const hit = roster.find(
+        (n) => rest.slice(0, n.length).toLowerCase() === n.toLowerCase(),
+      );
+      if (!hit) continue;
+      if (i > last) out.push({ text: text.slice(last, i) });
+      out.push({ text: `@${rest.slice(0, hit.length)}`, mention: hit });
+      i += hit.length;
+      last = i + 1;
+    }
+    if (last < text.length) out.push({ text: text.slice(last) });
+  }
+  return out;
+}
+
+/** Who a chirp tags, by roster name. */
+export function mentionsIn(body: string, names: string[]): string[] {
+  return [
+    ...new Set(
+      splitBody(body, names)
+        .filter((p) => p.mention)
+        .map((p) => p.mention!),
+    ),
+  ];
 }

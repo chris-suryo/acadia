@@ -5,7 +5,13 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { chirpTime, splitLinks } from "../lib/chirp.ts";
+import { chirpTime, mentionsIn, splitBody, splitLinks } from "../lib/chirp.ts";
+
+// The real roster, emoji and all.
+const ROSTER = [
+  "Alana", "Alexis", "Ariana", "Ashley", "Chris", "Erin 🍀",
+  "Irene", "Jessie", "Mayank", "Molida", "Patrick", "Sng",
+];
 
 const NOW = new Date("2026-08-14T18:00:00Z");
 const at = (iso) => chirpTime(iso, NOW);
@@ -50,4 +56,48 @@ test("two links in one chirp both resolve", () => {
   const parts = splitLinks("https://a.com and http://b.com");
   assert.equal(parts.filter((p) => p.href).length, 2);
   assert.equal(parts[1].text, " and ");
+});
+
+test("the mention people actually typed resolves", () => {
+  // Chris's first real chirp, verbatim: lowercase, no punctuation.
+  const parts = splitBody("Here u go @molida", ROSTER);
+  assert.deepEqual(parts, [
+    { text: "Here u go " },
+    { text: "@molida", mention: "Molida" },
+  ]);
+});
+
+test("a name with an emoji in it still matches, and beats the short one", () => {
+  // "Erin 🍀" must win over a bare "Erin", or the 🍀 is orphaned as prose.
+  const parts = splitBody("thanks @Erin 🍀!", ROSTER);
+  assert.equal(parts[1].mention, "Erin 🍀");
+  assert.equal(parts[1].text, "@Erin 🍀");
+  assert.equal(parts[2].text, "!");
+});
+
+test("an @ naming nobody stays prose", () => {
+  assert.deepEqual(splitBody("email me @ camp", ROSTER), [
+    { text: "email me @ camp" },
+  ]);
+  assert.deepEqual(splitBody("@nobody here", ROSTER), [{ text: "@nobody here" }]);
+});
+
+test("mentions and links coexist", () => {
+  const parts = splitBody("@Chris see https://nps.gov now", ROSTER);
+  assert.equal(parts[0].mention, "Chris");
+  assert.equal(parts.find((p) => p.href)?.href, "https://nps.gov");
+});
+
+test("a mention inside a URL is not a mention", () => {
+  const parts = splitBody("https://x.com/@Chris", ROSTER);
+  assert.equal(parts.length, 1);
+  assert.equal(parts[0].href, "https://x.com/@Chris");
+});
+
+test("who a chirp tags, de-duplicated", () => {
+  assert.deepEqual(mentionsIn("@Chris and @chris and @Molida", ROSTER), [
+    "Chris",
+    "Molida",
+  ]);
+  assert.deepEqual(mentionsIn("nobody", ROSTER), []);
 });

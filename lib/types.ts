@@ -175,8 +175,10 @@ export type Post = {
   created_at: string;
 };
 
-/** One device's heart on one chirp. Counted by person, not device. */
+/** One device's reaction to one chirp. Counted by person, not device — and
+ *  one person may leave several, one per emoji. */
 export type PostLike = {
   post_id: string;
   user_id: string;
+  emoji: string;
 };

@@ -263,7 +263,10 @@ const ok = (name, cond, detail = "") => {
     && await page.getByText("Found the loop map").isVisible());
   ok("seeded photo renders", (await page.locator('main img[src*="blackwoods-map"]').count()) === 1);
   const coolerCard = page.locator("main [data-chirp]").filter({ hasText: "second cooler" });
-  ok("a heart already counts one person", (await coolerCard.getByLabel("Who liked this").innerText()).trim() === "1");
+  ok("a chirp carries the reactions it was given",
+    (await coolerCard.getByLabel(/^\u2764\ufe0f 1/).count()) === 1 &&
+    (await coolerCard.getByLabel(/^\ud83d\udd25 1/).count()) === 1,
+    "Alana left two different ones");
   // Posting is the one thing that needs a name — same gate as votes and claims.
   const composerBox = page.locator("main div.bg-card").filter({ has: page.getByPlaceholder(/happening at camp/) });
   await composerBox.getByPlaceholder(/happening at camp/).fill("hello from the suite");
@@ -467,8 +470,8 @@ const ok = (name, cond, detail = "") => {
   const cooler = page.locator("main [data-chirp]").filter({ hasText: "second cooler" });
   await cooler.getByLabel("Like", { exact: true }).click();
   await page.waitForTimeout(300);
-  ok("my heart joins the count", (await cooler.getByLabel("Who liked this").innerText()).trim() === "2");
-  await cooler.getByLabel("Who liked this").click();
+  ok("my heart joins the count", (await cooler.getByLabel(/^\u2764\ufe0f 2 \u2014 yours$/).count()) === 1);
+  await cooler.getByLabel("Who reacted").click();
   await page.waitForTimeout(300);
   const likersSheet = page.locator("div.fixed.inset-0.z-50");
   ok("who-liked shows faces", (await likersSheet.getByText("Alana", { exact: true }).count()) === 1
@@ -477,7 +480,27 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(250);
   await cooler.getByLabel("Unlike", { exact: true }).click();
   await page.waitForTimeout(300);
-  ok("unlike takes only mine back", (await cooler.getByLabel("Who liked this").innerText()).trim() === "1");
+  ok("unlike takes only mine back", (await cooler.getByLabel(/^\u2764\ufe0f 1$/).count()) === 1);
+
+  // More than one verb. Joining the fire must not take back the heart.
+  await cooler.getByLabel("Like", { exact: true }).click();
+  await page.waitForTimeout(250);
+  await cooler.getByLabel("Add a reaction").click();
+  await page.waitForTimeout(250);
+  ok("the picker offers a set, not a long-press guess",
+    (await cooler.getByLabel(/^React /).count()) === 5);
+  await cooler.getByLabel("React \ud83d\udd25").click();
+  await page.waitForTimeout(350);
+  ok("a second reaction stands alongside the first",
+    (await cooler.getByLabel(/^\u2764\ufe0f 2 \u2014 yours$/).count()) === 1 &&
+    (await cooler.getByLabel(/^\ud83d\udd25 2 \u2014 yours$/).count()) === 1);
+  await cooler.getByLabel(/^\ud83d\udd25 2/).click();
+  await page.waitForTimeout(350);
+  ok("and tapping a chip leaves just that one",
+    (await cooler.getByLabel(/^\ud83d\udd25 1$/).count()) === 1 &&
+    (await cooler.getByLabel(/^\u2764\ufe0f 2 \u2014 yours$/).count()) === 1);
+  await cooler.getByLabel("Unlike", { exact: true }).click();
+  await page.waitForTimeout(300);
 
   // Replying opens the chirp's own thread. The inline box this replaces went
   // unused for every one of the first six real chirps — three of which were
@@ -514,6 +537,32 @@ const ok = (name, cond, detail = "") => {
   ok("only the author may delete", (await menuSheet.getByRole("button", { name: "Delete" }).count()) === 0);
   await page.keyboard.press("Escape");
   await page.waitForTimeout(250);
+
+  // @mentions. Chris typed "@molida" into the very first real chirp and got
+  // plain text back, so the grammar was already there — only the names were
+  // missing.
+  await composer.getByPlaceholder(/happening at camp/).fill("thanks @Ala");
+  await page.waitForTimeout(300);
+  ok("typing @ offers the roster", await composer.getByLabel("Mention Alana").isVisible());
+  await composer.getByLabel("Mention Alana").click();
+  await page.waitForTimeout(250);
+  ok("picking completes the name",
+    (await composer.getByPlaceholder(/happening at camp/).inputValue()) === "thanks @Alana ");
+  await chirpIt.click();
+  await page.waitForTimeout(400);
+  const mentionPost = page.locator("main [data-chirp]").filter({ hasText: "thanks @Alana" });
+  ok("the mention renders as a tag, not prose",
+    (await mentionPost.locator("span.text-moss.font-semibold").innerText()) === "@Alana");
+  // Being tagged is visible from a scroll rather than found by reading. Chris
+  // is the one signed in here, so a chirp naming Alana must NOT be marked.
+  ok("someone else's mention doesn't mark your feed",
+    (await mentionPost.locator(".border-blaze").count()) === 0);
+  await composer.getByPlaceholder(/happening at camp/).fill("@Chris you're up");
+  await composer.getByRole("button", { name: "Chirp", exact: true }).click();
+  await page.waitForTimeout(400);
+  ok("a chirp naming you is marked",
+    (await page.locator("main [data-chirp]").filter({ hasText: "you're up" })
+      .locator(".border-blaze").count()) === 1);
 
   // Photos: attach two, drop one, post one — the card gets a grid.
   await composer.getByPlaceholder(/happening at camp/).fill("Site marker");

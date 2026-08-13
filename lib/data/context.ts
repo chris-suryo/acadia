@@ -141,8 +141,9 @@ export type DataCtx = {
   addPost: (body: string, files: File[], parentId?: string | null) => Promise<boolean>;
   /** Takes the whole thread with it — replies and hearts cascade. */
   deletePost: (id: string) => void;
-  /** Adds or removes *your* heart — every device you own agrees. */
-  toggleLikePost: (postId: string) => void;
+  /** Adds or removes *your* reaction — every device you own agrees. Defaults
+   *  to the heart, which is what the bare tap has always meant. */
+  toggleLikePost: (postId: string, emoji?: string) => void;
   setPostPinned: (id: string, pinned: boolean) => void;
   expenseShares: ExpenseShare[];
   /** `among` is the members it's split between — equally, to the cent. */

@@ -14,13 +14,14 @@ import {
   Loader2,
   MessageCircle,
   MoreHorizontal,
+  SmilePlus,
   Pin,
   PinOff,
   Trash2,
   X,
 } from "lucide-react";
 import { useData } from "@/lib/data/context";
-import { chirpTime, splitLinks } from "@/lib/chirp";
+import { chirpTime, mentionsIn, splitBody } from "@/lib/chirp";
 import type { Post } from "@/lib/types";
 import { Card, Segmented, SubH } from "./primitives";
 import { Avatar } from "./ui/Avatar";
@@ -30,23 +31,30 @@ import { onFieldFocus } from "./ui/keepVisible";
 
 const MAX_PHOTOS = 4;
 const MAX_CHARS = 280;
+/** The heart is what a bare tap has always meant; the rest are opt-in. */
+const REACTIONS = ["❤️", "🔥", "😂", "🏕️", "👀"];
 
-/** Body text with links tappable — no dangerouslySetInnerHTML. */
-function Body({ text }: { text: string }) {
+/** Body text with links and @mentions tappable — no dangerouslySetInnerHTML. */
+function Body({ text, names }: { text: string; names: string[] }) {
   if (!text) return null;
   return (
     <p className="text-[14.5px] leading-[1.45] text-ink whitespace-pre-wrap break-words m-0 mt-0.5">
-      {splitLinks(text).map((part, i) =>
+      {splitBody(text, names).map((part, i) =>
         part.href ? (
           <a
             key={i}
             href={part.href}
             target="_blank"
             rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
             className="text-moss underline underline-offset-2 break-all"
           >
             {part.text}
           </a>
+        ) : part.mention ? (
+          <span key={i} className="text-moss font-semibold">
+            {part.text}
+          </span>
         ) : (
           <span key={i}>{part.text}</span>
         ),
@@ -97,10 +105,13 @@ function PostCard({
   name,
   time,
   liked,
-  likeCount,
+  reactions,
+  names,
+  mentionsMe,
   replyCount,
   isReply = false,
   onLike,
+  onReact,
   onLikers,
   onReply,
   onOpen,
@@ -111,10 +122,15 @@ function PostCard({
   name: string;
   time: string;
   liked: boolean;
-  likeCount: number;
+  /** Emoji → the people who left it, in the order they arrived. */
+  reactions: { emoji: string; people: string[]; mine: boolean }[];
+  /** The roster, for resolving @mentions in the body. */
+  names: string[];
+  mentionsMe: boolean;
   replyCount?: number;
   isReply?: boolean;
   onLike: () => void;
+  onReact: (emoji: string) => void;
   onLikers: () => void;
   onReply?: () => void;
   /** Tapping the words opens the thread — a second, more obvious way in. */
@@ -122,8 +138,14 @@ function PostCard({
   onMenu: () => void;
   onPhoto: (src: string) => void;
 }) {
+  const [picking, setPicking] = useState(false);
   return (
-    <div className="flex gap-2.5 min-w-0">
+    <div
+      className={`flex gap-2.5 min-w-0 ${
+        // Being tagged should be visible from a scroll, not found by reading.
+        mentionsMe ? "border-l-2 border-blaze -ml-3.5 pl-3" : ""
+      }`}
+    >
       <div className="pt-0.5">
         <Avatar userId={p.user_id} name={name} size={isReply ? 26 : 34} />
       </div>
@@ -141,9 +163,39 @@ function PostCard({
               </span>
             ) : null}
           </div>
-          <Body text={p.body} />
+          <Body text={p.body} names={names} />
         </div>
         <PhotoGrid photos={p.photos} onOpen={onPhoto} />
+
+        {/* What people actually left, grouped. Tapping one joins or leaves it;
+            tapping the count names the people behind it. */}
+        {reactions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            {reactions.map((r) => (
+              <button
+                key={r.emoji}
+                onClick={() => onReact(r.emoji)}
+                aria-label={`${r.emoji} ${r.people.length}${r.mine ? " — yours" : ""}`}
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-[3px] min-h-[26px] cursor-pointer text-[12px] ${
+                  r.mine
+                    ? "border-blaze bg-[#FBEDE4] text-ink"
+                    : "border-rule bg-transparent text-granite"
+                }`}
+              >
+                <span>{r.emoji}</span>
+                <span className="font-mono text-[11px]">{r.people.length}</span>
+              </button>
+            ))}
+            <button
+              onClick={onLikers}
+              aria-label="Who reacted"
+              className="p-1 bg-transparent border-none cursor-pointer font-mono text-[10.5px] text-mute underline underline-offset-2"
+            >
+              who
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center mt-1.5 -mb-1 -ml-1.5">
           <span className="flex items-center">
             <button
@@ -157,15 +209,15 @@ function PostCard({
                 fill={liked ? "currentColor" : "none"}
               />
             </button>
-            {likeCount > 0 ? (
-              <button
-                onClick={onLikers}
-                aria-label="Who liked this"
-                className={`p-1 -ml-1 bg-transparent border-none cursor-pointer font-mono text-[11px] ${liked ? "text-blaze" : "text-mute"}`}
-              >
-                {likeCount}
-              </button>
-            ) : null}
+            {/* A visible "+" beats a long-press nobody guesses at. */}
+            <button
+              onClick={() => setPicking((v) => !v)}
+              aria-label="Add a reaction"
+              aria-expanded={picking}
+              className="p-1.5 bg-transparent border-none cursor-pointer flex items-center text-mute"
+            >
+              <SmilePlus size={16} />
+            </button>
           </span>
           {/* The word matters. This was a bare outline bubble between a heart
               and a "…", and in the first fifteen minutes of real use nobody
@@ -191,6 +243,24 @@ function PostCard({
             <MoreHorizontal size={16} />
           </button>
         </div>
+
+        {picking && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {REACTIONS.map((e) => (
+              <button
+                key={e}
+                onClick={() => {
+                  onReact(e);
+                  setPicking(false);
+                }}
+                aria-label={`React ${e}`}
+                className="w-9 h-9 rounded-full border border-rule bg-card cursor-pointer text-[16px] leading-none"
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -213,13 +283,38 @@ function Composer({
   compact?: boolean;
   onPosted?: () => void;
 }) {
-  const { userId, name, ensureName, addPost } = useData();
+  const { userId, name, members, ensureName, addPost } = useData();
   const [body, setBody] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * The @-picker. Chris typed "@molida" into the very first chirp and got
+   * plain text back, so people already know this grammar — they just need the
+   * names offered rather than spelled correctly from memory.
+   *
+   * Only fires on a trailing, unfinished @word: once a space follows, the
+   * mention is done being written.
+   */
+  const atMatch = /(?:^|\s)@([^\s@]*)$/.exec(body);
+  const atQuery = atMatch?.[1] ?? null;
+  const atHits =
+    atQuery === null
+      ? []
+      : members
+          .filter((m) => m.name.toLowerCase().startsWith(atQuery.toLowerCase()))
+          .slice(0, 5);
+
+  const pickMention = (who: string) => {
+    // Replace just the partial @word being typed, leaving the rest alone.
+    setBody((b) => b.replace(/(?:^|\s)@([^\s@]*)$/, (whole) =>
+      `${whole.startsWith(" ") ? " " : ""}@${who} `,
+    ));
+    taRef.current?.focus();
+  };
 
   // Autosize: the box grows with the chirp instead of scrolling inside itself.
   useEffect(() => {
@@ -281,6 +376,21 @@ function Composer({
           aria-label={placeholder}
           className="w-full resize-none border-none bg-transparent p-0 pt-1 text-[16px] leading-[1.4] text-ink placeholder:text-faint focus:outline-none"
         />
+        {atHits.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {atHits.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => pickMention(m.name)}
+                aria-label={`Mention ${m.name}`}
+                className="inline-flex items-center gap-1.5 rounded-full border border-moss bg-[#E9EEE4] pl-1 pr-2.5 py-1 min-h-[32px] cursor-pointer text-[13px] text-ink"
+              >
+                <Avatar userId={m.id} name={m.name} size={22} />
+                {m.name}
+              </button>
+            ))}
+          </div>
+        )}
         {previews.length > 0 && (
           <div className="flex gap-2 mt-1.5 flex-wrap">
             {previews.map((src, i) => (
@@ -359,6 +469,7 @@ export function Chirp() {
     toggleLikePost,
     deletePost,
     setPostPinned,
+    myMemberId,
   } = useData();
 
   const [view, setViewState] = useState("feed");
@@ -417,7 +528,7 @@ export function Chirp() {
       .filter((p) => p.parent_id === id)
       .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
-  /** One heart per person, whatever devices it arrived from. */
+  /** Everyone who reacted at all, one entry per person. */
   const likersOf = (id: string) => {
     const seen = new Set<string>();
     const out: string[] = [];
@@ -431,8 +542,31 @@ export function Chirp() {
     return out;
   };
 
+  /** Grouped by emoji, counted per person — two of your phones are one 🔥. */
+  const reactionsOf = (id: string) => {
+    const groups = new Map<string, { people: string[]; seen: Set<string>; mine: boolean }>();
+    for (const l of postLikes) {
+      if (l.post_id !== id) continue;
+      const g = groups.get(l.emoji) ?? { people: [], seen: new Set(), mine: false };
+      const who = memberOf(l.user_id) || l.user_id;
+      if (!g.seen.has(who)) {
+        g.seen.add(who);
+        g.people.push(l.user_id);
+      }
+      if (isMe(l.user_id)) g.mine = true;
+      groups.set(l.emoji, g);
+    }
+    // Most-reacted first, so the chip row doesn't reshuffle as people join.
+    return [...groups.entries()]
+      .map(([emoji, g]) => ({ emoji, people: g.people, mine: g.mine }))
+      .sort((a, b) => b.people.length - a.people.length || a.emoji.localeCompare(b.emoji));
+  };
+
   const iLike = (id: string) =>
-    postLikes.some((l) => l.post_id === id && isMe(l.user_id));
+    postLikes.some((l) => l.post_id === id && l.emoji === "❤️" && isMe(l.user_id));
+
+  const rosterNames = useMemo(() => members.map((m) => m.name), [members]);
+  const myName = members.find((m) => m.id === myMemberId)?.name ?? "";
 
   const openPhoto = (p: Post, src: string) =>
     setLightbox({
@@ -464,8 +598,11 @@ export function Chirp() {
     name: nameOf(p.user_id),
     time: chirpTime(p.created_at, now),
     liked: iLike(p.id),
-    likeCount: likersOf(p.id).length,
+    reactions: reactionsOf(p.id),
+    names: rosterNames,
+    mentionsMe: !!myName && mentionsIn(p.body, rosterNames).includes(myName),
     onLike: () => toggleLikePost(p.id),
+    onReact: (emoji: string) => toggleLikePost(p.id, emoji),
     onLikers: () => setLikersFor(p.id),
     onMenu: () => setMenuFor(p.id),
     onPhoto: (src: string) => openPhoto(p, src),

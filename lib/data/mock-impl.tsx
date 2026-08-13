@@ -179,7 +179,10 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
     },
   ]);
   const [postLikes, setPostLikes] = useState<PostLike[]>([
-    { post_id: "post-alana-1", user_id: ALANA },
+    { post_id: "post-alana-1", user_id: ALANA, emoji: "❤️" },
+    // A second emoji from the same person on the same chirp — the shape the
+    // widened primary key exists for.
+    { post_id: "post-alana-1", user_id: ALANA, emoji: "🔥" },
   ]);
 
   const value = useMemo<DataCtx>(() => {
@@ -532,11 +535,16 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       deletePost: (id) =>
         setPosts((prev) => prev.filter((p) => p.id !== id && p.parent_id !== id)),
       // Freshest state inside the updater — the same double-tap guard as votes.
-      toggleLikePost: (postId) =>
+      toggleLikePost: (postId, emoji = "❤️") =>
         setPostLikes((prev) =>
-          prev.some((l) => l.post_id === postId && l.user_id === ME)
-            ? prev.filter((l) => !(l.post_id === postId && l.user_id === ME))
-            : [...prev, { post_id: postId, user_id: ME }],
+          prev.some(
+            (l) => l.post_id === postId && l.user_id === ME && l.emoji === emoji,
+          )
+            ? prev.filter(
+                (l) =>
+                  !(l.post_id === postId && l.user_id === ME && l.emoji === emoji),
+              )
+            : [...prev, { post_id: postId, user_id: ME, emoji }],
         ),
       setPostPinned: (id, pinned) =>
         setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, pinned } : p))),

@@ -834,7 +834,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   );
 
   const toggleLikePost = useCallback(
-    (postId: string) => {
+    (postId: string, emoji = "❤️") => {
       const uid = userIdRef.current;
       if (!uid) return;
       // Hearts follow the person, not the device: a like given in Safari must
@@ -846,16 +846,20 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         ? profileRowsRef.current.filter((p) => p.member_id === mid).map((p) => p.id)
         : [uid];
       if (!myIds.includes(uid)) myIds.push(uid);
+      // Scoped to this emoji, so joining the 🔥 doesn't take back your ❤️.
+      const mine = (l: { post_id: string; user_id: string; emoji: string }) =>
+        l.post_id === postId && l.emoji === emoji && myIds.includes(l.user_id);
       // The ref, not the render closure — the toggleVote double-tap lesson.
-      const had = likesRef.current.some(
-        (l) => l.post_id === postId && myIds.includes(l.user_id),
-      );
+      const had = likesRef.current.some(mine);
       setPostLikes((prev) =>
         had
-          ? prev.filter((l) => !(l.post_id === postId && myIds.includes(l.user_id)))
-          : prev.some((l) => l.post_id === postId && l.user_id === uid)
+          ? prev.filter((l) => !mine(l))
+          : prev.some(
+                (l) =>
+                  l.post_id === postId && l.user_id === uid && l.emoji === emoji,
+              )
             ? prev
-            : [...prev, { post_id: postId, user_id: uid }],
+            : [...prev, { post_id: postId, user_id: uid, emoji }],
       );
       persist(
         had
@@ -863,10 +867,11 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
               .from("post_likes")
               .delete()
               .eq("post_id", postId)
+              .eq("emoji", emoji)
               .in("user_id", myIds)
           : supabase.from("post_likes").upsert(
-              { post_id: postId, user_id: uid },
-              { onConflict: "post_id,user_id", ignoreDuplicates: true },
+              { post_id: postId, user_id: uid, emoji },
+              { onConflict: "post_id,user_id,emoji", ignoreDuplicates: true },
             ),
         "post_likes",
       );
