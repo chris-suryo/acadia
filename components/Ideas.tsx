@@ -1,13 +1,20 @@
 "use client";
 
-// The Ideas board: everyone's questionnaire answers as cards. Your own card
-// edits inline with the same chips as the intro — chip taps save instantly,
-// the two type-ins save on Done or tap-away. Others' cards are read-only.
+// The Ideas board: who's coming, and what each of them wants.
+//
+// This used to be a stack of full cards, one per person who'd answered — which
+// meant two problems at once. Nine cards of prose was the longest wall of text
+// in the app, and anyone who hadn't answered simply wasn't on it, so the one
+// screen that should say "here's the group" couldn't answer "is everyone in?".
+//
+// Now the roster leads: every person on the trip is a face, whether or not
+// they've opened the app, and their answers live one tap deep.
 
 import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { Btn, Card, Input } from "./primitives";
 import { Avatar } from "./ui/Avatar";
+import { BottomSheet } from "./ui/BottomSheet";
 import { Chips, MultiChips } from "./ui/Chips";
 import { useOutside } from "./ui/useOutside";
 import {
@@ -74,10 +81,23 @@ function CardBody({ s, name }: { s: SurveyRow; name: string }) {
 }
 
 export function Ideas() {
-  const { surveys, profiles, userId, isMe, memberOf, name, upsertSurvey, ensureName } =
-    useData();
+  const {
+    surveys,
+    profiles,
+    userId,
+    isMe,
+    memberOf,
+    members,
+    memberAvatars,
+    myMemberId,
+    claimedMembers,
+    name,
+    upsertSurvey,
+    ensureName,
+  } = useData();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<TextDraft>({ food: "", hikes: "" });
+  const [openPerson, setOpenPerson] = useState<string | null>(null);
   const editRef = useRef<HTMLDivElement | null>(null);
 
   // Everything you've answered, from whichever of your devices you answered it
@@ -86,23 +106,31 @@ export function Ideas() {
   const myRows = surveys.filter((s) => isMe(s.user_id) || s.user_id === userId);
   const mine = mergeSurvey(myRows);
   const vibes = splitVibes(mine?.wants ?? "");
+
   /**
-   * Everyone else's answers, one card per person.
+   * Every person on the trip, with whatever they've said.
    *
-   * A row belongs to a device, and adding the app to a Home Screen mints a
-   * second device for the same human — so someone who answered in Safari and
-   * again in the installed app had two cards here, side by side, under one
-   * name. Merged per field rather than newest-row-wins, because two devices
-   * turned out to hold complementary halves of one answer.
+   * Keyed off the roster rather than off the answers, because the people who
+   * haven't answered are exactly the ones worth seeing: someone who joined and
+   * skipped the questions looks identical to someone who never opened the app
+   * if the only thing on screen is a list of answers.
+   *
+   * A row belongs to a device and iOS mints a second one per Home Screen
+   * install, so answers are merged per person before they're looked up here.
    */
-  const others = surveysByPerson(
-    surveys.filter((s) => !isMe(s.user_id)),
-    memberOf,
-  )
-    .filter(answered)
-    .sort((a, b) =>
-      (profiles[a.user_id] || "").localeCompare(profiles[b.user_id] || ""),
-    );
+  const answerFor = new Map<string, SurveyRow>();
+  for (const s of surveysByPerson(surveys, memberOf)) {
+    const mid = memberOf(s.user_id);
+    if (mid && answered(s)) answerFor.set(mid, s);
+  }
+  const crew = members.map((m) => ({
+    member: m,
+    answer: answerFor.get(m.id),
+    joined: claimedMembers.includes(m.id),
+    isYou: m.id === myMemberId,
+  }));
+  const joinedCount = crew.filter((c) => c.joined).length;
+  const open = openPerson ? crew.find((c) => c.member.id === openPerson) : undefined;
 
   const startEdit = () => {
     setDraft({ food: mine?.food ?? "", hikes: mine?.hikes ?? "" });
@@ -217,17 +245,92 @@ export function Ideas() {
         </Card>
       )}
 
-      {others.map((s) => (
-        <Card key={s.user_id} className="px-3.5 py-3 mb-3">
-          <CardBody s={s} name={profiles[s.user_id]?.trim() || "Someone"} />
-        </Card>
-      ))}
+      {/* Everyone, faces first. A person who hasn't opened the app is dimmed
+          rather than absent — the gap is the useful part. */}
+      <div className="flex items-baseline justify-between mb-2 mt-5">
+        <span className="font-mono text-[10.5px] tracking-[.1em] uppercase text-granite">
+          Who&apos;s coming
+        </span>
+        <span className="font-mono text-[10.5px] text-blaze">
+          {joinedCount} of {crew.length} in
+        </span>
+      </div>
+      <div className="grid grid-cols-4 gap-x-1 gap-y-3 mb-1">
+        {crew.map(({ member, answer, joined, isYou }) => (
+          <button
+            key={member.id}
+            onClick={() => setOpenPerson(member.id)}
+            aria-label={`${member.name}${answer ? "" : " — hasn't weighed in"}`}
+            className={`flex flex-col items-center gap-1 bg-transparent border-none cursor-pointer p-1 ${
+              joined ? "" : "opacity-40"
+            }`}
+          >
+            <Avatar
+              userId={member.id}
+              url={memberAvatars[member.id]}
+              name={member.name}
+              size={44}
+            />
+            <span className="max-w-full truncate text-[11.5px] text-ink">
+              {member.name.split(" ")[0]}
+              {isYou ? " (you)" : ""}
+            </span>
+            {/* A dot rather than a sentence: twelve "answered / hasn't
+                answered" labels would be the wall of text this replaced. */}
+            <span
+              aria-hidden
+              className={`w-1.5 h-1.5 rounded-full ${
+                answer ? "bg-moss" : joined ? "bg-[#D8D2C0]" : "bg-transparent"
+              }`}
+            />
+          </button>
+        ))}
+      </div>
 
-      {others.length === 0 && (
-        <div className="p-5 text-[13.5px] text-mute text-center">
-          Nobody else has weighed in yet.
-        </div>
-      )}
+      <BottomSheet open={!!open} onClose={() => setOpenPerson(null)}>
+        {open && (
+          <>
+            {open.answer ? (
+              <CardBody
+                s={open.answer}
+                name={profiles[open.answer.user_id]?.trim() || open.member.name}
+              />
+            ) : (
+              <div className="flex items-center gap-2.5">
+                <Avatar
+                  userId={open.member.id}
+                  url={memberAvatars[open.member.id]}
+                  name={open.member.name}
+                  size={32}
+                />
+                <div>
+                  <div className="text-[14.5px] font-semibold text-ink">
+                    {open.member.name}
+                  </div>
+                  <div className="font-mono text-[11px] text-mute mt-0.5">
+                    {open.joined
+                      ? "hasn't answered the questions yet"
+                      : "hasn't opened the app yet"}
+                  </div>
+                </div>
+              </div>
+            )}
+            {open.isYou && (
+              <div className="mt-4 flex justify-end">
+                <Btn
+                  small
+                  onClick={() => {
+                    setOpenPerson(null);
+                    ensureName(startEdit);
+                  }}
+                >
+                  Edit yours
+                </Btn>
+              </div>
+            )}
+          </>
+        )}
+      </BottomSheet>
     </>
   );
 }

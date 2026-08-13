@@ -60,9 +60,28 @@ const ok = (name, cond, detail = "") => {
   // The itinerary is the trip and nothing else — no card of asks above it.
   ok("nothing above the schedule", (await page.getByText("Before Friday").count()) === 0);
   ok("what people want section", await page.getByText("What people want").isVisible());
-  ok("alana idea card below schedule", await page.getByText("Beehive if the ladders aren't crowded").isVisible());
+  // The roster leads the board now: everyone on the trip is a face, including
+  // whoever hasn't opened the app, and the answers live one tap deep. The old
+  // stack of full cards was the longest wall of text in the app and still
+  // couldn't answer "is everyone in?".
+  ok("who's coming section", await page.getByText("Who's coming").isVisible());
+  const crew = page.locator("main").getByRole("button", { name: /^Alana/ });
+  ok("everyone has a face, answered or not", (await page.locator("main .grid-cols-4 > button").count()) === 11,
+    `${await page.locator("main .grid-cols-4 > button").count()} on the roster strip`);
+  ok("the count says how many are in", await page.getByText(/^\d+ of \d+ in$/).isVisible());
+  // Someone who hasn't answered is dimmed rather than missing.
+  ok("the un-joined are shown, not hidden",
+    (await page.locator("main .grid-cols-4 > button.opacity-40").count()) > 0);
+  await crew.click();
+  await page.waitForTimeout(350);
+  const ideaSheet = page.locator("div.fixed.inset-0.z-50");
+  ok("a face opens that person's answers", await ideaSheet.getByText("Beehive if the ladders aren't crowded").isVisible());
   // Food requests live here now — the Food tab is votes and a list, nothing else.
-  ok("food requests show on the ideas board", await page.getByText("S'mores. Non-negotiable.").isVisible());
+  ok("food requests show on the ideas board", await ideaSheet.getByText("S'mores. Non-negotiable.").isVisible());
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  ok("board is faces, not paragraphs",
+    (await page.getByText("Beehive if the ladders aren't crowded").count()) === 0);
   ok("add yours ghost", await page.getByRole("button", { name: "Add yours" }).isVisible());
   const schedThumbs = await page.locator('[data-day] img.w-11').count();
   ok("schedule entry photos", schedThumbs === 3, `${schedThumbs} linked-entry thumbs`);
@@ -553,7 +572,16 @@ const ok = (name, cond, detail = "") => {
   await page.waitForTimeout(300);
   ok("vibes saved to card", await page.getByText("A big hike · Swimming", { exact: true }).isVisible());
   ok("idea card saved on tap-away", await page.getByText("Great Head sunrise").isVisible());
-  ok("pace chips on cards", (await page.getByText("Wander, no plan").count()) === 1 && (await page.getByText("One good hike").count()) === 1, "mine + Alana");
+  // Your own answer stays on the page — it's the call to action. Everyone
+  // else's pace is one tap into their face.
+  ok("your pace shows on your own card", (await page.getByText("Wander, no plan").count()) === 1);
+  ok("nobody else's prose is on the page", (await page.getByText("One good hike").count()) === 0);
+  await page.locator("main").getByRole("button", { name: /^Alana/ }).click();
+  await page.waitForTimeout(350);
+  ok("their pace is one tap away",
+    await page.locator("div.fixed.inset-0.z-50").getByText("One good hike").isVisible());
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
   // Alana's mock avatar URL 404s on purpose. A photo that can't load has to
   // fall back to the initial — on iOS a bare broken <img> renders as "?",
   // which is exactly what a just-uploaded photo looks like while the storage
