@@ -180,9 +180,6 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   ]);
   const [postLikes, setPostLikes] = useState<PostLike[]>([
     { post_id: "post-alana-1", user_id: ALANA, emoji: "❤️" },
-    // A second emoji from the same person on the same chirp — the shape the
-    // widened primary key exists for.
-    { post_id: "post-alana-1", user_id: ALANA, emoji: "🔥" },
   ]);
 
   const value = useMemo<DataCtx>(() => {

@@ -14,14 +14,13 @@ import {
   Loader2,
   MessageCircle,
   MoreHorizontal,
-  SmilePlus,
   Pin,
   PinOff,
   Trash2,
   X,
 } from "lucide-react";
 import { useData } from "@/lib/data/context";
-import { chirpTime, mentionsIn, splitBody } from "@/lib/chirp";
+import { EVERYONE, chirpTime, splitBody, tagsPerson } from "@/lib/chirp";
 import type { Post } from "@/lib/types";
 import { Card, Segmented, SubH } from "./primitives";
 import { Avatar } from "./ui/Avatar";
@@ -31,8 +30,6 @@ import { onFieldFocus } from "./ui/keepVisible";
 
 const MAX_PHOTOS = 4;
 const MAX_CHARS = 280;
-/** The heart is what a bare tap has always meant; the rest are opt-in. */
-const REACTIONS = ["❤️", "🔥", "😂", "🏕️", "👀"];
 
 /** Body text with links and @mentions tappable — no dangerouslySetInnerHTML. */
 function Body({ text, names }: { text: string; names: string[] }) {
@@ -105,13 +102,12 @@ function PostCard({
   name,
   time,
   liked,
-  reactions,
+  likeCount,
   names,
   mentionsMe,
   replyCount,
   isReply = false,
   onLike,
-  onReact,
   onLikers,
   onReply,
   onOpen,
@@ -122,15 +118,13 @@ function PostCard({
   name: string;
   time: string;
   liked: boolean;
-  /** Emoji → the people who left it, in the order they arrived. */
-  reactions: { emoji: string; people: string[]; mine: boolean }[];
+  likeCount: number;
   /** The roster, for resolving @mentions in the body. */
   names: string[];
   mentionsMe: boolean;
   replyCount?: number;
   isReply?: boolean;
   onLike: () => void;
-  onReact: (emoji: string) => void;
   onLikers: () => void;
   onReply?: () => void;
   /** Tapping the words opens the thread — a second, more obvious way in. */
@@ -138,7 +132,6 @@ function PostCard({
   onMenu: () => void;
   onPhoto: (src: string) => void;
 }) {
-  const [picking, setPicking] = useState(false);
   return (
     <div
       className={`flex gap-2.5 min-w-0 ${
@@ -167,36 +160,9 @@ function PostCard({
         </div>
         <PhotoGrid photos={p.photos} onOpen={onPhoto} />
 
-        {/* What people actually left, grouped. Tapping one joins or leaves it;
-            tapping the count names the people behind it. */}
-        {reactions.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-2">
-            {reactions.map((r) => (
-              <button
-                key={r.emoji}
-                onClick={() => onReact(r.emoji)}
-                aria-label={`${r.emoji} ${r.people.length}${r.mine ? " — yours" : ""}`}
-                className={`inline-flex items-center gap-1 rounded-full border px-2 py-[3px] min-h-[26px] cursor-pointer text-[12px] ${
-                  r.mine
-                    ? "border-blaze bg-[#FBEDE4] text-ink"
-                    : "border-rule bg-transparent text-granite"
-                }`}
-              >
-                <span>{r.emoji}</span>
-                <span className="font-mono text-[11px]">{r.people.length}</span>
-              </button>
-            ))}
-            <button
-              onClick={onLikers}
-              aria-label="Who reacted"
-              className="p-1 bg-transparent border-none cursor-pointer font-mono text-[10.5px] text-mute underline underline-offset-2"
-            >
-              who
-            </button>
-          </div>
-        )}
-
         <div className="flex items-center mt-1.5 -mb-1 -ml-1.5">
+          {/* One verb. A row of five emoji was more machinery than a group of
+              twelve needs to say "nice". */}
           <span className="flex items-center">
             <button
               onClick={onLike}
@@ -209,15 +175,15 @@ function PostCard({
                 fill={liked ? "currentColor" : "none"}
               />
             </button>
-            {/* A visible "+" beats a long-press nobody guesses at. */}
-            <button
-              onClick={() => setPicking((v) => !v)}
-              aria-label="Add a reaction"
-              aria-expanded={picking}
-              className="p-1.5 bg-transparent border-none cursor-pointer flex items-center text-mute"
-            >
-              <SmilePlus size={16} />
-            </button>
+            {likeCount > 0 ? (
+              <button
+                onClick={onLikers}
+                aria-label="Who liked this"
+                className={`p-1 -ml-1 bg-transparent border-none cursor-pointer font-mono text-[11px] ${liked ? "text-blaze" : "text-mute"}`}
+              >
+                {likeCount}
+              </button>
+            ) : null}
           </span>
           {/* The word matters. This was a bare outline bubble between a heart
               and a "…", and in the first fifteen minutes of real use nobody
@@ -243,24 +209,6 @@ function PostCard({
             <MoreHorizontal size={16} />
           </button>
         </div>
-
-        {picking && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {REACTIONS.map((e) => (
-              <button
-                key={e}
-                onClick={() => {
-                  onReact(e);
-                  setPicking(false);
-                }}
-                aria-label={`React ${e}`}
-                className="w-9 h-9 rounded-full border border-rule bg-card cursor-pointer text-[16px] leading-none"
-              >
-                {e}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -301,12 +249,19 @@ function Composer({
    */
   const atMatch = /(?:^|\s)@([^\s@]*)$/.exec(body);
   const atQuery = atMatch?.[1] ?? null;
+  // "everyone" leads, because reaching the whole trip is the thing you'd
+  // otherwise do by typing out twelve names.
   const atHits =
     atQuery === null
       ? []
-      : members
-          .filter((m) => m.name.toLowerCase().startsWith(atQuery.toLowerCase()))
-          .slice(0, 5);
+      : [
+          ...(EVERYONE.startsWith(atQuery.toLowerCase())
+            ? [{ id: EVERYONE, name: EVERYONE }]
+            : []),
+          ...members.filter((m) =>
+            m.name.toLowerCase().startsWith(atQuery.toLowerCase()),
+          ),
+        ].slice(0, 5);
 
   const pickMention = (who: string) => {
     // Replace just the partial @word being typed, leaving the rest alone.
@@ -412,7 +367,11 @@ function Composer({
             ))}
           </div>
         )}
-        <div className="flex items-center mt-1 border-t border-rule pt-1.5">
+        {/* No rule across the box. A full-width hairline under one line of
+            placeholder cut the composer in half and read as a field border
+            that had come loose. The controls sit close under the text and
+            carry themselves. */}
+        <div className="flex items-center gap-1 mt-1.5">
           <input
             ref={fileRef}
             type="file"
@@ -528,12 +487,18 @@ export function Chirp() {
       .filter((p) => p.parent_id === id)
       .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
-  /** Everyone who reacted at all, one entry per person. */
+  /**
+   * One heart per person, whatever devices it arrived from.
+   *
+   * Filtered to the heart because the table briefly carried other emoji: the
+   * column stays (dropping it would mean a second primary-key change on live
+   * data for no gain) but the feed speaks one verb again.
+   */
   const likersOf = (id: string) => {
     const seen = new Set<string>();
     const out: string[] = [];
     for (const l of postLikes) {
-      if (l.post_id !== id) continue;
+      if (l.post_id !== id || l.emoji !== "❤️") continue;
       const who = memberOf(l.user_id) || l.user_id;
       if (seen.has(who)) continue;
       seen.add(who);
@@ -542,31 +507,12 @@ export function Chirp() {
     return out;
   };
 
-  /** Grouped by emoji, counted per person — two of your phones are one 🔥. */
-  const reactionsOf = (id: string) => {
-    const groups = new Map<string, { people: string[]; seen: Set<string>; mine: boolean }>();
-    for (const l of postLikes) {
-      if (l.post_id !== id) continue;
-      const g = groups.get(l.emoji) ?? { people: [], seen: new Set(), mine: false };
-      const who = memberOf(l.user_id) || l.user_id;
-      if (!g.seen.has(who)) {
-        g.seen.add(who);
-        g.people.push(l.user_id);
-      }
-      if (isMe(l.user_id)) g.mine = true;
-      groups.set(l.emoji, g);
-    }
-    // Most-reacted first, so the chip row doesn't reshuffle as people join.
-    return [...groups.entries()]
-      .map(([emoji, g]) => ({ emoji, people: g.people, mine: g.mine }))
-      .sort((a, b) => b.people.length - a.people.length || a.emoji.localeCompare(b.emoji));
-  };
-
   const iLike = (id: string) =>
     postLikes.some((l) => l.post_id === id && l.emoji === "❤️" && isMe(l.user_id));
 
   const rosterNames = useMemo(() => members.map((m) => m.name), [members]);
   const myName = members.find((m) => m.id === myMemberId)?.name ?? "";
+  const tagsMe = (body: string) => tagsPerson(body, rosterNames, myName);
 
   const openPhoto = (p: Post, src: string) =>
     setLightbox({
@@ -598,11 +544,11 @@ export function Chirp() {
     name: nameOf(p.user_id),
     time: chirpTime(p.created_at, now),
     liked: iLike(p.id),
-    reactions: reactionsOf(p.id),
+    likeCount: likersOf(p.id).length,
     names: rosterNames,
-    mentionsMe: !!myName && mentionsIn(p.body, rosterNames).includes(myName),
+    // @everyone reaches you the same way your own name does.
+    mentionsMe: tagsMe(p.body),
     onLike: () => toggleLikePost(p.id),
-    onReact: (emoji: string) => toggleLikePost(p.id, emoji),
     onLikers: () => setLikersFor(p.id),
     onMenu: () => setMenuFor(p.id),
     onPhoto: (src: string) => openPhoto(p, src),

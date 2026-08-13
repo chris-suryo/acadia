@@ -61,8 +61,12 @@ export function splitLinks(body: string): TextPart[] {
  * emoji in that name is why this compares slices rather than using a word
  * boundary — Postgres and JS disagree about where one falls next to 🍀.
  */
+/** Reaches the whole trip. "@everyone" is the one people reach for first. */
+export const EVERYONE = "everyone";
+const EVERYONE_ALIASES = ["everyone", "channel", "all", "here"];
+
 export function splitBody(body: string, names: string[]): TextPart[] {
-  const roster = [...names]
+  const roster = [...names, ...EVERYONE_ALIASES]
     .filter(Boolean)
     .sort((a, b) => b.length - a.length);
   const out: TextPart[] = [];
@@ -90,13 +94,22 @@ export function splitBody(body: string, names: string[]): TextPart[] {
   return out;
 }
 
-/** Who a chirp tags, by roster name. */
+/** Who a chirp tags, by roster name — or EVERYONE for an @everyone. */
 export function mentionsIn(body: string, names: string[]): string[] {
   return [
     ...new Set(
       splitBody(body, names)
         .filter((p) => p.mention)
-        .map((p) => p.mention!),
+        .map((p) =>
+          EVERYONE_ALIASES.includes(p.mention!) ? EVERYONE : p.mention!,
+        ),
     ),
   ];
+}
+
+/** Does this chirp tag `me` — by name, or by tagging the whole trip? */
+export function tagsPerson(body: string, names: string[], me: string): boolean {
+  if (!me) return false;
+  const tagged = mentionsIn(body, names);
+  return tagged.includes(me) || tagged.includes(EVERYONE);
 }

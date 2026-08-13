@@ -5,7 +5,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { chirpTime, mentionsIn, splitBody, splitLinks } from "../lib/chirp.ts";
+import { chirpTime, mentionsIn, splitBody, splitLinks, tagsPerson } from "../lib/chirp.ts";
 
 // The real roster, emoji and all.
 const ROSTER = [
@@ -100,4 +100,26 @@ test("who a chirp tags, de-duplicated", () => {
     "Molida",
   ]);
   assert.deepEqual(mentionsIn("nobody", ROSTER), []);
+});
+
+test("@everyone reaches the whole trip", () => {
+  // The alias people reach for varies; they all mean the same thing.
+  for (const word of ["everyone", "channel", "all", "here"]) {
+    assert.deepEqual(mentionsIn(`heads up @${word}`, ROSTER), ["everyone"]);
+    assert.equal(tagsPerson(`heads up @${word}`, ROSTER, "Sng"), true);
+  }
+});
+
+test("an @everyone tags people who were never named", () => {
+  // Sng isn't in the text at all, but is on the trip.
+  assert.equal(tagsPerson("@everyone we leave at 7", ROSTER, "Sng"), true);
+  // ...and a plain chirp tags nobody.
+  assert.equal(tagsPerson("we leave at 7", ROSTER, "Sng"), false);
+  // A name still tags only that person.
+  assert.equal(tagsPerson("@Chris we leave at 7", ROSTER, "Sng"), false);
+  assert.equal(tagsPerson("@Chris we leave at 7", ROSTER, "Chris"), true);
+});
+
+test("nobody is tagged when we don't know who you are", () => {
+  assert.equal(tagsPerson("@everyone hello", ROSTER, ""), false);
 });
