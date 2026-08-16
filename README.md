@@ -34,7 +34,7 @@ memberAvatars     →  a person's photo, borrowed from any device they've used
 
 **Every count in the app de-duplicates through `memberOf`** — dish votes, hearts, gear claims, poll answers, the "what everyone wants" bars, the expense split. If you add a feature that counts something, count people.
 
-## The 19 tables
+## The 20 tables
 
 **Identity** — `members` (the twelve, plus a Venmo handle), `profiles` (devices, each pointing at a member).
 
@@ -44,7 +44,7 @@ memberAvatars     →  a person's photo, borrowed from any device they've used
 
 **Food** — `menu_items` (dishes; `votable` marks the two slots put to a vote), `menu_votes`, `shopping_items` (ingredients link back to a dish via `menu_item_id`; a null means somebody added it by hand).
 
-**Money** — `expenses`, `expense_shares` (who a cost was split between — rows, not a count, so adding someone later is never retroactive), `settlements` (someone paying someone back), `expense_receipts` (photo paths).
+**Money** — `expenses`, `expense_shares` (who a cost was split between — rows, not a count, so adding someone later is never retroactive), `settlements` (someone paying someone back), `expense_receipts` (photo paths), `split_groups` (a named set of people — "Chris's car" — so a subset split is picked once and reused; it holds no money and nothing references it, so applying one just writes ordinary `expense_shares`).
 
 **Feed** — `posts` (a chirp; `parent_id` points at the *root* so threads stay one level deep, `poll_options` makes it a poll), `post_likes`, `post_poll_votes`.
 
@@ -60,7 +60,7 @@ Functions are `security invoker` so they inherit the caller's RLS. `trip_snapsho
 
 ## Realtime
 
-17 of the 19 tables publish to `supabase_realtime`. The two that don't: `itinerary_days` never changes, and `personal_items` is private — broadcasting it would push one person's list to everyone.
+18 of the 20 tables publish to `supabase_realtime`. The two that don't: `itinerary_days` never changes, and `personal_items` is private — broadcasting it would push one person's list to everyone.
 
 Events are **not** applied row by row. A change marks its table dirty and a trailing 250ms timer re-reads that table once (`REALTIME_COALESCE_MS`). A batched write — dragging to reorder, ticking a merged shopping line — is one event per row, and refetching per event would turn one person's drag into a burst of full-table reads on every phone at the campsite.
 
@@ -79,7 +79,7 @@ Blackwoods has almost no signal. This is the design constraint, not an edge case
 
 A pill above the tab bar counts what's waiting. **The honest boundary:** queued writes survive an hour in a pocket with no signal, not the tab being killed. Optimistic state is in memory too, so both are lost together — the app never shows a tick it isn't still trying to save.
 
-**Boot** is one round trip: `trip_snapshot()` returns all 18 boot tables as one JSON object. It used to be 18 `select *` calls. Any failure — function missing, shape unrecognised, network wobble — falls through to exactly those 18 fetches, so the worst case is the old case. One extra guard: called without a session the function answers `200` with 19 *empty* arrays (RLS correctly refusing an anonymous caller), which is a valid shape and a useless answer, so an empty roster is treated as no answer rather than allowed to blank the cache.
+**Boot** is one round trip: `trip_snapshot()` returns all 19 boot tables as one JSON object. It used to be that many `select *` calls. Any failure — function missing, shape unrecognised, network wobble — falls through to exactly those per-table fetches, so the worst case is the old case. **The table list is enumerated in three places** — the SQL function, `BOOT_TABLES` and `REALTIME_TABLES` — and a new table missing from any of them arrives empty on first paint, which looks exactly like a bug and isn't one. One extra guard: called without a session the function answers `200` with 20 *empty* arrays (RLS correctly refusing an anonymous caller), which is a valid shape and a useless answer, so an empty roster is treated as no answer rather than allowed to blank the cache.
 
 ## Storage
 

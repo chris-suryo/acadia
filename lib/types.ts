@@ -21,6 +21,20 @@ export type Member = {
   venmo: string;
 };
 
+/**
+ * A named set of people to split with — "Chris's car", "the hikers".
+ *
+ * Holds no money and is referenced by nothing: applying one writes ordinary
+ * `expense_shares` rows, so an expense keeps the split it was given even if
+ * the group is later renamed or deleted.
+ */
+export type SplitGroup = {
+  id: string;
+  label: string;
+  member_ids: string[];
+  created_at: string;
+};
+
 /** Somebody paying somebody back. Not an expense — nothing was bought. */
 export type Settlement = {
   id: string;

@@ -35,6 +35,7 @@ import type {
   Receipt,
   Settlement,
   ShoppingItem,
+  SplitGroup,
   SurveyRow,
 } from "@/lib/types";
 
@@ -66,6 +67,7 @@ type Table =
   | "expense_shares"
   | "expense_receipts"
   | "settlements"
+  | "split_groups"
   | "survey"
   | "forecast_cache"
   | "posts"
@@ -85,6 +87,7 @@ const REALTIME_TABLES: Table[] = [
   "expense_shares",
   "expense_receipts",
   "settlements",
+  "split_groups",
   "survey",
   "forecast_cache",
   "posts",
@@ -129,6 +132,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [receiptRows, setReceiptRows] = useState<Receipt[]>([]);
   const [signedReceipts, setSignedReceipts] = useState<Record<string, string>>({});
   const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [splitGroups, setSplitGroups] = useState<SplitGroup[]>([]);
   const [surveys, setSurveys] = useState<SurveyRow[]>([]);
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -186,6 +190,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
           break;
         case "settlements":
           setSettlements(data as Settlement[]);
+          break;
+        case "split_groups":
+          setSplitGroups(data as SplitGroup[]);
           break;
         case "survey":
           setSurveys(data as SurveyRow[]);
@@ -249,6 +256,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     "expense_shares",
     "expense_receipts",
     "settlements",
+    "split_groups",
     "survey",
     "posts",
     "post_likes",
@@ -808,6 +816,28 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     [supabase, persist],
   );
 
+  const addSplitGroup = useCallback(
+    (label: string, memberIds: string[]) => {
+      const row: SplitGroup = {
+        id: newId(),
+        label,
+        member_ids: memberIds,
+        created_at: new Date().toISOString(),
+      };
+      setSplitGroups((prev) => [...prev, row]);
+      persist(() => supabase.from("split_groups").insert(row), "split_groups");
+    },
+    [supabase, persist],
+  );
+
+  const deleteSplitGroup = useCallback(
+    (id: string) => {
+      setSplitGroups((prev) => prev.filter((x) => x.id !== id));
+      persist(() => supabase.from("split_groups").delete().eq("id", id), "split_groups");
+    },
+    [supabase, persist],
+  );
+
   const restoreSettlement = useCallback(
     (row: Settlement) => {
       setSettlements((prev) => [...prev.filter((x) => x.id !== row.id), row]);
@@ -1156,6 +1186,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     addSettlement,
     deleteSettlement,
     restoreSettlement,
+    splitGroups,
+    addSplitGroup,
+    deleteSplitGroup,
     restoreMember,
     claimMember,
     expenseShares,

@@ -1004,12 +1004,32 @@ const ok = (name, cond, detail = "") => {
   await sheet.getByRole("button", { name: "Include Patrick" }).click();
   await page.waitForTimeout(200);
   ok("picker updates the summary line", await page.getByText("Erin and Patrick").isVisible());
+
+  // Gas and parking got split twelve ways because twelve ways was the easy
+  // answer. Naming the car makes the true split the easy answer instead.
+  await sheet.getByRole("button", { name: /^Save these 2 as a group$/ }).click();
+  await page.waitForTimeout(200);
+  await sheet.getByPlaceholder(/Name it/).fill("Erin's car");
+  await sheet.getByPlaceholder(/Name it/).press("Enter");
+  await page.waitForTimeout(300);
+  ok("a saved group names the split", await page.getByText("Erin's car").first().isVisible());
+  // Applying it has to restore the same people, or the name is decoration.
+  await sheet.getByRole("button", { name: "Everyone" }).click();
+  await page.waitForTimeout(200);
+  ok("switching away drops the name", await page.getByText("Everyone").first().isVisible());
+  await sheet.getByRole("button", { name: /^Erin's car/ }).click();
+  await page.waitForTimeout(250);
+  ok("and tapping the group puts exactly those people back",
+    await page.getByText("Erin's car").first().isVisible());
+  ok("the group is offered, not re-offered for saving",
+    (await sheet.getByRole("button", { name: /^Save these/ }).count()) === 0);
   await sheet.getByRole("button", { name: "Done", exact: true }).click();
   await page.waitForTimeout(300);
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.waitForTimeout(400);
   ok("a subset split charges only those people",
-    await page.getByText(/split 2 ways · not you/).isVisible());
+    await page.getByText(/split Erin's car · not you/).isVisible(),
+    "and the row names the group rather than counting the heads");
 
   // Settling up is off the page now — it was ten rows summarising two
   // expenses. Everything it had is one tap away, and nothing is on the page.
@@ -1166,7 +1186,7 @@ const ok = (name, cond, detail = "") => {
   await page.getByRole("button", { name: "Undo" }).click();
   await page.waitForTimeout(500);
   ok("undo restores the expense and its split",
-    await page.getByText(/split 2 ways · not you/).isVisible());
+    await page.getByText(/split Erin's car · not you/).isVisible());
 
   // An expense split with nobody would never reach the settle-up — `balances`
   // skips it, so the payer is silently never paid back while the amount still

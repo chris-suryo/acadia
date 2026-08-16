@@ -91,6 +91,7 @@ function ExpenseEditor({
 }) {
   const [pickOpen, setPickOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const { splitGroups } = useData();
 
   return (
     <div className="grid gap-3 px-3.5 py-3.5 bg-[#FBF8EE] border-b border-rule">
@@ -172,7 +173,7 @@ function ExpenseEditor({
               ))}
           </span>
           <span className="flex-1 min-w-0 text-[14px] text-ink truncate">
-            {splitLabel(members, draft.among)}
+            {splitLabel(members, draft.among, splitGroups)}
           </span>
           <span className="font-mono text-[11px] text-blaze shrink-0">change</span>
         </button>
@@ -279,6 +280,7 @@ export function Expenses() {
     addReceipt,
     deleteReceipt,
     setMemberVenmo,
+    splitGroups,
   } = useData();
   const { showUndo, showNotice } = useUi();
   const [viewing, setViewing] = useState<string | null>(null);
@@ -318,6 +320,14 @@ export function Expenses() {
   /** What one person owes on one expense, odd cents and all. */
   const shareOf = (e: { id: string; amount_cents: number }, memberId: string) =>
     shares(e.amount_cents, sharesOf(e.id)).get(memberId) ?? 0;
+
+  /** The saved group this split matches exactly, if there is one. */
+  const namedSplit = (among: string[]) =>
+    splitGroups.find(
+      (g) =>
+        g.member_ids.length === among.length &&
+        g.member_ids.every((x) => among.includes(x)),
+    )?.label ?? null;
 
   /** Shares in roster order, so the odd cents always land the same way. */
   const sharesOf = (expenseId: string) => {
@@ -740,7 +750,12 @@ export function Expenses() {
                       <span className="font-mono text-[10.5px] text-moss truncate">
                         {nameOf(e.payer_id ?? "")} paid
                         {among.length > 0 &&
-                          ` · split ${among.length === members.length ? "with everyone" : `${among.length} way${among.length > 1 ? "s" : ""}`}`}
+                          ` · split ${
+                            among.length === members.length
+                              ? "with everyone"
+                              : namedSplit(among) ??
+                                `${among.length} way${among.length > 1 ? "s" : ""}`
+                          }`}
                         {!mineShare && myMemberId && " · not you"}
                       </span>
                     </span>

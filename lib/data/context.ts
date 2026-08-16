@@ -19,6 +19,7 @@ import type {
   PostLike,
   Receipt,
   Settlement,
+  SplitGroup,
   ShoppingItem,
   SurveyRow,
 } from "@/lib/types";
@@ -174,6 +175,10 @@ export type DataCtx = {
   deleteReceipt: (id: string) => void;
   setExpenseShares: (expenseId: string, memberIds: string[]) => void;
   deleteExpense: (id: string) => void;
+  /** Named sets of people to split with, so "who rode" is picked once. */
+  splitGroups: SplitGroup[];
+  addSplitGroup: (label: string, memberIds: string[]) => void;
+  deleteSplitGroup: (id: string) => void;
   settlements: Settlement[];
   /** Records that `from` paid `to`, which nets both of them down. */
   addSettlement: (fromMember: string, toMember: string, cents: number) => void;

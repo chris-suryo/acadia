@@ -32,6 +32,7 @@ import type {
   PostLike,
   Receipt,
   Settlement,
+  SplitGroup,
   ShoppingItem,
   SurveyRow,
 } from "@/lib/types";
@@ -138,6 +139,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
   const [expenseShares, setShareRows] = useState<ExpenseShare[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [splitGroups, setSplitGroups] = useState<SplitGroup[]>([]);
   // Alana's URL is broken on purpose: it 404s against any server, so every
   // screen that shows her face exercises the Avatar fallback — the suite
   // asserts she renders as her initial, never as a broken image.
@@ -241,6 +243,13 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       deleteSettlement: (id) => setSettlements((prev) => prev.filter((x) => x.id !== id)),
       restoreSettlement: (row) =>
         setSettlements((prev) => [...prev.filter((x) => x.id !== row.id), row]),
+      splitGroups,
+      addSplitGroup: (label, memberIds) =>
+        setSplitGroups((prev) => [
+          ...prev,
+          { id: newId(), label, member_ids: memberIds, created_at: new Date().toISOString() },
+        ]),
+      deleteSplitGroup: (id) => setSplitGroups((prev) => prev.filter((x) => x.id !== id)),
       renameMember: (id, n) =>
         setMembers((prev) =>
           prev.map((m) => (m.id === id ? { ...m, name: n.trim() } : m)),
@@ -564,7 +573,7 @@ export function MockProvider({ children }: { children: React.ReactNode }) {
       setPostPinned: (id, pinned) =>
         setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, pinned } : p))),
     };
-  }, [name, ensureName, linkName, claimMember, blocks, gear, personal, menu, menuVotes, shopping, expenses, expenseShares, receipts, settlements, members, myMemberId, surveys, avatars, gearClaims, posts, postLikes, pollVotes]);
+  }, [name, ensureName, linkName, claimMember, blocks, gear, personal, menu, menuVotes, shopping, expenses, expenseShares, receipts, settlements, splitGroups, members, myMemberId, surveys, avatars, gearClaims, posts, postLikes, pollVotes]);
 
   return (
     <Ctx.Provider value={value}>
