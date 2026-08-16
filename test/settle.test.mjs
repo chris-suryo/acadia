@@ -8,7 +8,15 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { balances, money, settle, shares, venmoLink } from "../lib/settle.ts";
+import {
+  audit,
+  balances,
+  explain,
+  money,
+  settle,
+  shares,
+  venmoLink,
+} from "../lib/settle.ts";
 
 const sum = (xs) => xs.reduce((a, b) => a + b, 0);
 
@@ -186,4 +194,113 @@ test("venmo link tolerates a missing handle and a leading @", () => {
     new URL(venmoLink("pay", "@erin", 500)).searchParams.get("recipients"),
     "erin",
   );
+});
+
+// ---- explaining the number ----
+//
+// The balance is only worth trusting if it can be unfolded, and an explanation
+// that disagrees with the ledger is worse than none. These hold `explain`
+// against `balances` rather than against a hand-written expectation.
+
+const TRIP = (() => {
+  // The real shape of this trip: one person fronts most of it, everything
+  // splits twelve ways, and a couple of costs are only some people's.
+  const ids = Array.from({ length: 12 }, (_, i) => `m${i}`);
+  return {
+    ids,
+    expenses: [
+      { id: "e1", description: "Campsite", payer: "m0", cents: 26155, among: ids },
+      { id: "e2", description: "Hannaford", payer: "m0", cents: 8984, among: ids },
+      { id: "e3", description: "Beer", payer: "m1", cents: 12000, among: ids },
+      { id: "e4", description: "Gas", payer: "m0", cents: 10721, among: ["m0", "m2", "m3"] },
+      { id: "e5", description: "Nobody's", payer: "m0", cents: 5000, among: [] },
+    ],
+  };
+})();
+
+test("explain's net agrees with balances, for every person", () => {
+  const net = balances(TRIP.expenses);
+  for (const id of TRIP.ids) {
+    assert.equal(
+      explain(TRIP.expenses, id).net,
+      net.get(id) ?? 0,
+      `${id} was explained a different number than they were charged`,
+    );
+  }
+});
+
+test("explain's lines add up to the totals it reports", () => {
+  for (const id of TRIP.ids) {
+    const e = explain(TRIP.expenses, id);
+    assert.equal(sum(e.shareLines.map((l) => l.yours)), e.share);
+    assert.equal(sum(e.paidLines.map((l) => l.total)), e.paid);
+    assert.equal(e.net, e.paid - e.share + e.settled);
+  }
+});
+
+test("explain leaves out expenses you were not on", () => {
+  const gas = (id) => explain(TRIP.expenses, id).shareLines.find((l) => l.expenseId === "e4");
+  assert.ok(gas("m2"), "a rider is charged for the gas");
+  assert.equal(gas("m5"), undefined, "someone who didn't ride is not");
+  assert.equal(gas("m2").ways, 3, "and the line says how many rode");
+});
+
+test("explain counts a settlement as movement, in the right direction", () => {
+  const paid = [{ id: "s1", from: "m2", to: "m0", cents: 5000 }];
+  const before = explain(TRIP.expenses, "m2").net;
+  const after = explain(TRIP.expenses, "m2", paid);
+  assert.equal(after.net, before + 5000, "paying back climbs toward zero");
+  assert.equal(after.settledLines[0].direction, "out");
+  assert.equal(explain(TRIP.expenses, "m0", paid).settledLines[0].direction, "in");
+  assert.equal(
+    after.net,
+    balances(TRIP.expenses, paid).get("m2") ?? 0,
+    "and still agrees with the ledger",
+  );
+});
+
+// ---- auditing the whole trip ----
+
+test("audit reports every person and cancels to zero", () => {
+  const a = audit(TRIP.expenses, [], TRIP.ids);
+  assert.equal(a.rows.length, 12);
+  assert.ok(a.netsCancelToZero);
+  assert.equal(sum(a.rows.map((r) => r.net)), 0);
+});
+
+test("audit catches money charged to nobody", () => {
+  const a = audit(TRIP.expenses, [], TRIP.ids);
+  assert.equal(a.total, 62860, "the group still spent it");
+  assert.equal(a.charged, 57860, "but nobody owes it");
+  assert.equal(a.chargedMatchesTotal, false);
+  assert.deepEqual(a.unsplit.map((u) => u.id), ["e5"], "and it says which one");
+});
+
+test("audit on a sound ledger reports both invariants true", () => {
+  const sound = TRIP.expenses.filter((e) => e.among.length > 0);
+  const a = audit(sound, [], TRIP.ids);
+  assert.ok(a.chargedMatchesTotal);
+  assert.ok(a.netsCancelToZero);
+  assert.equal(a.unsplit.length, 0);
+});
+
+test("the suggested payments clear exactly what audit says each person owes", () => {
+  const sound = TRIP.expenses.filter((e) => e.among.length > 0);
+  const a = audit(sound, [], TRIP.ids);
+  const moved = new Map();
+  for (const t of settle(balances(sound))) {
+    moved.set(t.from, (moved.get(t.from) ?? 0) + t.cents);
+    moved.set(t.to, (moved.get(t.to) ?? 0) - t.cents);
+  }
+  for (const r of a.rows) assert.equal(r.net + (moved.get(r.id) ?? 0), 0, `${r.id} left over`);
+});
+
+test("what you paid on an expense charged to nobody is held apart, not counted", () => {
+  // `balances` skips it, so counting it in `paid` would explain a number the
+  // ledger doesn't hold — but the payer still has to be told they're out of
+  // pocket with no way to be repaid.
+  const e = explain(TRIP.expenses, "m0");
+  assert.equal(e.paidLines.some((l) => l.expenseId === "e5"), false);
+  assert.deepEqual(e.unsplitPaid.map((l) => l.expenseId), ["e5"]);
+  assert.equal(e.unsplitPaid[0].total, 5000);
 });

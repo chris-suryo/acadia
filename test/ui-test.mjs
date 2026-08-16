@@ -1015,7 +1015,71 @@ const ok = (name, cond, detail = "") => {
   // expenses. Everything it had is one tap away, and nothing is on the page.
   ok("no settle-up rows on the page", (await page.locator("[data-settle]").count()) === 0);
   ok("but the page says there is one", await page.getByRole("button", { name: /^Settle up/ }).isVisible());
+  // Ten payments is a list, and a list belongs in the sheet. Only a payment
+  // you can act on right now earns space on the page.
+  ok("a creditor's ten payments stay in the sheet",
+    (await page.locator("[data-pay]").count()) === 0);
   await page.screenshot({ path: `${SHOT_DIR}/10a-expenses-page.png`, fullPage: true });
+
+  // ---- the math, unfolded ----
+  // A balance nobody can check is a balance nobody argues with, which is not
+  // the same as one everybody trusts.
+  const summaryLine = await page.getByText(/your share \$[\d.]+/).first().innerText();
+  const summaryShare = Math.round(
+    parseFloat(summaryLine.match(/your share \$([\d.]+)/)[1]) * 100,
+  );
+  await page.getByRole("button", { name: /Show the math/ }).click();
+  await page.waitForTimeout(350);
+  const shareCents = await page
+    .locator("[data-share]")
+    .evaluateAll((els) => els.map((e) => Number(e.dataset.share)));
+  ok("your share is explained line by line", shareCents.length > 0, `${shareCents}`);
+  ok("and the lines foot to the number on the page",
+    shareCents.reduce((a, b) => a + b, 0) === summaryShare,
+    `${shareCents} vs ${summaryShare}`);
+  ok("the subtraction is written out, not just its answer",
+    await page.getByText("− your share").isVisible());
+
+  await page.getByRole("button", { name: /Check the whole trip/ }).click();
+  await page.waitForTimeout(350);
+  const nets = await page
+    .locator("[data-net]")
+    .evaluateAll((els) => els.map((e) => Number(e.dataset.net)));
+  ok("the audit shows every person", nets.length === 11, `${nets.length}`);
+  // The invariant that matters: money owed and money due are the same money.
+  ok("and the whole ledger cancels to zero",
+    nets.reduce((a, b) => a + b, 0) === 0, `${nets.reduce((a, b) => a + b, 0)}`);
+  ok("both checks are stated, not implied",
+    (await page.getByText(/is charged to someone ✓/).count()) === 1 &&
+      (await page.getByText(/cancel to \$0\.00 ✓/).count()) === 1);
+  await page.screenshot({ path: `${SHOT_DIR}/10d-expenses-audit.png` });
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+
+  // ---- venmo handles ----
+  // The Pay button has shipped for weeks and has never once opened on the
+  // right person, because nobody has a handle saved.
+  await page.getByRole("button", { name: /^Settle up/ }).click();
+  await page.waitForTimeout(350);
+  await page.getByRole("button", { name: /Venmo handles/ }).click();
+  await page.waitForTimeout(350);
+  // Scoped to the sheet: the page itself carries a twelfth field, the one
+  // asking for your own handle so the people who owe you can pay you.
+  ok("you are asked for your own handle when you're owed",
+    (await page.getByText("Add your Venmo so people can pay you").count()) === 1);
+  const handleFields = page
+    .locator("div.fixed.inset-0.z-50")
+    .getByLabel(/^Venmo handle for /);
+  ok("every person gets a handle field", (await handleFields.count()) === 11,
+    `${await handleFields.count()}`);
+  ok("and the sheet says how many are missing",
+    await page.getByText("0 of 11").isVisible());
+  await handleFields.first().fill("alana-pays");
+  await handleFields.nth(1).click();
+  await page.waitForTimeout(350);
+  ok("saving one is counted", await page.getByText("1 of 11").isVisible());
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
   await page.getByRole("button", { name: /^Settle up/ }).click();
   await page.waitForTimeout(350);
 
@@ -1204,6 +1268,15 @@ const ok = (name, cond, detail = "") => {
     await page.waitForTimeout(350);
   }
   ok("the ledger is empty again", await page.getByText(/Nothing logged yet/).isVisible());
+
+  // One payment left, and it's yours: that's an instruction, not a list, so it
+  // belongs on the page with the button that carries it out.
+  ok("a single payment comes out of the sheet",
+    (await page.locator("[data-pay]").count()) === 1);
+  ok("and says who to pay, in words", await page.getByText("Pay Patrick").isVisible());
+  ok("with a venmo link carrying the amount",
+    (await page.locator('[data-pay] a[href*="venmo.com"]').getAttribute("href"))
+      .includes("amount=43.25"));
 
   // A recorded payment pins both of its members exactly like an expense does,
   // so it has to go before anyone can leave the roster — and it lives in the

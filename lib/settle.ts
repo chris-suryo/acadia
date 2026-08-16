@@ -97,6 +97,166 @@ export function settle(net: Map<string, number>): Transfer[] {
   return out;
 }
 
+/** An expense with enough on it to explain itself, not just to be counted. */
+export type LedgerExpense = {
+  id: string;
+  description: string;
+  payer: string;
+  cents: number;
+  among: string[];
+};
+
+export type ShareLine = {
+  expenseId: string;
+  description: string;
+  total: number;
+  ways: number;
+  yours: number;
+};
+export type PaidLine = { expenseId: string; description: string; total: number };
+export type SettledLine = {
+  id: string;
+  other: string;
+  cents: number;
+  direction: "out" | "in";
+};
+
+export type Explanation = {
+  shareLines: ShareLine[];
+  paidLines: PaidLine[];
+  /**
+   * What you paid on expenses charged to nobody.
+   *
+   * `balances()` skips those, so this money is deliberately *not* in `paid` —
+   * counting it would explain a number the ledger doesn't hold. It's reported
+   * separately because the person out of pocket is the one who needs to know:
+   * they are never getting it back until the split is fixed.
+   */
+  unsplitPaid: PaidLine[];
+  settledLines: SettledLine[];
+  share: number;
+  paid: number;
+  /** Signed: money you handed over, less money handed to you. */
+  settled: number;
+  net: number;
+};
+
+/**
+ * Why one person's balance is what it is, line by line.
+ *
+ * The number on the Expenses tab is the end of a calculation nobody can see,
+ * and "you owe $63.01" is only worth trusting if it can be unfolded. Every
+ * line here comes back through `shares()` — the same function that built the
+ * ledger — so the explanation can't drift from the arithmetic it explains.
+ *
+ * `net` is derived the same way `balances()` derives it, and the unit tests
+ * hold the two against each other.
+ */
+export function explain(
+  expenses: LedgerExpense[],
+  memberId: string,
+  settlements: { id: string; from: string; to: string; cents: number }[] = [],
+): Explanation {
+  const shareLines: ShareLine[] = [];
+  const paidLines: PaidLine[] = [];
+  const unsplitPaid: PaidLine[] = [];
+
+  for (const e of expenses) {
+    if (e.payer === memberId) {
+      const line = { expenseId: e.id, description: e.description, total: e.cents };
+      (e.among.length === 0 ? unsplitPaid : paidLines).push(line);
+    }
+    if (e.among.length === 0) continue;
+    const yours = shares(e.cents, e.among).get(memberId);
+    if (yours === undefined) continue;
+    shareLines.push({
+      expenseId: e.id,
+      description: e.description,
+      total: e.cents,
+      ways: e.among.length,
+      yours,
+    });
+  }
+
+  const settledLines: SettledLine[] = [];
+  for (const s of settlements) {
+    if (s.from === memberId)
+      settledLines.push({ id: s.id, other: s.to, cents: s.cents, direction: "out" });
+    else if (s.to === memberId)
+      settledLines.push({ id: s.id, other: s.from, cents: s.cents, direction: "in" });
+  }
+
+  const share = shareLines.reduce((a, l) => a + l.yours, 0);
+  const paid = paidLines.reduce((a, l) => a + l.total, 0);
+  const settled = settledLines.reduce(
+    (a, l) => a + (l.direction === "out" ? l.cents : -l.cents),
+    0,
+  );
+  return {
+    shareLines,
+    paidLines,
+    unsplitPaid,
+    settledLines,
+    share,
+    paid,
+    settled,
+    net: paid - share + settled,
+  };
+}
+
+export type AuditRow = {
+  id: string;
+  paid: number;
+  share: number;
+  settled: number;
+  net: number;
+};
+
+export type Audit = {
+  rows: AuditRow[];
+  /** What the group spent, including anything charged to nobody. */
+  total: number;
+  /** What was actually charged to people. Equal to `total` on a sound ledger. */
+  charged: number;
+  chargedMatchesTotal: boolean;
+  netsCancelToZero: boolean;
+  /** Expenses split with nobody: counted as spent, owed by no one. */
+  unsplit: { id: string; description: string; total: number }[];
+};
+
+/**
+ * The whole trip's arithmetic, with its two invariants checked rather than
+ * assumed.
+ *
+ * `chargedMatchesTotal` is the one that catches the real failure: an expense
+ * split with nobody still counts toward "spent by the group" while no one owes
+ * a cent of it, so the payer is quietly never made whole. `balances()` skips
+ * those expenses, which is correct and invisible — this is where it becomes
+ * visible.
+ */
+export function audit(
+  expenses: LedgerExpense[],
+  settlements: { id: string; from: string; to: string; cents: number }[],
+  memberIds: string[],
+): Audit {
+  const rows = memberIds.map((id) => {
+    const e = explain(expenses, id, settlements);
+    return { id, paid: e.paid, share: e.share, settled: e.settled, net: e.net };
+  });
+  const total = expenses.reduce((a, e) => a + e.cents, 0);
+  const charged = expenses.reduce((a, e) => (e.among.length ? a + e.cents : a), 0);
+  return {
+    rows,
+    total,
+    charged,
+    chargedMatchesTotal: charged === total,
+    netsCancelToZero: rows.reduce((a, r) => a + r.net, 0) === 0,
+    unsplit: expenses
+      .filter((e) => e.among.length === 0)
+      .map((e) => ({ id: e.id, description: e.description, total: e.cents })),
+  };
+}
+
 /**
  * A Venmo link that opens the app with the amount already in it.
  *

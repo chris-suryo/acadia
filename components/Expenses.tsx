@@ -14,7 +14,17 @@ import { SwipeRow } from "./ui/SwipeRow";
 import { useOutside } from "./ui/useOutside";
 import { useUi } from "./ui/UiProvider";
 import { useData } from "@/lib/data/context";
-import { balances, money, settle, shares, venmoLink } from "@/lib/settle";
+import {
+  audit,
+  balances,
+  explain,
+  money,
+  settle,
+  shares,
+  venmoLink,
+  type LedgerExpense,
+  type Transfer,
+} from "@/lib/settle";
 import type { Member, Receipt } from "@/lib/types";
 
 // No `w-full` here: these sit side by side in a flex row, where a 100% width
@@ -25,6 +35,10 @@ const LABEL = "font-mono text-[10px] tracking-[.1em] uppercase text-granite";
 
 // Stands in for the row that doesn't exist yet while an add is being typed.
 const NEW = "new";
+
+// What lands in the Venmo memo. Weeks later, "Acadia Base Camp" on its own is
+// a payment nobody can place; the dates put it back in the calendar.
+const VENMO_NOTE = "Acadia Base Camp · Aug 14–16";
 
 type Draft = {
   description: string;
@@ -273,6 +287,9 @@ export function Expenses() {
   const [detail, setDetail] = useState<string | null>(null);
   const [rosterOpen, setRosterOpen] = useState(false);
   const [settleOpen, setSettleOpen] = useState(false);
+  const [proofOpen, setProofOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [handlesOpen, setHandlesOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   // An expense being added has no id yet, so its photos wait here and go up the
   // moment it's saved — you shouldn't have to save first and reopen to attach
@@ -414,37 +431,127 @@ export function Expenses() {
     showUndo("Deleted", () => restoreExpense({ ...row }, snapShares));
   };
 
-  const ledger = expenses
+  const ledger: LedgerExpense[] = expenses
     .filter((e) => e.payer_id)
     .map((e) => ({
+      id: e.id,
+      description: e.description,
       payer: e.payer_id as string,
       cents: e.amount_cents,
       among: sharesOf(e.id),
     }));
-  const net = balances(
-    ledger,
-    settlements.map((x) => ({
-      from: x.from_member,
-      to: x.to_member,
-      cents: x.amount_cents,
-    })),
-  );
+  const paidBack = settlements.map((x) => ({
+    id: x.id,
+    from: x.from_member,
+    to: x.to_member,
+    cents: x.amount_cents,
+  }));
+  const net = balances(ledger, paidBack);
   const transfers = settle(net);
   const total = expenses.reduce((s, e) => s + e.amount_cents, 0);
   const myNet = net.get(myMemberId) ?? 0;
   // The two halves of that number, so it stops reading as a bug: you paid $30
   // but you're owed $24.54, because your own seat at the table costs you the
   // same share as everyone else's.
-  const myPaid = expenses
-    .filter((e) => e.payer_id === myMemberId)
-    .reduce((s, e) => s + e.amount_cents, 0);
-  const myShare = expenses.reduce((s, e) => s + shareOf(e, myMemberId), 0);
-  const mySettled = settlements.reduce(
-    (s, x) =>
-      s + (x.from_member === myMemberId ? x.amount_cents : 0) -
-      (x.to_member === myMemberId ? x.amount_cents : 0),
-    0,
+  //
+  // Summed by the same function that lists the lines behind them, so the
+  // headline and the proof can't drift apart (`explain`, lib/settle.ts).
+  const mine = explain(ledger, myMemberId, paidBack);
+  const book = audit(ledger, paidBack, members.map((m) => m.id));
+  const { paid: myPaid, share: myShare, settled: mySettled } = mine;
+  // The transfers you can actually do something about, in the order you care:
+  // what you owe first, then what you're owed.
+  const myTransfers = transfers.filter(
+    (t) => t.from === myMemberId || t.to === myMemberId,
   );
+  const otherTransfers = transfers.filter(
+    (t) => t.from !== myMemberId && t.to !== myMemberId,
+  );
+  const ordered = [...myTransfers, ...otherTransfers];
+
+  /**
+   * The field that makes the Pay button work.
+   *
+   * Venmo can only prefill a person it has a handle for, and the moment you're
+   * looking at a payment is the moment you notice it's missing — so the fix
+   * lives here rather than three taps away in the roster.
+   */
+  const withVenmo = members.filter((m) => m.venmo).length;
+  const venmoField = (id: string) => (
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-[14px] text-mute pointer-events-none">
+        @
+      </span>
+      <input
+        // Uncontrolled, so it doesn't fight the keyboard on every keystroke —
+        // keyed on the saved value so a handle set elsewhere still shows up.
+        key={members.find((m) => m.id === id)?.venmo ?? ""}
+        defaultValue={members.find((m) => m.id === id)?.venmo ?? ""}
+        onFocus={onFieldFocus}
+        onBlur={(ev) => {
+          if (ev.target.value.trim()) setMemberVenmo(id, ev.target.value);
+        }}
+        onKeyDown={(ev) => {
+          if (ev.key === "Enter") ev.currentTarget.blur();
+        }}
+        // Not "— optional": the same field fills the handles sheet, where the
+        // whole point is to fill it in, and the word talked people out of it.
+        placeholder={`${nameOf(id)}'s venmo`}
+        aria-label={`Venmo handle for ${nameOf(id)}`}
+        autoCapitalize="none"
+        enterKeyHint="done"
+        className="w-full pl-7 pr-3 py-2 rounded-lg border border-rule bg-white text-[16px] text-ink min-h-[42px]"
+      />
+    </div>
+  );
+
+  /** One payment said as an instruction, with the button that carries it out. */
+  const payLine = (t: Transfer) => {
+    const iOwe = t.from === myMemberId;
+    const other = iOwe ? t.to : t.from;
+    const handle = members.find((m) => m.id === other)?.venmo ?? "";
+    return (
+      <div
+        key={`${t.from}-${t.to}`}
+        // The suite reads these to prove the instruction matches the ledger.
+        data-pay={t.cents}
+        className="bg-card border border-rule rounded-[10px] px-3.5 py-3"
+      >
+        <div className="flex items-center gap-2">
+          <Avatar
+            userId={other}
+            url={memberAvatars[other]}
+            name={nameOf(other)}
+            size={26}
+          />
+          <span className="flex-1 min-w-0 text-[14.5px] text-ink truncate">
+            {iOwe ? "Pay " : ""}
+            <span className="font-semibold">{nameOf(other)}</span>
+            {iOwe ? "" : " owes you"}
+          </span>
+          <span className="font-mono text-[15px] font-semibold text-blaze shrink-0">
+            {money(t.cents)}
+          </span>
+        </div>
+        {!handle && <div className="mt-2">{venmoField(other)}</div>}
+        <div className="flex items-center gap-2 mt-2">
+          <VenmoButton
+            href={venmoLink(iOwe ? "pay" : "charge", handle, t.cents, VENMO_NOTE)}
+            label={iOwe ? "Pay" : "Request"}
+          />
+          <button
+            onClick={() => {
+              addSettlement(t.from, t.to, t.cents);
+              showNotice(`Marked ${nameOf(t.from)} → ${nameOf(t.to)} paid`);
+            }}
+            className="rounded-full border border-rule bg-transparent text-granite cursor-pointer font-mono text-[11px] uppercase tracking-[.07em] py-2 min-h-[40px] px-3.5 shrink-0"
+          >
+            Mark paid
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   const sorted = [...expenses].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const settled = [...settlements].sort((a, b) =>
@@ -487,20 +594,69 @@ export function Expenses() {
             </>
           )}
         </div>
-        {(transfers.length > 0 || settled.length > 0) && (
+        {/* Money you paid that nobody was charged for. `balances` skips those
+            expenses, so this amount is in no one's column and is never coming
+            back to you — which you'd never guess from a balance that simply
+            reads lower than it should. */}
+        {mine.unsplitPaid.length > 0 && (
           <button
-            onClick={() => setSettleOpen(true)}
-            className="inline-flex items-center gap-1 mt-2 bg-transparent border-none p-0 cursor-pointer text-[13px] font-semibold text-blaze"
+            onClick={() => setProofOpen(true)}
+            className="flex items-center gap-1 mt-2 bg-transparent border-none p-0 cursor-pointer text-left text-[12.5px] font-semibold text-blaze"
           >
-            Settle up
-            {transfers.length > 0 && (
-              <span className="font-mono text-[11px] font-normal text-granite">
-                · {transfers.length} payment{transfers.length > 1 ? "s" : ""}
-              </span>
-            )}
-            <ChevronRight size={13} />
+            {money(mine.unsplitPaid.reduce((s, l) => s + l.total, 0))} you paid
+            isn&apos;t split with anyone
+            <ChevronRight size={12} className="shrink-0" />
           </button>
         )}
+
+        {/* The person who knows your handle is you. Only shown when people
+            owe you — if you only owe, nobody needs it, and a prompt you can't
+            act on is just a prompt you learn to ignore. */}
+        {myMemberId &&
+          !members.find((m) => m.id === myMemberId)?.venmo &&
+          myTransfers.some((t) => t.to === myMemberId) && (
+            <div className="mt-3">
+              <div className="text-[12.5px] text-granite mb-1.5">
+                Add your Venmo so people can pay you
+              </div>
+              {venmoField(myMemberId)}
+            </div>
+          )}
+
+        {/* The whole point of the tab, for ten of the twelve people: one line
+            saying who to pay, and the button that pays them. Reading an
+            avatar-arrow-avatar row in a sheet is work; this is an instruction.
+            Past two it stops being an instruction and becomes a list, so it
+            goes back in the sheet where lists belong. */}
+        {myTransfers.length > 0 && myTransfers.length <= 2 && (
+          <div className="grid gap-2 mt-3">{myTransfers.map(payLine)}</div>
+        )}
+
+        <div className="flex items-center gap-3.5 mt-2.5">
+          {(transfers.length > 0 || settled.length > 0) && (
+            <button
+              onClick={() => setSettleOpen(true)}
+              className="inline-flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-[13px] font-semibold text-blaze whitespace-nowrap"
+            >
+              Settle up
+              {transfers.length > 0 && (
+                <span className="font-mono text-[11px] font-normal text-granite">
+                  · {transfers.length} payment{transfers.length > 1 ? "s" : ""}
+                </span>
+              )}
+              <ChevronRight size={13} />
+            </button>
+          )}
+          {myMemberId && ledger.length > 0 && (
+            <button
+              onClick={() => setProofOpen(true)}
+              className="inline-flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-[13px] font-semibold text-granite whitespace-nowrap"
+            >
+              Show the math
+              <ChevronRight size={13} />
+            </button>
+          )}
+        </div>
       </div>
 
       {viewing && (
@@ -727,7 +883,9 @@ export function Expenses() {
               pay isn&apos;t always who you split with.
             </div>
             <Card className="overflow-hidden">
-              {(allTransfers ? transfers : transfers.slice(0, 3)).map((t) => {
+              {/* Yours first. Ten rows all pointing at one person is correct and
+                unreadable; the only one you can act on shouldn't be eighth. */}
+            {(allTransfers ? ordered : ordered.slice(0, 3)).map((t) => {
                 const iOwe = t.from === myMemberId;
                 const owedToMe = t.to === myMemberId;
                 const mine = iOwe || owedToMe;
@@ -879,6 +1037,290 @@ export function Expenses() {
             </Card>
           </div>
         )}
+
+        {/* Without a handle, Venmo opens on its own people picker and you type
+            the name yourself — which is how a feature that has shipped for
+            weeks has never once opened on the right person. */}
+        <button
+          onClick={() => {
+            setSettleOpen(false);
+            setHandlesOpen(true);
+          }}
+          className="inline-flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-[13px] font-semibold text-blaze"
+        >
+          Venmo handles
+          <span className="font-mono text-[11px] font-normal text-granite">
+            · {withVenmo} of {members.length}
+          </span>
+          <ChevronRight size={13} />
+        </button>
+        </div>
+      </BottomSheet>
+
+      {/* One sitting, twelve fields, missing ones first — so the links can be
+          made to work without waiting on eleven people to open the app. */}
+      <BottomSheet open={handlesOpen} onClose={() => setHandlesOpen(false)}>
+        <div className="max-h-[74vh] overflow-y-auto overscroll-contain -mx-1 px-1">
+          <SubH right={`${withVenmo} of ${members.length}`}>Venmo handles</SubH>
+          <div className="font-mono text-[10.5px] text-mute mb-2 leading-[1.5]">
+            A handle here is what makes Pay open on the right person with the
+            amount already in it.
+          </div>
+          <div className="grid gap-2">
+            {[...members]
+              .sort((a, b) => Number(!!a.venmo) - Number(!!b.venmo))
+              .map((m) => (
+                <div key={m.id} className="flex items-center gap-2">
+                  <Avatar
+                    userId={m.id}
+                    url={memberAvatars[m.id]}
+                    name={m.name}
+                    size={26}
+                  />
+                  <span className="w-[76px] shrink-0 truncate text-[13.5px] text-granite">
+                    {m.name}
+                  </span>
+                  <div className="flex-1 min-w-0">{venmoField(m.id)}</div>
+                </div>
+              ))}
+          </div>
+          <Btn onClick={() => setHandlesOpen(false)} full>
+            Done
+          </Btn>
+        </div>
+      </BottomSheet>
+
+      {/* "You owe $63.01" is only worth trusting if it can be unfolded. Every
+          line here comes back through the same `shares()` that built the
+          ledger, so the explanation can't drift from the arithmetic — and
+          every line opens its expense, because the usual reason to check the
+          math is that something in it is wrong. */}
+      <BottomSheet open={proofOpen} onClose={() => setProofOpen(false)}>
+        <div className="max-h-[74vh] overflow-y-auto overscroll-contain -mx-1 px-1">
+          {mine.shareLines.length > 0 && (
+            <div className="mb-4">
+              <SubH right={money(mine.share)}>Your share</SubH>
+              <Card className="overflow-hidden">
+                {mine.shareLines.map((l) => (
+                  <button
+                    key={l.expenseId}
+                    data-share={l.yours}
+                    onClick={() => {
+                      setProofOpen(false);
+                      open(l.expenseId);
+                    }}
+                    className="w-full text-left bg-transparent border-none border-b border-rule last:border-b-0 cursor-pointer flex items-baseline gap-2 px-3.5 py-2.5"
+                  >
+                    <span className="flex-1 min-w-0 truncate text-[13.5px] text-granite">
+                      {l.description || "Untitled"}
+                    </span>
+                    <span className="font-mono text-[10.5px] text-mute shrink-0">
+                      {money(l.total)} ÷ {l.ways}
+                    </span>
+                    <span className="font-mono text-[13px] text-ink shrink-0 w-[62px] text-right">
+                      {money(l.yours)}
+                    </span>
+                  </button>
+                ))}
+              </Card>
+            </div>
+          )}
+
+          {mine.paidLines.length > 0 && (
+            <div className="mb-4">
+              <SubH right={money(mine.paid)}>What you paid</SubH>
+              <Card className="overflow-hidden">
+                {mine.paidLines.map((l) => (
+                  <button
+                    key={l.expenseId}
+                    onClick={() => {
+                      setProofOpen(false);
+                      open(l.expenseId);
+                    }}
+                    className="w-full text-left bg-transparent border-none border-b border-rule last:border-b-0 cursor-pointer flex items-baseline gap-2 px-3.5 py-2.5"
+                  >
+                    <span className="flex-1 min-w-0 truncate text-[13.5px] text-granite">
+                      {l.description || "Untitled"}
+                    </span>
+                    <span className="font-mono text-[13px] text-ink shrink-0">
+                      {money(l.total)}
+                    </span>
+                  </button>
+                ))}
+              </Card>
+            </div>
+          )}
+
+          {mine.unsplitPaid.length > 0 && (
+            <div className="mb-4">
+              <SubH right={money(mine.unsplitPaid.reduce((s, l) => s + l.total, 0))}>
+                Charged to nobody
+              </SubH>
+              <div className="font-mono text-[10.5px] text-mute mb-1.5 leading-[1.5]">
+                You paid this and no one owes a cent of it, so it isn&apos;t in
+                the number above. Tap to pick who it was for.
+              </div>
+              <Card className="overflow-hidden">
+                {mine.unsplitPaid.map((l) => (
+                  <button
+                    key={l.expenseId}
+                    onClick={() => {
+                      setProofOpen(false);
+                      open(l.expenseId);
+                    }}
+                    className="w-full text-left bg-transparent border-none border-b border-rule last:border-b-0 cursor-pointer flex items-baseline gap-2 px-3.5 py-2.5"
+                  >
+                    <span className="flex-1 min-w-0 truncate text-[13.5px] text-blaze font-medium">
+                      {l.description || "Untitled"}
+                    </span>
+                    <span className="font-mono text-[13px] text-blaze shrink-0">
+                      {money(l.total)}
+                    </span>
+                  </button>
+                ))}
+              </Card>
+            </div>
+          )}
+
+          {mine.settledLines.length > 0 && (
+            <div className="mb-4">
+              <SubH right={money(Math.abs(mine.settled))}>Already paid back</SubH>
+              <Card className="overflow-hidden">
+                {mine.settledLines.map((l) => (
+                  <div
+                    key={l.id}
+                    className="flex items-baseline gap-2 px-3.5 py-2.5 border-b border-rule last:border-b-0"
+                  >
+                    <span className="flex-1 min-w-0 truncate text-[13.5px] text-granite">
+                      {l.direction === "out"
+                        ? `You paid ${nameOf(l.other)}`
+                        : `${nameOf(l.other)} paid you`}
+                    </span>
+                    <span className="font-mono text-[13px] text-moss shrink-0">
+                      {l.direction === "out" ? "+" : "−"}
+                      {money(l.cents)}
+                    </span>
+                  </div>
+                ))}
+              </Card>
+            </div>
+          )}
+
+          {/* The sum itself, written out. This is the sentence people are
+              actually asking for when they ask why they owe what they owe. */}
+          <div className="font-mono text-[12px] text-granite leading-[1.9] border-t border-rule pt-2.5">
+            <div className="flex justify-between">
+              <span>you paid</span>
+              <span className="text-ink">{money(myPaid)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>− your share</span>
+              <span className="text-ink">{money(myShare)}</span>
+            </div>
+            {mySettled !== 0 && (
+              <div className="flex justify-between">
+                <span>{mySettled > 0 ? "+ you paid back" : "− paid back to you"}</span>
+                <span className="text-ink">{money(Math.abs(mySettled))}</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-rule mt-1 pt-1 font-semibold">
+              <span>{myNet > 0 ? "you're owed" : myNet < 0 ? "you owe" : "you're square"}</span>
+              <span className={myNet < 0 ? "text-blaze" : "text-moss"}>
+                {money(Math.abs(myNet))}
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              setProofOpen(false);
+              setAuditOpen(true);
+            }}
+            className="inline-flex items-center gap-1 mt-3 bg-transparent border-none p-0 cursor-pointer text-[13px] font-semibold text-blaze"
+          >
+            Check the whole trip
+            <ChevronRight size={13} />
+          </button>
+        </div>
+      </BottomSheet>
+
+      {/* Everyone's numbers, and the two things that have to be true about
+          them. A total that doesn't reconcile is worth saying out loud —
+          quietly showing a wrong one is the only outcome worse than showing
+          none. */}
+      <BottomSheet open={auditOpen} onClose={() => setAuditOpen(false)}>
+        <div className="max-h-[74vh] overflow-y-auto overscroll-contain -mx-1 px-1">
+          <SubH right={money(book.total)}>Everyone&apos;s numbers</SubH>
+          <Card className="overflow-hidden">
+            <div className="flex items-baseline gap-2 px-3.5 py-2 border-b border-rule font-mono text-[10px] tracking-[.08em] uppercase text-granite">
+              <span className="flex-1">who</span>
+              <span className="w-[64px] text-right">paid</span>
+              <span className="w-[64px] text-right">share</span>
+              <span className="w-[70px] text-right">net</span>
+            </div>
+            {book.rows.map((r) => (
+              <div
+                key={r.id}
+                data-net={r.net}
+                className="flex items-baseline gap-2 px-3.5 py-2 border-b border-rule last:border-b-0"
+              >
+                <span
+                  className={`flex-1 min-w-0 truncate text-[13px] ${r.id === myMemberId ? "text-ink font-semibold" : "text-granite"}`}
+                >
+                  {nameOf(r.id)}
+                </span>
+                <span className="font-mono text-[12px] text-granite w-[64px] text-right">
+                  {money(r.paid)}
+                </span>
+                <span className="font-mono text-[12px] text-granite w-[64px] text-right">
+                  {money(r.share)}
+                </span>
+                <span
+                  className={`font-mono text-[12px] w-[70px] text-right ${r.net < 0 ? "text-blaze" : r.net > 0 ? "text-moss" : "text-mute"}`}
+                >
+                  {money(r.net)}
+                </span>
+              </div>
+            ))}
+          </Card>
+
+          <div className="font-mono text-[11px] leading-[1.9] mt-2.5">
+            <div className={book.chargedMatchesTotal ? "text-granite" : "text-blaze"}>
+              {book.chargedMatchesTotal
+                ? `every ${money(book.total)} spent is charged to someone ✓`
+                : `${money(book.total - book.charged)} of ${money(book.total)} is charged to nobody`}
+            </div>
+            <div className={book.netsCancelToZero ? "text-granite" : "text-blaze"}>
+              {book.netsCancelToZero
+                ? "what's owed and what's due cancel to $0.00 ✓"
+                : "the balances don't cancel — something is wrong"}
+            </div>
+          </div>
+
+          {book.unsplit.length > 0 && (
+            <Card className="overflow-hidden mt-2.5">
+              {book.unsplit.map((u) => (
+                <button
+                  key={u.id}
+                  onClick={() => {
+                    setAuditOpen(false);
+                    open(u.id);
+                  }}
+                  className="w-full text-left bg-transparent border-none border-b border-rule last:border-b-0 cursor-pointer flex items-baseline gap-2 px-3.5 py-2.5"
+                >
+                  <span className="flex-1 min-w-0 truncate text-[13.5px] text-blaze font-medium">
+                    {u.description || "Untitled"}
+                  </span>
+                  <span className="font-mono text-[11px] text-mute shrink-0">
+                    split with nobody
+                  </span>
+                  <span className="font-mono text-[13px] text-blaze shrink-0">
+                    {money(u.total)}
+                  </span>
+                </button>
+              ))}
+            </Card>
+          )}
         </div>
       </BottomSheet>
 
