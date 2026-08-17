@@ -286,6 +286,7 @@ export function Expenses() {
   const [viewing, setViewing] = useState<string | null>(null);
   const [openTransfer, setOpenTransfer] = useState<string | null>(null);
   const [allTransfers, setAllTransfers] = useState(false);
+  const [allMine, setAllMine] = useState(false);
   const [detail, setDetail] = useState<string | null>(null);
   const [rosterOpen, setRosterOpen] = useState(false);
   const [settleOpen, setSettleOpen] = useState(false);
@@ -516,10 +517,14 @@ export function Expenses() {
   );
 
   /** One payment said as an instruction, with the button that carries it out. */
-  const payLine = (t: Transfer) => {
+  const payLine = (t: Transfer, _i: number, all: Transfer[]) => {
     const iOwe = t.from === myMemberId;
     const other = iOwe ? t.to : t.from;
     const handle = members.find((m) => m.id === other)?.venmo ?? "";
+    // A field in every card turns nine payments into a form. When this is the
+    // only payment, the missing handle is the only thing in the way, so it's
+    // worth the room; in a list it's a link to the sheet that does all of them.
+    const askHere = !handle && all.length === 1;
     return (
       <div
         key={`${t.from}-${t.to}`}
@@ -543,7 +548,7 @@ export function Expenses() {
             {money(t.cents)}
           </span>
         </div>
-        {!handle && <div className="mt-2">{venmoField(other)}</div>}
+        {askHere && <div className="mt-2">{venmoField(other)}</div>}
         <div className="flex items-center gap-2 mt-2">
           <VenmoButton
             href={venmoLink(iOwe ? "pay" : "charge", handle, t.cents, VENMO_NOTE)}
@@ -559,6 +564,18 @@ export function Expenses() {
             Mark paid
           </button>
         </div>
+        {/* Without a handle the button still opens Venmo with the amount — it
+            just can't pick the person for you. Say so, and offer the sheet
+            that fixes every one of them at once. */}
+        {!handle && !askHere && (
+          <button
+            onClick={() => setHandlesOpen(true)}
+            className="flex items-center gap-1 mt-2 bg-transparent border-none p-0 cursor-pointer text-[12px] text-blaze font-semibold"
+          >
+            Add {nameOf(other)}&apos;s venmo
+            <ChevronRight size={12} />
+          </button>
+        )}
       </div>
     );
   };
@@ -595,15 +612,6 @@ export function Expenses() {
             )}
           </div>
         )}
-        <div className="font-mono text-[11px] text-granite mt-1">
-          {money(total)} spent by the group
-          {myMemberId && (myPaid > 0 || myShare > 0) && (
-            <>
-              {" "}· you paid {money(myPaid)} · your share {money(myShare)}
-              {mySettled !== 0 && <> · {money(Math.abs(mySettled))} settled</>}
-            </>
-          )}
-        </div>
         {/* Money you paid that nobody was charged for. `balances` skips those
             expenses, so this amount is in no one's column and is never coming
             back to you — which you'd never guess from a balance that simply
@@ -633,20 +641,51 @@ export function Expenses() {
             </div>
           )}
 
-        {/* The whole point of the tab, for ten of the twelve people: one line
-            saying who to pay, and the button that pays them. Reading an
-            avatar-arrow-avatar row in a sheet is work; this is an instruction.
-            Past two it stops being an instruction and becomes a list, so it
-            goes back in the sheet where lists belong. */}
-        {myTransfers.length > 0 && myTransfers.length <= 2 && (
-          <div className="grid gap-2 mt-3">{myTransfers.map(payLine)}</div>
+        {/* Your payments, on the page, with the button that carries them out.
+            These used to hide in a sheet as soon as there were more than two —
+            which is exactly the person with nine people to chase, and exactly
+            the person who most needs them in reach. Capped at three so the
+            page stays a page. */}
+        {myTransfers.length > 0 && (
+          <div className="mt-3">
+            {myTransfers.length > 1 && (
+              <div className="font-mono text-[10.5px] tracking-[.08em] uppercase text-granite mb-1.5">
+                {myTransfers.every((t) => t.to === myMemberId)
+                  ? `${myTransfers.length} people owe you`
+                  : `you owe ${myTransfers.length} people`}
+              </div>
+            )}
+            <div className="grid gap-2">
+              {(allMine ? myTransfers : myTransfers.slice(0, 3)).map(payLine)}
+            </div>
+            {myTransfers.length > 3 && (
+              <button
+                onClick={() => setAllMine(!allMine)}
+                className="w-full bg-transparent border border-rule rounded-full cursor-pointer text-granite font-mono text-[11px] mt-2 py-2 min-h-[40px]"
+              >
+                {allMine ? "show fewer" : `show all ${myTransfers.length}`}
+              </button>
+            )}
+          </div>
         )}
 
-        <div className="flex items-center gap-3.5 mt-2.5">
+        {/* Context, not the point — so it sits under the thing you came to do
+            rather than between you and it. */}
+        <div className="font-mono text-[11px] text-granite mt-3">
+          {money(total)} spent by the group
+          {myMemberId && (myPaid > 0 || myShare > 0) && (
+            <>
+              {" "}· you paid {money(myPaid)} · your share {money(myShare)}
+              {mySettled !== 0 && <> · {money(Math.abs(mySettled))} settled</>}
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3.5 mt-2">
           {(transfers.length > 0 || settled.length > 0) && (
             <button
               onClick={() => setSettleOpen(true)}
-              className="inline-flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-[13px] font-semibold text-blaze whitespace-nowrap"
+              className="inline-flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-[13px] font-semibold text-granite whitespace-nowrap"
             >
               Settle up
               {transfers.length > 0 && (

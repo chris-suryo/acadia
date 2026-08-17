@@ -1035,10 +1035,20 @@ const ok = (name, cond, detail = "") => {
   // expenses. Everything it had is one tap away, and nothing is on the page.
   ok("no settle-up rows on the page", (await page.locator("[data-settle]").count()) === 0);
   ok("but the page says there is one", await page.getByRole("button", { name: /^Settle up/ }).isVisible());
-  // Ten payments is a list, and a list belongs in the sheet. Only a payment
-  // you can act on right now earns space on the page.
-  ok("a creditor's ten payments stay in the sheet",
-    (await page.locator("[data-pay]").count()) === 0);
+  // The person with nine people to chase is exactly the person who needs the
+  // payments in reach, so they're on the page — three of them, with the rest
+  // one tap away.
+  ok("a creditor's payments are on the page, not buried",
+    (await page.locator("[data-pay]").count()) === 3,
+    `${await page.locator("[data-pay]").count()}`);
+  ok("and the page says how many there are in total",
+    await page.getByText(/^\d+ people owe you$/i).isVisible());
+  await page.getByRole("button", { name: /^show all \d+$/ }).click();
+  await page.waitForTimeout(250);
+  ok("show all opens the rest", (await page.locator("[data-pay]").count()) === 10,
+    `${await page.locator("[data-pay]").count()}`);
+  await page.getByRole("button", { name: "show fewer" }).click();
+  await page.waitForTimeout(250);
   await page.screenshot({ path: `${SHOT_DIR}/10a-expenses-page.png`, fullPage: true });
 
   // ---- the math, unfolded ----
@@ -1138,7 +1148,11 @@ const ok = (name, cond, detail = "") => {
 
   const owedBefore = settleCents.reduce((a, b) => a + b, 0);
   const firstPayment = settleCents[0];
-  await page.getByRole("button", { name: "Mark paid" }).first().click();
+  await page
+    .locator("div.fixed.inset-0.z-50")
+    .getByRole("button", { name: "Mark paid" })
+    .first()
+    .click();
   await page.waitForTimeout(450);
   const afterCents = await page
     .locator("[data-settle]")
