@@ -36,6 +36,65 @@ export function shares(cents: number, ids: string[]): Map<string, number> {
 }
 
 /**
+ * Every expense split at once, so the rounding can be shared out.
+ *
+ * A single expense can only ever be split base/base+1 — a third of a cent does
+ * not exist — and `shares()` hands the spare pennies to the front of whatever
+ * list it is given. Applied expense by expense that put the *same* people at
+ * the front every time, and across seventeen expenses being early in the
+ * roster cost twelve cents. Small money, but it was a tax on your surname.
+ *
+ * So the pennies are dealt round the roster and the cursor carries over to the
+ * next expense, skipping anyone who isn't on it. Every expense still splits
+ * exactly as it did before — each person pays base or base+1 and the shares
+ * still sum to the total — only *who* absorbs the rounding moves, and it moves
+ * every time. That takes the spread from twelve cents to one, which is the
+ * floor: somebody has to hold the odd penny.
+ *
+ * Ordered by id, so the answer never depends on what order the rows came back
+ * from the database in.
+ */
+export function splitLedger(
+  expenses: { id: string; cents: number; among: string[] }[],
+  roster?: string[],
+): Map<string, Map<string, number>> {
+  // Each `among` is already in roster order, so merging them in first-seen
+  // order recovers the roster without having to be handed it.
+  const order = roster ?? [];
+  if (!roster) {
+    const seen = new Set<string>();
+    for (const e of expenses)
+      for (const id of e.among) if (!seen.has(id)) { seen.add(id); order.push(id); }
+  }
+
+  const out = new Map<string, Map<string, number>>();
+  if (order.length === 0) return out;
+
+  let cursor = 0;
+  for (const e of [...expenses].sort((a, b) => a.id.localeCompare(b.id))) {
+    const n = e.among.length;
+    if (n === 0) {
+      out.set(e.id, new Map());
+      continue;
+    }
+    const base = Math.floor(e.cents / n);
+    const m = new Map(e.among.map((id) => [id, base]));
+    let extra = e.cents - base * n;
+    let step = 0;
+    while (extra > 0) {
+      const id = order[(cursor + step) % order.length];
+      step++;
+      if (!m.has(id)) continue;
+      m.set(id, (m.get(id) as number) + 1);
+      extra--;
+    }
+    cursor = (cursor + step) % order.length;
+    out.set(e.id, m);
+  }
+  return out;
+}
+
+/**
  * Net position per person: what they paid out, less what they owe.
  * Positive means the group owes them; negative means they owe the group.
  *
@@ -43,15 +102,16 @@ export function shares(cents: number, ids: string[]): Map<string, number> {
  * twelve where two of you bought everything should settle between those two.
  */
 export function balances(
-  expenses: { payer: string; cents: number; among: string[] }[],
+  expenses: { id?: string; payer: string; cents: number; among: string[] }[],
   settlements: { from: string; to: string; cents: number }[] = [],
 ): Map<string, number> {
   const net = new Map<string, number>();
   const bump = (id: string, by: number) => net.set(id, (net.get(id) ?? 0) + by);
-  for (const e of expenses) {
+  const split = splitLedger(expenses.map((e, i) => ({ ...e, id: e.id ?? `#${i}` })));
+  for (const [i, e] of expenses.entries()) {
     if (e.among.length === 0) continue;
     bump(e.payer, e.cents);
-    for (const [id, owed] of shares(e.cents, e.among)) bump(id, -owed);
+    for (const [id, owed] of split.get(e.id ?? `#${i}`) ?? []) bump(id, -owed);
   }
   // Paying someone back is the same move as the transfer that was suggested,
   // so it cancels exactly: the debtor climbs toward zero, the creditor drops.
@@ -160,6 +220,9 @@ export function explain(
   const shareLines: ShareLine[] = [];
   const paidLines: PaidLine[] = [];
   const unsplitPaid: PaidLine[] = [];
+  // The same split the ledger was built from, so a line can't disagree with
+  // the balance it adds up to.
+  const split = splitLedger(expenses);
 
   for (const e of expenses) {
     if (e.payer === memberId) {
@@ -167,7 +230,7 @@ export function explain(
       (e.among.length === 0 ? unsplitPaid : paidLines).push(line);
     }
     if (e.among.length === 0) continue;
-    const yours = shares(e.cents, e.among).get(memberId);
+    const yours = split.get(e.id)?.get(memberId);
     if (yours === undefined) continue;
     shareLines.push({
       expenseId: e.id,

@@ -20,7 +20,7 @@ import {
   explain,
   money,
   settle,
-  shares,
+  splitLedger,
   venmoLink,
   type LedgerExpense,
   type Transfer,
@@ -318,10 +318,6 @@ export function Expenses() {
   const receiptsOf = (expenseId: string) =>
     receipts.filter((r) => r.expense_id === expenseId);
 
-  /** What one person owes on one expense, odd cents and all. */
-  const shareOf = (e: { id: string; amount_cents: number }, memberId: string) =>
-    shares(e.amount_cents, sharesOf(e.id)).get(memberId) ?? 0;
-
   /** The saved group this split matches exactly, if there is one. */
   const namedSplit = (among: string[]) =>
     splitGroups.find(
@@ -457,6 +453,13 @@ export function Expenses() {
     to: x.to_member,
     cents: x.amount_cents,
   }));
+  // One split for the whole ledger, so the detail rows, the proof sheet and
+  // the balances are all reading the same arithmetic — and the odd pennies
+  // rotate instead of always landing on the same people.
+  const split = splitLedger(ledger);
+  /** What one person owes on one expense, odd cents and all. */
+  const shareOf = (e: { id: string }, memberId: string) =>
+    split.get(e.id)?.get(memberId) ?? 0;
   const net = balances(ledger, paidBack);
   const transfers = settle(net);
   const total = expenses.reduce((s, e) => s + e.amount_cents, 0);

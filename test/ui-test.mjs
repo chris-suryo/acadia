@@ -1126,8 +1126,16 @@ const ok = (name, cond, detail = "") => {
   const settleCents = await page
     .locator("[data-settle]")
     .evaluateAll((els) => els.map((e) => Number(e.dataset.settle)));
+  // Against the balance on the page, not a number written down here: the claim
+  // is that these payments clear what you're owed, whatever that works out to.
+  const owedShown = Math.round(
+    parseFloat(
+      (await page.getByText(/You're owed \$/).first().innerText()).match(/\$([\d.]+)/)[1],
+    ) * 100,
+  );
   ok("settle-up pays off exactly what you're owed",
-    settleCents.reduce((a, b) => a + b, 0) === 22136, `${settleCents}`);
+    settleCents.reduce((a, b) => a + b, 0) === owedShown,
+    `${settleCents.reduce((a, b) => a + b, 0)} vs ${owedShown}`);
   ok("one payment per debtor", settleCents.length === 10, `${settleCents.length}`);
   await page.screenshot({ path: `${SHOT_DIR}/10c-expenses-settle.png`, fullPage: true });
 
@@ -1308,9 +1316,17 @@ const ok = (name, cond, detail = "") => {
   ok("a single payment comes out of the sheet",
     (await page.locator("[data-pay]").count()) === 1);
   ok("and says who to pay, in words", await page.getByText("Pay Patrick").isVisible());
-  ok("with a venmo link carrying the amount",
-    (await page.locator('[data-pay] a[href*="venmo.com"]').getAttribute("href"))
-      .includes("amount=43.25"));
+  // Against the row rather than a written-down number: the point is that the
+  // button pays what the card says, whatever the ledger works out to.
+  const payCents = Number(
+    await page.locator("[data-pay]").first().getAttribute("data-pay"),
+  );
+  const payLink = new URL(
+    await page.locator('[data-pay] a[href*="venmo.com"]').getAttribute("href"),
+  );
+  ok("with a venmo link carrying that exact amount",
+    payLink.searchParams.get("amount") === (payCents / 100).toFixed(2),
+    `${payLink.searchParams.get("amount")} vs ${(payCents / 100).toFixed(2)}`);
 
   // A recorded payment pins both of its members exactly like an expense does,
   // so it has to go before anyone can leave the roster — and it lives in the

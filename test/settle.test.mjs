@@ -15,6 +15,7 @@ import {
   money,
   settle,
   shares,
+  splitLedger,
   venmoLink,
 } from "../lib/settle.ts";
 
@@ -303,4 +304,67 @@ test("what you paid on an expense charged to nobody is held apart, not counted",
   assert.equal(e.paidLines.some((l) => l.expenseId === "e5"), false);
   assert.deepEqual(e.unsplitPaid.map((l) => l.expenseId), ["e5"]);
   assert.equal(e.unsplitPaid[0].total, 5000);
+});
+
+// ---- the odd penny ----
+//
+// A real trip: seventeen expenses, twelve people, and almost none of the
+// amounts divide evenly. Handing the spare cent to the front of the roster
+// every single time made being early in the alphabet cost twelve cents.
+
+test("the odd pennies rotate, so the same people aren't short every time", () => {
+  const ids = Array.from({ length: 12 }, (_, i) => `m${String(i).padStart(2, "0")}`);
+  const expenses = Array.from({ length: 17 }, (_, i) => ({
+    id: `e${String(i).padStart(2, "0")}`,
+    cents: 1000 + i * 777,
+    among: ids,
+  }));
+  const split = splitLedger(expenses, ids);
+  const totals = ids.map((id) =>
+    [...split.values()].reduce((a, m) => a + (m.get(id) ?? 0), 0),
+  );
+  const spread = Math.max(...totals) - Math.min(...totals);
+  assert.ok(spread <= 1, `spread of ${spread}¢ across the trip`);
+});
+
+test("every expense still splits base or base+1, and still adds up", () => {
+  const ids = Array.from({ length: 12 }, (_, i) => `m${String(i).padStart(2, "0")}`);
+  const expenses = Array.from({ length: 17 }, (_, i) => ({
+    id: `e${String(i).padStart(2, "0")}`,
+    cents: 1000 + i * 777,
+    among: ids,
+  }));
+  for (const [id, m] of splitLedger(expenses, ids)) {
+    const e = expenses.find((x) => x.id === id);
+    assert.equal(sum([...m.values()]), e.cents, `${id} did not reconcile`);
+    const base = Math.floor(e.cents / 12);
+    for (const v of m.values())
+      assert.ok(v === base || v === base + 1, `${id} paid ${v}, not ${base}/${base + 1}`);
+  }
+});
+
+test("someone left off an expense is never dealt one of its pennies", () => {
+  const ids = ["a", "b", "c", "d"];
+  const expenses = Array.from({ length: 9 }, (_, i) => ({
+    id: `e${i}`,
+    cents: 1001 + i,
+    among: i % 2 === 0 ? ids : ids.filter((x) => x !== "b"),
+  }));
+  for (const [id, m] of splitLedger(expenses, ids)) {
+    const e = expenses.find((x) => x.id === id);
+    if (!e.among.includes("b")) assert.equal(m.has("b"), false, `${id} charged b`);
+  }
+});
+
+test("the split does not depend on what order the rows arrived in", () => {
+  const ids = ["a", "b", "c", "d", "e"];
+  const expenses = Array.from({ length: 11 }, (_, i) => ({
+    id: `e${String(i).padStart(2, "0")}`,
+    cents: 3333 + i * 101,
+    among: ids,
+  }));
+  const forward = splitLedger(expenses, ids);
+  const backward = splitLedger([...expenses].reverse(), ids);
+  for (const id of forward.keys())
+    assert.deepEqual([...forward.get(id)], [...backward.get(id)], `${id} moved`);
 });

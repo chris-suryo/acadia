@@ -129,12 +129,14 @@ Mock mode is a full second implementation of the data layer (`lib/data/mock-impl
 pnpm lint
 pnpm test:unit                        # money, feed text, offline queue, survey merge, aisles
 pnpm build                            # production mode — see below
-NEXT_PUBLIC_DATA_MODE=mock pnpm build
+NEXT_PUBLIC_DATA_MODE=mock pnpm build # must come AFTER: both write .next
 NEXT_PUBLIC_DATA_MODE=mock PORT=3107 pnpm start &
 pnpm test:ui                          # ~340 end-to-end assertions at 390×844
 ```
 
-**Run the production build too, not just the mock one.** Mock mode swaps out `lib/data/supabase-impl.tsx` entirely, so a green mock build says nothing about the file that runs for real users — and the prerender is where it's first executed. A `useState` declared below the `useMemo` that referenced it built fine in mock and failed every deploy for four pushes with `Cannot access 'X' before initialization`, on a site that kept serving the last good build and so looked healthy.
+**Run the production build too, not just the mock one — and run it first.** Both builds write `.next`, so a production build after the mock one leaves the 3107 server serving the wrong data layer and the suite fails in places that have nothing to do with your change.
+
+**Why:** Mock mode swaps out `lib/data/supabase-impl.tsx` entirely, so a green mock build says nothing about the file that runs for real users — and the prerender is where it's first executed. A `useState` declared below the `useMemo` that referenced it built fine in mock and failed every deploy for four pushes with `Cannot access 'X' before initialization`, on a site that kept serving the last good build and so looked healthy.
 
 Kill any old `next start` before restarting — a replaced `.next` under a running server produces phantom failures that look like real regressions.
 
